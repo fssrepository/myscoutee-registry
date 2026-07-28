@@ -300,9 +300,9 @@ func (sqliteStore *Store) AcceptRevenueBatch(
 		CurrencyCount:             currencyCount,
 		Currencies:                cloneRevenueCurrencies(input.Currencies),
 		PayloadHash:               input.PayloadHash,
-		AcceptedAt:                 input.AcceptedAt,
+		AcceptedAt:                input.AcceptedAt,
 		LedgerEntry:               entry,
-		ReceiptSignature:           append([]byte(nil), receiptSignature...),
+		ReceiptSignature:          append([]byte(nil), receiptSignature...),
 	}, false, nil
 }
 
@@ -610,6 +610,21 @@ func (sqliteStore *Store) RevenueSummary(
 	if query.DeploymentID != "" {
 		deploymentFilter = " AND row.deployment_id = ?"
 		arguments = append(arguments, query.DeploymentID)
+	} else if query.GroupID != "" {
+		deploymentFilter = `
+			AND row.deployment_id IN (
+				SELECT state.deployment_id
+				FROM operator_network_state_rows state
+				WHERE state.audit_index = (
+					SELECT MAX(latest.audit_index)
+					FROM operator_network_state_rows latest
+					WHERE latest.deployment_id = state.deployment_id
+				)
+				  AND state.active = 1
+				  AND state.claimed = 1
+				  AND state.effective_group_id = ?
+			)`
+		arguments = append(arguments, query.GroupID)
 	}
 	statement := `
 		WITH active_rows AS (
@@ -670,6 +685,7 @@ func (sqliteStore *Store) RevenueSummary(
 		summary.FractionDigits = minimumFractionDigits
 	}
 	summary.DeploymentID = query.DeploymentID
+	summary.GroupID = query.GroupID
 	summary.RulesetVersion = protocol.RevenueRulesetVersion
 	summary.CommissionRateBasisPoints = protocol.RevenueCommissionBasisPoints
 	summary.NetworkCommissionPoolMinor = protocol.RevenueCommissionMinor(
@@ -681,6 +697,21 @@ func (sqliteStore *Store) RevenueSummary(
 	if query.DeploymentID != "" {
 		activeDeploymentFilter = " AND batch.deployment_id = ?"
 		activeArguments = append(activeArguments, query.DeploymentID)
+	} else if query.GroupID != "" {
+		activeDeploymentFilter = `
+			AND batch.deployment_id IN (
+				SELECT state.deployment_id
+				FROM operator_network_state_rows state
+				WHERE state.audit_index = (
+					SELECT MAX(latest.audit_index)
+					FROM operator_network_state_rows latest
+					WHERE latest.deployment_id = state.deployment_id
+				)
+				  AND state.active = 1
+				  AND state.claimed = 1
+				  AND state.effective_group_id = ?
+			)`
+		activeArguments = append(activeArguments, query.GroupID)
 	}
 	if err := sqliteStore.db.QueryRowContext(
 		ctx,

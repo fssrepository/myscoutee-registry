@@ -99,6 +99,117 @@ func TestDigestAndCanonicalBase64Validation(t *testing.T) {
 	}
 }
 
+func TestCanonicalRevenuePayloadAndReceiptCommitExactOrderedFields(
+	t *testing.T,
+) {
+	t.Parallel()
+	currencies := []RevenueCurrency{
+		{
+			CurrencyCode:             "EUR",
+			FractionDigits:           2,
+			CapturedMinor:            12_345,
+			RefundedMinor:            345,
+			NetMinor:                 12_000,
+			CommissionBasisMinor:     12_000,
+			EstimatedCommissionMinor: 600,
+			PaymentCount:             4,
+		},
+		{
+			CurrencyCode:             "JPY",
+			FractionDigits:           0,
+			CapturedMinor:            20_000,
+			RefundedMinor:            0,
+			NetMinor:                 20_000,
+			CommissionBasisMinor:     20_000,
+			EstimatedCommissionMinor: 1_000,
+			PaymentCount:             2,
+		},
+	}
+	payload := string(RevenuePayload(
+		RevenueKind,
+		"2026-07-27",
+		2,
+		"revbatch_00000000000000000000000000000001",
+		RevenueRulesetVersion,
+		RevenueCommissionBasisPoints,
+		currencies,
+	))
+	wantPayload := "" +
+		"myscoutee-registry-revenue-batch-payload-v1\n" +
+		"daily-revenue\n" +
+		"2026-07-27\n" +
+		"2\n" +
+		"revbatch_00000000000000000000000000000001\n" +
+		"net-captured-revenue-v1\n" +
+		"500\n" +
+		"2\n" +
+		"EUR\n2\n12345\n345\n12000\n12000\n600\n4\n" +
+		"JPY\n0\n20000\n0\n20000\n20000\n1000\n2\n"
+	if payload != wantPayload {
+		t.Fatalf("canonical revenue payload mismatch:\nwant %q\n got %q", wantPayload, payload)
+	}
+
+	receipt := string(RevenueReceiptMessage(
+		Version,
+		"example:region-a",
+		"revbatch_00000000000000000000000000000002",
+		"dep_00000000000000000000000000000001",
+		7,
+		"sha256:entry",
+		"sha256:previous",
+		"sha256:batch",
+		RevenueKind,
+		"2026-07-27",
+		2,
+		"revbatch_00000000000000000000000000000001",
+		RevenueRulesetVersion,
+		RevenueCommissionBasisPoints,
+		2,
+		"2026-07-28T00:00:00Z",
+		"2026-07-28",
+		"rkey_0123456789abcdef0123456789abcdef",
+	))
+	wantReceipt := "" +
+		"myscoutee-registry-revenue-receipt-v1\n" +
+		"1\nexample:region-a\n" +
+		"revbatch_00000000000000000000000000000002\n" +
+		"dep_00000000000000000000000000000001\n" +
+		"7\nsha256:entry\nsha256:previous\nsha256:batch\n" +
+		"daily-revenue\n2026-07-27\n2\n" +
+		"revbatch_00000000000000000000000000000001\n" +
+		"net-captured-revenue-v1\n500\n2\n" +
+		"2026-07-28T00:00:00Z\n2026-07-28\n" +
+		"rkey_0123456789abcdef0123456789abcdef\n"
+	if receipt != wantReceipt {
+		t.Fatalf("canonical revenue receipt mismatch:\nwant %q\n got %q", wantReceipt, receipt)
+	}
+}
+
+func TestRevenueCurrencyMetadataAndCommissionAreDeterministic(t *testing.T) {
+	t.Parallel()
+	for code, want := range map[string]int64{
+		"EUR": 2,
+		"HUF": 2,
+		"JPY": 0,
+		"BHD": 3,
+		"CLF": 4,
+	} {
+		got, ok := ISO4217FractionDigits(code)
+		if !ok || got != want {
+			t.Fatalf("currency %s fraction digits = %d/%v, want %d/true", code, got, ok, want)
+		}
+	}
+	if _, ok := ISO4217FractionDigits("ZZZ"); ok {
+		t.Fatalf("unknown currency code unexpectedly accepted")
+	}
+	if got := RevenueCommissionMinor(19); got != 0 {
+		t.Fatalf("commission floor for 19 minor units = %d, want 0", got)
+	}
+	if got := RevenueCommissionMinor(12_345); got != 617 {
+		t.Fatalf("commission floor for 12345 minor units = %d, want 617", got)
+	}
+}
+
 func TestStructuredOperatorClaimCanonicalPayloadCommitsEveryField(t *testing.T) {
 	t.Parallel()
 	payload := string(OperatorClaimPayload(

@@ -43,9 +43,11 @@ func main() {
 		err = runApproveOperatorClaim(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "leaderboard" {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
+		err = runRevenue(os.Args[2:], os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|leaderboard]",
+			"usage: %s [healthcheck|initialize|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|leaderboard|revenue]",
 			os.Args[0],
 		)
 	} else {
@@ -55,6 +57,78 @@ func main() {
 		logger.Error("registry stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func runRevenue(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("revenue", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	period := flags.String(
+		"period",
+		"",
+		"exact original revenue UTC day in YYYY-MM-DD",
+	)
+	currency := flags.String(
+		"currency",
+		"",
+		"one supported uppercase ISO-4217 settlement currency",
+	)
+	deploymentID := flags.String(
+		"deployment-id",
+		"",
+		"optional exact deployment ID breakdown",
+	)
+	groupID := flags.String(
+		"group-id",
+		"",
+		"optional current claimed operator group breakdown",
+	)
+	flags.Usage = func() {
+		fmt.Fprintln(
+			stdout,
+			"Usage: /registry revenue --period YYYY-MM-DD --currency CODE [--deployment-id ID|--group-id ID]",
+		)
+		fmt.Fprintln(
+			stdout,
+			"Reads immutable active revenue rows from the local registry database. Currencies are never combined.",
+		)
+		fmt.Fprintln(
+			stdout,
+			"network_commission_pool_minor is floor(overall active commission basis × 500 / 10000) for the selected scope.",
+		)
+		flags.PrintDefaults()
+	}
+	help, err := parseCLIFlags(flags, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		return nil
+	}
+	if *period == "" || *currency == "" {
+		flags.Usage()
+		return errors.New("revenue requires --period and --currency")
+	}
+	if *deploymentID != "" && *groupID != "" {
+		return errors.New(
+			"revenue --deployment-id and --group-id are mutually exclusive",
+		)
+	}
+	return withRegistryService(func(
+		ctx context.Context,
+		registryService *service.Service,
+	) error {
+		summary, err := registryService.RevenueSummary(
+			ctx,
+			*period,
+			*currency,
+			*deploymentID,
+			*groupID,
+		)
+		if err != nil {
+			return fmt.Errorf("query revenue: %w", err)
+		}
+		return writeCLIJSON(stdout, summary)
+	})
 }
 
 func runListOperatorClaims(args []string, stdout io.Writer) error {

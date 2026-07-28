@@ -471,22 +471,22 @@ func (sqliteStore *Store) verifyIdempotencyRecords(
 				}
 				foundInitial["deployment\x00"+record.resultID] = true
 			}
-			case "batch":
-				if batch, ok := batches[record.resultID]; ok {
-					if batch.record.DeploymentID != record.signer ||
-						batch.record.IdempotencyKey != record.idempotencyKey ||
-						batch.record.PayloadHash != record.payloadHash {
-						return inconsistentMessage("idempotency record %q has an invalid batch result", record.idempotencyKey)
-					}
-				} else if batch, ok := revenueBatches[record.resultID]; ok {
-					if batch.record.DeploymentID != record.signer ||
-						batch.record.IdempotencyKey != record.idempotencyKey ||
-						batch.record.PayloadHash != record.payloadHash {
-						return inconsistentMessage("idempotency record %q has an invalid revenue batch result", record.idempotencyKey)
-					}
-				} else {
+		case "batch":
+			if batch, ok := batches[record.resultID]; ok {
+				if batch.record.DeploymentID != record.signer ||
+					batch.record.IdempotencyKey != record.idempotencyKey ||
+					batch.record.PayloadHash != record.payloadHash {
 					return inconsistentMessage("idempotency record %q has an invalid batch result", record.idempotencyKey)
 				}
+			} else if batch, ok := revenueBatches[record.resultID]; ok {
+				if batch.record.DeploymentID != record.signer ||
+					batch.record.IdempotencyKey != record.idempotencyKey ||
+					batch.record.PayloadHash != record.payloadHash {
+					return inconsistentMessage("idempotency record %q has an invalid revenue batch result", record.idempotencyKey)
+				}
+			} else {
+				return inconsistentMessage("idempotency record %q has an invalid batch result", record.idempotencyKey)
+			}
 			foundInitial["batch\x00"+record.resultID] = true
 		default:
 			return inconsistentMessage("idempotency record %q has an invalid result type", record.idempotencyKey)
@@ -621,25 +621,25 @@ func (sqliteStore *Store) verifyNonceRecords(
 			}
 			publicKey = deployment.publicKey
 			path = protocol.RegistrationPath
-			case "batch":
-				path = protocol.BatchPath
-				if batch, ok := batches[proof.resultID]; ok {
-					if batch.record.DeploymentID != proof.signer {
-						return inconsistentMessage("nonce %q has an invalid batch result", proof.nonce)
-					}
-				} else if batch, ok := revenueBatches[proof.resultID]; ok {
-					if batch.record.DeploymentID != proof.signer {
-						return inconsistentMessage("nonce %q has an invalid revenue batch result", proof.nonce)
-					}
-					path = protocol.RevenueBatchPath
-				} else {
+		case "batch":
+			path = protocol.BatchPath
+			if batch, ok := batches[proof.resultID]; ok {
+				if batch.record.DeploymentID != proof.signer {
 					return inconsistentMessage("nonce %q has an invalid batch result", proof.nonce)
 				}
-				deployment, ok := deployments[proof.signer]
+			} else if batch, ok := revenueBatches[proof.resultID]; ok {
+				if batch.record.DeploymentID != proof.signer {
+					return inconsistentMessage("nonce %q has an invalid revenue batch result", proof.nonce)
+				}
+				path = protocol.RevenueBatchPath
+			} else {
+				return inconsistentMessage("nonce %q has an invalid batch result", proof.nonce)
+			}
+			deployment, ok := deployments[proof.signer]
 			if !ok {
 				return inconsistentMessage("nonce %q has an unknown deployment signer", proof.nonce)
 			}
-				publicKey = deployment.publicKey
+			publicKey = deployment.publicKey
 		default:
 			return inconsistentMessage("nonce %q has an invalid result type", proof.nonce)
 		}

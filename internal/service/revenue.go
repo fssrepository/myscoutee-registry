@@ -330,6 +330,7 @@ func (registry *Service) RevenueSummary(
 	period string,
 	currencyCode string,
 	deploymentID string,
+	groupID string,
 ) (protocol.RevenueSummary, error) {
 	if _, err := time.Parse("2006-01-02", period); err != nil ||
 		!revenuePeriodPattern.MatchString(period) {
@@ -353,6 +354,18 @@ func (registry *Service) RevenueSummary(
 			"deployment_id is malformed",
 		)
 	}
+	if groupID != "" && !operatorGroupIDPattern.MatchString(groupID) {
+		return protocol.RevenueSummary{}, requestError(
+			"invalid_request",
+			"group_id is malformed",
+		)
+	}
+	if deploymentID != "" && groupID != "" {
+		return protocol.RevenueSummary{}, requestError(
+			"invalid_request",
+			"deployment_id and group_id are mutually exclusive",
+		)
+	}
 	if err := registry.VerifyState(ctx); err != nil {
 		return protocol.RevenueSummary{}, requestError(
 			"registry_integrity_unavailable",
@@ -360,10 +373,11 @@ func (registry *Service) RevenueSummary(
 		)
 	}
 	return registry.store.RevenueSummary(ctx, store.RevenueQuery{
-		Period:       period,
-		CurrencyCode: currencyCode,
+		Period:         period,
+		CurrencyCode:   currencyCode,
 		FractionDigits: fractionDigits,
-		DeploymentID: deploymentID,
+		DeploymentID:   deploymentID,
+		GroupID:        groupID,
 	})
 }
 

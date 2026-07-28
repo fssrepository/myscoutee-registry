@@ -143,21 +143,21 @@ type RevenueBatchInput struct {
 }
 
 type RevenueBatchRecord struct {
-	BatchID                  string
-	DeploymentID             string
-	IdempotencyKey           string
-	Kind                     string
-	Period                   string
-	Revision                 int64
-	SupersedesBatchID        string
-	RulesetVersion           string
+	BatchID                   string
+	DeploymentID              string
+	IdempotencyKey            string
+	Kind                      string
+	Period                    string
+	Revision                  int64
+	SupersedesBatchID         string
+	RulesetVersion            string
 	CommissionRateBasisPoints int64
-	CurrencyCount            int64
-	Currencies               []protocol.RevenueCurrency
-	PayloadHash              string
-	AcceptedAt               string
-	LedgerEntry              protocol.LedgerEntry
-	ReceiptSignature         []byte
+	CurrencyCount             int64
+	Currencies                []protocol.RevenueCurrency
+	PayloadHash               string
+	AcceptedAt                string
+	LedgerEntry               protocol.LedgerEntry
+	ReceiptSignature          []byte
 }
 
 type RevenueReceiptSigner func(
@@ -168,10 +168,11 @@ type RevenueReceiptSigner func(
 ) ([]byte, error)
 
 type RevenueQuery struct {
-	Period       string
-	CurrencyCode string
+	Period         string
+	CurrencyCode   string
 	FractionDigits int64
-	DeploymentID string
+	DeploymentID   string
+	GroupID        string
 }
 
 type Store interface {

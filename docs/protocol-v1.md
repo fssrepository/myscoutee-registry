@@ -1,15 +1,17 @@
 # MyScoutee Registry Protocol v1
 
-This document fixes the wire and signature format for the first registry
-milestone. It is intentionally limited to deployment registration, one
-installation-test MAU batch, signed receipts, and daily checkpoints.
+This document fixes the wire and signature format for deployment registration,
+the non-accounting installation-test MAU batch, aggregate daily revenue
+snapshots/corrections, signed receipts, and daily checkpoints. It does not
+define production qualified MAU or global-human deduplication.
 
 ## Encoding rules
 
 - HTTP JSON is UTF-8 with `Content-Type: application/json`.
 - Protocol version is the JSON string `"1"`.
 - Timestamps are RFC 3339 UTC timestamps ending in the literal `Z`.
-- Periods use `YYYY-MM`.
+- Installation-test MAU periods use `YYYY-MM`.
+- Revenue periods use an original payment UTC day in `YYYY-MM-DD`.
 - Checkpoint dates use `YYYY-MM-DD` in UTC.
 - Binary values use standard padded RFC 4648 base64.
 - SHA-256 values use `sha256:` followed by 64 lowercase hexadecimal digits.
@@ -17,6 +19,8 @@ installation-test MAU batch, signed receipts, and daily checkpoints.
   characters.
 - Batch IDs are `batch_` followed by exactly 32 lowercase hexadecimal
   characters.
+- Revenue batch IDs are `revbatch_` followed by exactly 32 lowercase
+  hexadecimal characters.
 - Canonical values must not contain CR or LF.
 - Every canonical message is its listed fields joined with LF (`\n`) and has
   one final LF.
@@ -357,6 +361,174 @@ GET /v1/mau/batches/{batch_id}/receipt
 The immediate receipt names the UTC checkpoint date that will cover the entry.
 That daily checkpoint is immutable and is finalized only after the UTC date has
 closed.
+
+## Daily aggregate revenue batches
+
+Revenue ingestion is a distinct signed endpoint:
+
+```text
+POST /v1/revenue/batches
+```
+
+It accepts privacy-safe per-currency totals only. It never accepts payment,
+customer, user, booking, or provider identifiers. The fixed v1 accounting
+metadata is:
+
+```text
+kind                         = daily-revenue
+ruleset_version              = net-captured-revenue-v1
+commission_rate_basis_points = 500
+```
+
+`period` is the original payment UTC day. Revision 1 has an empty
+`supersedes_batch_id`. A correction is a complete immutable replacement
+snapshot for the same deployment/day, increments `revision` by exactly one,
+and names the currently active prior batch in `supersedes_batch_id`. A stale or
+branching correction is rejected. Old revisions remain in the ledger and
+direct query tables; reads select only the latest revision.
+
+The request is:
+
+```json
+{
+  "protocol_version": "1",
+  "registry_scope": "example:region-a",
+  "deployment_id": "dep_...",
+  "timestamp": "2026-07-28T00:00:02Z",
+  "nonce": "nonce_...",
+  "idempotency_key": "revenue_2026_07_27_revision_1",
+  "kind": "daily-revenue",
+  "period": "2026-07-27",
+  "revision": 1,
+  "supersedes_batch_id": "",
+  "ruleset_version": "net-captured-revenue-v1",
+  "commission_rate_basis_points": 500,
+  "currencies": [
+    {
+      "currency_code": "EUR",
+      "fraction_digits": 2,
+      "captured_minor": 12345,
+      "refunded_minor": 345,
+      "net_minor": 12000,
+      "commission_basis_minor": 12000,
+      "estimated_commission_minor": 600,
+      "payment_count": 4
+    }
+  ],
+  "payload_hash": "sha256:...",
+  "signature": "<base64 Ed25519 signature>"
+}
+```
+
+Currencies must be strictly sorted and unique by `currency_code`. The registry
+uses a deterministic supported ISO-4217 code/exponent table and rejects unknown
+codes or mismatched `fraction_digits`. It never converts or aggregates between
+currencies. An empty array is valid and records an explicit zero-revenue day.
+At most 32 currencies are accepted. Every minor-unit value is bounded at
+`9000000000000000` and `payment_count` at `1000000000000`; the registry also
+rejects a write that would overflow the active per-day/currency aggregate.
+
+For each row:
+
+```text
+captured_minor >= 0
+0 <= refunded_minor <= captured_minor
+net_minor = captured_minor - refunded_minor
+commission_basis_minor = net_minor
+estimated_commission_minor = floor(commission_basis_minor * 500 / 10000)
+payment_count >= 0
+```
+
+The `currencies` field contains accounting totals, not a transaction list. The
+canonical revenue payload is:
+
+```text
+myscoutee-registry-revenue-batch-payload-v1
+<kind>
+<period>
+<revision>
+<supersedes_batch_id>
+<ruleset_version>
+<commission_rate_basis_points>
+<currency row count>
+<first currency_code>
+<first fraction_digits>
+<first captured_minor>
+<first refunded_minor>
+<first net_minor>
+<first commission_basis_minor>
+<first estimated_commission_minor>
+<first payment_count>
+... eight lines for each remaining sorted currency row
+```
+
+The request `payload_hash` is the SHA-256 digest of that message. The generic
+request signature uses `/v1/revenue/batches` and the deployment ID as signer.
+
+An accepted batch appends `REVENUE_BATCH_ACCEPTED` to the same hash-linked
+ledger as installation-test entries. Its existing ledger message format is
+unchanged: revenue uses `qualified_mau_count = 0`, and `batch_hash` is the
+verified revenue payload hash. Therefore introducing revenue does not change
+or invalidate any historical ledger hash or completed-day checkpoint.
+
+In the same SQLite transaction, the registry also writes immutable
+`revenue_batches` and one `revenue_query_rows` row per currency. These rows are
+the directly queryable representation; they are not an asynchronous projection
+and are never repaired from the ledger. Integrity verification independently
+compares every source batch, signed request, receipt, ledger entry, revision
+link, and query row.
+
+The registry receipt signature input is:
+
+```text
+myscoutee-registry-revenue-receipt-v1
+<protocol_version>
+<registry_scope>
+<batch_id>
+<deployment_id>
+<ledger_index>
+<entry_hash>
+<previous_entry_hash>
+<batch_hash>
+<kind>
+<period>
+<revision>
+<supersedes_batch_id>
+<ruleset_version>
+<commission_rate_basis_points>
+<currency_count>
+<accepted_at>
+<checkpoint_date>
+<registry_key_id>
+```
+
+The response has the same top-level identity/idempotency fields as an MAU
+batch response and a receipt containing every canonical field above plus
+`registry_public_key` and `signature`. Receipt lookup is:
+
+```text
+GET /v1/revenue/batches/{revbatch_id}/receipt
+```
+
+The local registry-administrator CLI can query one currency at a time:
+
+```text
+/registry revenue --period 2026-07-27 --currency EUR
+/registry revenue --period 2026-07-27 --currency EUR --deployment-id dep_...
+/registry revenue --period 2026-07-27 --currency EUR --group-id opg_...
+```
+
+There is intentionally no unauthenticated public revenue query endpoint.
+`network_commission_pool_minor` is calculated once from the selected aggregate:
+
+```text
+floor(SUM(active commission_basis_minor) * 500 / 10000)
+```
+
+It is not the sum of already-rounded deployment estimates. The CLI reports the
+currency and minor-unit exponent with the total; the registry does not perform
+foreign-exchange conversion. This is an auditable technical pool calculation,
+not a legal settlement or payout decision.
 
 ## Daily checkpoint
 

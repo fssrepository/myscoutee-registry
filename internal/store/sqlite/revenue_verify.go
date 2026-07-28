@@ -176,10 +176,10 @@ func (sqliteStore *Store) verifyRevenueBatches(
 			batchID:  batch.record.BatchID,
 		}
 
-			currencies, err := sqliteStore.verifyRevenueQueryRows(
-				batch.record,
-				queryRows[batch.record.BatchID],
-			)
+		currencies, err := sqliteStore.verifyRevenueQueryRows(
+			batch.record,
+			queryRows[batch.record.BatchID],
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -263,8 +263,8 @@ func (sqliteStore *Store) verifyRevenueBatches(
 				batch.record.BatchID,
 			)
 		}
-			verified[batch.record.BatchID] = batch
-			delete(queryRows, batch.record.BatchID)
+		verified[batch.record.BatchID] = batch
+		delete(queryRows, batch.record.BatchID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, inconsistent("iterate revenue batches for verification", err)
@@ -376,16 +376,16 @@ func (sqliteStore *Store) verifyRevenueAggregates(ctx context.Context) error {
 }
 
 type persistedRevenueQueryRow struct {
-	batchID             string
-	index               int64
-	ledgerIndex         int64
-	deploymentID        string
-	period              string
-	revision            int64
-	supersedesBatchID   string
-	currency            protocol.RevenueCurrency
-	acceptedAt          string
-	sourceEntryHash     string
+	batchID           string
+	index             int64
+	ledgerIndex       int64
+	deploymentID      string
+	period            string
+	revision          int64
+	supersedesBatchID string
+	currency          protocol.RevenueCurrency
+	acceptedAt        string
+	sourceEntryHash   string
 }
 
 func (sqliteStore *Store) loadRevenueQueryRows(

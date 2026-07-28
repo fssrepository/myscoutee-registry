@@ -75,22 +75,23 @@ type RevenueBatchResponse struct {
 }
 
 type RevenueSummary struct {
-	Period                    string `json:"period"`
-	CurrencyCode              string `json:"currency_code"`
-	FractionDigits            int64  `json:"fraction_digits"`
-	DeploymentID              string `json:"deployment_id,omitempty"`
-	DeploymentCount           int64  `json:"deployment_count"`
-	ActiveBatchCount                   int64  `json:"active_batch_count"`
-	CurrencyBatchCount                 int64  `json:"currency_batch_count"`
-	CapturedMinor                      int64  `json:"captured_minor"`
-	RefundedMinor                      int64  `json:"refunded_minor"`
-	NetMinor                           int64  `json:"net_minor"`
-	CommissionBasisMinor               int64  `json:"commission_basis_minor"`
-	NetworkCommissionPoolMinor         int64  `json:"network_commission_pool_minor"`
-	ReportedEstimatedCommissionMinor   int64  `json:"reported_estimated_commission_minor"`
-	PaymentCount                       int64  `json:"payment_count"`
-	RulesetVersion                     string `json:"ruleset_version"`
-	CommissionRateBasisPoints          int64  `json:"commission_rate_basis_points"`
+	Period                           string `json:"period"`
+	CurrencyCode                     string `json:"currency_code"`
+	FractionDigits                   int64  `json:"fraction_digits"`
+	DeploymentID                     string `json:"deployment_id,omitempty"`
+	GroupID                          string `json:"group_id,omitempty"`
+	DeploymentCount                  int64  `json:"deployment_count"`
+	ActiveBatchCount                 int64  `json:"active_batch_count"`
+	CurrencyBatchCount               int64  `json:"currency_batch_count"`
+	CapturedMinor                    int64  `json:"captured_minor"`
+	RefundedMinor                    int64  `json:"refunded_minor"`
+	NetMinor                         int64  `json:"net_minor"`
+	CommissionBasisMinor             int64  `json:"commission_basis_minor"`
+	NetworkCommissionPoolMinor       int64  `json:"network_commission_pool_minor"`
+	ReportedEstimatedCommissionMinor int64  `json:"reported_estimated_commission_minor"`
+	PaymentCount                     int64  `json:"payment_count"`
+	RulesetVersion                   string `json:"ruleset_version"`
+	CommissionRateBasisPoints        int64  `json:"commission_rate_basis_points"`
 }
 
 func RevenuePayload(

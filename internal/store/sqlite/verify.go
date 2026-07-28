@@ -127,8 +127,8 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 
 	for rows.Next() {
 		var (
-				ledgerIndex       int64
-				entryType        string
+			ledgerIndex       int64
+			entryType         string
 			deploymentID      string
 			period            string
 			rulesetVersion    string
@@ -147,8 +147,8 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			rowSourceEntryHash   sql.NullString
 		)
 		if err := rows.Scan(
-				&ledgerIndex,
-				&entryType,
+			&ledgerIndex,
+			&entryType,
 			&deploymentID,
 			&period,
 			&rulesetVersion,
@@ -168,25 +168,25 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			rows.Close()
 			return fmt.Errorf("scan ledger weight row: %w", err)
 		}
-			if entryType == protocol.RevenueEntryType {
-				if rowLedgerIndex.Valid {
-					rows.Close()
-					return fmt.Errorf(
-						"revenue ledger entry %d unexpectedly has a weight row",
-						ledgerIndex,
-					)
-				}
-				continue
-			}
-			if entryType != protocol.InstallationEntryType {
+		if entryType == protocol.RevenueEntryType {
+			if rowLedgerIndex.Valid {
 				rows.Close()
 				return fmt.Errorf(
-					"ledger entry %d has unsupported type %q",
+					"revenue ledger entry %d unexpectedly has a weight row",
 					ledgerIndex,
-					entryType,
 				)
 			}
-			if !rowLedgerIndex.Valid {
+			continue
+		}
+		if entryType != protocol.InstallationEntryType {
+			rows.Close()
+			return fmt.Errorf(
+				"ledger entry %d has unsupported type %q",
+				ledgerIndex,
+				entryType,
+			)
+		}
+		if !rowLedgerIndex.Valid {
 			rows.Close()
 			return fmt.Errorf("ledger entry %d has no matching ledger weight row", ledgerIndex)
 		}
