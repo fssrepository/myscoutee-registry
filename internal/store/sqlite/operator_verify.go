@@ -199,9 +199,11 @@ func (sqliteStore *Store) verifyOperatorAuditEvents(
 			event.ClaimState,
 			event.GroupID,
 			event.LinkID,
-			event.TokenID,
-			event.ClientTokenHash,
-			event.TokenExpiresAt,
+				event.TokenID,
+				event.ClientTokenHash,
+				event.SourceClaimActionID,
+				event.SourcePrivateRecordHash,
+				event.TokenExpiresAt,
 			event.PreviousAuditHash,
 		))
 		if event.AuditHash != expectedAuditHash {
@@ -382,6 +384,12 @@ func operatorEventPayloadHash(
 	event store.OperatorAuditEvent,
 	submission store.OperatorClaimSubmission,
 ) (string, bool, error) {
+	hasSourceClaim := event.SourceClaimActionID != ""
+	hasSourceHash := event.SourcePrivateRecordHash != ""
+	if hasSourceClaim != hasSourceHash ||
+		(event.Action != protocol.OperatorActionRedeemClientToken && hasSourceClaim) {
+		return "", false, store.ErrInconsistentState
+	}
 	operatorName := ""
 	operatorAvatarURL := ""
 	clientTokenHash := ""
@@ -425,6 +433,8 @@ func operatorEventPayloadHash(
 			if event.ClaimState != protocol.OperatorClaimStatePendingReview ||
 				event.LinkID != "" ||
 				event.RelatedDeploymentID == "" ||
+				!validHexID(event.SourceClaimActionID, "opa_", 32) ||
+				!protocol.IsDigest(event.SourcePrivateRecordHash) ||
 				validateOperatorClaimSubmission(event, submission) != nil {
 				return "", false, store.ErrInconsistentState
 			}
@@ -437,6 +447,9 @@ func operatorEventPayloadHash(
 				"",
 				"",
 			)), true, nil
+		}
+		if hasSourceClaim {
+			return "", false, store.ErrInconsistentState
 		}
 		clientTokenHash = event.ClientTokenHash
 	case protocol.OperatorActionRevokeGroupLink:
@@ -512,6 +525,8 @@ func operatorReceipt(
 		LinkID:              event.LinkID,
 		TokenID:             event.TokenID,
 		ClientTokenHash:     event.ClientTokenHash,
+		SourceClaimActionID: event.SourceClaimActionID,
+		SourcePrivateRecordHash: event.SourcePrivateRecordHash,
 		TokenExpiresAt:      event.TokenExpiresAt,
 		RegistryScope:       registryScope,
 		RegistryKeyID:       event.RegistryKeyID,

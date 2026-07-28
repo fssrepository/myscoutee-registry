@@ -80,6 +80,8 @@ type OperatorActionReceipt struct {
 	TokenID             string `json:"token_id,omitempty"`
 	ClientToken         string `json:"client_token,omitempty"`
 	ClientTokenHash     string `json:"client_token_hash,omitempty"`
+	SourceClaimActionID string `json:"source_claim_action_id,omitempty"`
+	SourcePrivateRecordHash string `json:"source_private_record_hash,omitempty"`
 	TokenExpiresAt      string `json:"token_expires_at,omitempty"`
 	RegistryScope       string `json:"registry_scope"`
 	RegistryKeyID       string `json:"registry_key_id"`
@@ -299,9 +301,33 @@ func OperatorAuditMessage(
 	linkID string,
 	tokenID string,
 	clientTokenHash string,
+	sourceClaimActionID string,
+	sourcePrivateRecordHash string,
 	tokenExpiresAt string,
 	previousAuditHash string,
 ) []byte {
+	if sourceClaimActionID != "" || sourcePrivateRecordHash != "" {
+		return canonical(
+			"myscoutee-registry-operator-audit-v2",
+			strconv.FormatInt(auditIndex, 10),
+			actionID,
+			deploymentID,
+			subjectDeploymentID,
+			relatedDeploymentID,
+			action,
+			payloadHash,
+			acceptedAt,
+			claimState,
+			groupID,
+			linkID,
+			tokenID,
+			clientTokenHash,
+			sourceClaimActionID,
+			sourcePrivateRecordHash,
+			tokenExpiresAt,
+			previousAuditHash,
+		)
+	}
 	return canonical(
 		"myscoutee-registry-operator-audit-v1",
 		strconv.FormatInt(auditIndex, 10),
@@ -323,6 +349,30 @@ func OperatorAuditMessage(
 }
 
 func OperatorActionReceiptMessage(receipt OperatorActionReceipt) []byte {
+	if receipt.SourceClaimActionID != "" || receipt.SourcePrivateRecordHash != "" {
+		return canonical(
+			"myscoutee-registry-operator-action-receipt-v2",
+			strconv.FormatInt(receipt.AuditIndex, 10),
+			receipt.AuditHash,
+			receipt.PreviousAuditHash,
+			receipt.ActionID,
+			receipt.DeploymentID,
+			receipt.SubjectDeploymentID,
+			receipt.RelatedDeploymentID,
+			receipt.Action,
+			receipt.AcceptedAt,
+			receipt.ClaimState,
+			receipt.GroupID,
+			receipt.LinkID,
+			receipt.TokenID,
+			receipt.ClientTokenHash,
+			receipt.SourceClaimActionID,
+			receipt.SourcePrivateRecordHash,
+			receipt.TokenExpiresAt,
+			receipt.RegistryScope,
+			receipt.RegistryKeyID,
+		)
+	}
 	return canonical(
 		"myscoutee-registry-operator-action-receipt-v1",
 		strconv.FormatInt(receipt.AuditIndex, 10),

@@ -59,6 +59,8 @@ type OperatorAuditEvent struct {
 	LinkID              string
 	TokenID             string
 	ClientTokenHash     string
+	SourceClaimActionID string
+	SourcePrivateRecordHash string
 	TokenTTLSeconds     int64
 	TokenExpiresAt      string
 	AcceptedAt          string

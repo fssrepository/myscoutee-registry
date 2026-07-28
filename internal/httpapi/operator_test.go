@@ -954,9 +954,18 @@ func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T)
 		ClientToken:    issued.Receipt.ClientToken,
 	})
 	redeemed := fixture.acceptOperatorAction(t, redeemRequest, http.StatusCreated)
+	sourceSubmission, _, err := fixture.runtime.Store.OperatorClaimSubmission(
+		context.Background(),
+		issuer.id,
+	)
+	if err != nil {
+		t.Fatalf("read approved source submission: %v", err)
+	}
 	if redeemed.Receipt.ClaimState != protocol.OperatorClaimStatePendingReview ||
 		redeemed.Receipt.GroupID != claim.Receipt.GroupID ||
 		redeemed.Receipt.RelatedDeploymentID != issuer.id ||
+		redeemed.Receipt.SourceClaimActionID != claim.Receipt.ActionID ||
+		redeemed.Receipt.SourcePrivateRecordHash != sourceSubmission.PrivateRecordHash ||
 		redeemed.Receipt.LinkID != "" {
 		t.Fatalf("unexpected token-derived pending claim: %+v", redeemed)
 	}
@@ -993,6 +1002,26 @@ func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T)
 		detail.VerificationContactEmail != claimDraft.VerificationContactEmail {
 		t.Fatalf("token-derived review detail did not retain approved company data: %+v", detail)
 	}
+
+	derivedPrematureIssue := fixture.operatorAction(t, target, protocol.OperatorActionRequest{
+		Nonce:           "nonce_issue_from_pending_derived_claim",
+		IdempotencyKey:  "issue_from_pending_derived_claim",
+		Action:          protocol.OperatorActionIssueClientToken,
+		TokenTTLSeconds: 300,
+	})
+	statusCode, body = jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		derivedPrematureIssue,
+	)
+	assertAPIError(
+		t,
+		statusCode,
+		body,
+		http.StatusConflict,
+		"operator_claim_required",
+	)
 
 	redeemRetry := redeemRequest
 	redeemRetry.Nonce = "nonce_redeem_client_code_retry"
@@ -1266,6 +1295,8 @@ func assertOperatorReceipt(
 		receipt.LinkID,
 		receipt.TokenID,
 		receipt.ClientTokenHash,
+		receipt.SourceClaimActionID,
+		receipt.SourcePrivateRecordHash,
 		receipt.TokenExpiresAt,
 		receipt.PreviousAuditHash,
 	))

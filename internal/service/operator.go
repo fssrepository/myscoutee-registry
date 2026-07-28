@@ -529,6 +529,8 @@ func (registry *Service) operatorActionReceipt(
 		LinkID:              event.LinkID,
 		TokenID:             event.TokenID,
 		ClientTokenHash:     event.ClientTokenHash,
+		SourceClaimActionID: event.SourceClaimActionID,
+		SourcePrivateRecordHash: event.SourcePrivateRecordHash,
 		TokenExpiresAt:      event.TokenExpiresAt,
 		RegistryScope:       registry.registryScope,
 		RegistryKeyID:       registry.signingKey.KeyID(),

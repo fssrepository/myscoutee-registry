@@ -146,10 +146,12 @@ func (sqliteStore *Store) AppendOperatorAction(
 		event.ClaimState,
 		event.GroupID,
 		event.LinkID,
-		event.TokenID,
-		event.ClientTokenHash,
-		event.TokenExpiresAt,
-		event.PreviousAuditHash,
+			event.TokenID,
+			event.ClientTokenHash,
+			event.SourceClaimActionID,
+			event.SourcePrivateRecordHash,
+			event.TokenExpiresAt,
+			event.PreviousAuditHash,
 	))
 	event.ReceiptSignature, err = signReceipt(event)
 	if err != nil {
@@ -218,10 +220,12 @@ func deriveOperatorActionTx(
 		if !active || !membership.Claimed {
 			return store.ErrOperatorClaimRequired
 		}
-		if _, err := operatorGroupClaimSubmissionTx(
+		if _, err := approvedOperatorClaimSubmissionTx(
 			ctx,
 			tx,
+			input.DeploymentID,
 			membership.GroupID,
+			input.AcceptedAt,
 		); err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				return store.ErrOperatorClaimRequired
@@ -284,6 +288,19 @@ func deriveOperatorActionTx(
 		if issuerMembership.GroupID != token.GroupID {
 			return store.ErrOperatorActionConflict
 		}
+		source, err := approvedOperatorClaimSubmissionTx(
+			ctx,
+			tx,
+			token.DeploymentID,
+			token.GroupID,
+			input.AcceptedAt,
+		)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return store.ErrOperatorClaimRequired
+			}
+			return err
+		}
 		if targetMembership.Claimed &&
 			issuerMembership.GroupID == targetMembership.GroupID {
 			return store.ErrOperatorActionConflict
@@ -292,20 +309,11 @@ func deriveOperatorActionTx(
 			event.ClaimState = claim.ClaimState
 			event.LinkID = input.CandidateLinkID
 		} else {
-			source, err := operatorGroupClaimSubmissionTx(
-				ctx,
-				tx,
-				token.GroupID,
-			)
-			if err != nil {
-				if errors.Is(err, store.ErrNotFound) {
-					return store.ErrOperatorClaimRequired
-				}
-				return err
-			}
 			event.ClaimState = protocol.OperatorClaimStatePendingReview
 			event.OperatorName = source.LegalName
 			event.OperatorAvatarURL = source.OperatorAvatarURL
+			event.SourceClaimActionID = source.ClaimActionID
+			event.SourcePrivateRecordHash = source.PrivateRecordHash
 		}
 		event.GroupID = issuerMembership.GroupID
 		event.TokenID = token.TokenID
@@ -569,10 +577,12 @@ func operatorMembershipTx(
 	}, nil
 }
 
-func operatorGroupClaimSubmissionTx(
+func approvedOperatorClaimSubmissionTx(
 	ctx context.Context,
 	tx *sql.Tx,
+	deploymentID string,
 	groupID string,
+	acceptedAt string,
 ) (store.OperatorClaimSubmission, error) {
 	submission, err := scanOperatorClaimSubmission(tx.QueryRowContext(ctx, `
 		SELECT
@@ -595,12 +605,16 @@ func operatorGroupClaimSubmissionTx(
 		FROM operator_claim_status status
 		JOIN operator_claim_verification_submissions submission
 		  ON submission.claim_action_id = status.claim_action_id
-		WHERE status.group_id = ?
+		WHERE status.deployment_id = ?
+		  AND status.group_id = ?
 		  AND status.verification_state = 'approved'
+		  AND status.approved_at <> ''
+		  AND status.approved_at <= ?
 		  AND submission.website <> ''
-		ORDER BY status.claim_audit_index
 		LIMIT 1`,
+		deploymentID,
 		groupID,
+		acceptedAt,
 	))
 	if err != nil {
 		return store.OperatorClaimSubmission{}, fmt.Errorf(
@@ -707,16 +721,18 @@ func insertOperatorAuditEventTx(
 			claim_state,
 			group_id,
 			link_id,
-			token_id,
-			client_token_hash,
-			token_ttl_seconds,
+				token_id,
+				client_token_hash,
+				source_claim_action_id,
+				source_private_record_hash,
+				token_ttl_seconds,
 			token_expires_at,
 			accepted_at,
 			previous_audit_hash,
 			audit_hash,
 			registry_key_id,
 			receipt_signature
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.AuditIndex,
 		event.ActionID,
 		event.DeploymentID,
@@ -734,9 +750,11 @@ func insertOperatorAuditEventTx(
 		event.ClaimState,
 		event.GroupID,
 		event.LinkID,
-		event.TokenID,
-		event.ClientTokenHash,
-		event.TokenTTLSeconds,
+			event.TokenID,
+			event.ClientTokenHash,
+			event.SourceClaimActionID,
+			event.SourcePrivateRecordHash,
+			event.TokenTTLSeconds,
 		event.TokenExpiresAt,
 		event.AcceptedAt,
 		event.PreviousAuditHash,
@@ -780,15 +798,21 @@ func writeOperatorClaimStateTx(
 			event.LinkID != "" {
 			return nil
 		}
-		source, err := operatorGroupClaimSubmissionTx(
-			ctx,
-			tx,
-			event.GroupID,
-		)
-		if err != nil {
-			return err
-		}
-		return writePendingOperatorClaimTx(ctx, tx, event, source)
+			source, err := approvedOperatorClaimSubmissionTx(
+				ctx,
+				tx,
+				event.RelatedDeploymentID,
+				event.GroupID,
+				event.AcceptedAt,
+			)
+			if err != nil {
+				return err
+			}
+			if source.ClaimActionID != event.SourceClaimActionID ||
+				source.PrivateRecordHash != event.SourcePrivateRecordHash {
+				return store.ErrInconsistentState
+			}
+			return writePendingOperatorClaimTx(ctx, tx, event, source)
 	case protocol.OperatorActionWithdrawClaim:
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE operator_claim_status
@@ -993,9 +1017,11 @@ const operatorAuditSelect = `
 		claim_state,
 		group_id,
 		link_id,
-		token_id,
-		client_token_hash,
-		token_ttl_seconds,
+			token_id,
+			client_token_hash,
+			source_claim_action_id,
+			source_private_record_hash,
+			token_ttl_seconds,
 		token_expires_at,
 		accepted_at,
 		previous_audit_hash,
@@ -1026,6 +1052,8 @@ func scanOperatorAuditEvent(row rowScanner) (store.OperatorAuditEvent, error) {
 		&event.LinkID,
 		&event.TokenID,
 		&event.ClientTokenHash,
+		&event.SourceClaimActionID,
+		&event.SourcePrivateRecordHash,
 		&event.TokenTTLSeconds,
 		&event.TokenExpiresAt,
 		&event.AcceptedAt,

@@ -73,12 +73,253 @@ func (sqliteStore *Store) verifyOperatorClaimReviews(
 	if err != nil {
 		return err
 	}
+	if err := verifyOperatorActionSemantics(actions, submissions, reviews); err != nil {
+		return err
+	}
 	return sqliteStore.verifyOperatorClaimStatusRows(
 		ctx,
 		actions,
 		submissions,
 		reviews,
 	)
+}
+
+type verifiedOperatorDeploymentState struct {
+	Active          bool
+	Claimed         bool
+	ClaimActionID   string
+	ClaimGroupID    string
+	EffectiveGroupID string
+	LinkID          string
+}
+
+type verifiedOperatorTokenState struct {
+	Issue    store.OperatorAuditEvent
+	Legacy   bool
+	Revoked  bool
+	Redeemed bool
+}
+
+func verifyOperatorActionSemantics(
+	actions map[string]verifiedOperatorAction,
+	submissions map[string]store.OperatorClaimSubmission,
+	reviews map[string]store.OperatorClaimReview,
+) error {
+	ordered := make([]store.OperatorAuditEvent, 0, len(actions))
+	for _, action := range actions {
+		ordered = append(ordered, action.event)
+	}
+	sort.Slice(ordered, func(left, right int) bool {
+		return ordered[left].AuditIndex < ordered[right].AuditIndex
+	})
+
+	deployments := make(map[string]verifiedOperatorDeploymentState)
+	tokens := make(map[string]verifiedOperatorTokenState)
+	tokenHashes := make(map[string]string)
+	for _, event := range ordered {
+		state, exists := deployments[event.SubjectDeploymentID]
+		if !exists {
+			state.Active = true
+		}
+		switch event.Action {
+		case protocol.OperatorActionClaim:
+			state.Claimed = true
+			state.ClaimActionID = event.ActionID
+			state.ClaimGroupID = event.GroupID
+			state.EffectiveGroupID = event.GroupID
+			state.LinkID = ""
+		case protocol.OperatorActionWithdrawClaim:
+			state.Claimed = false
+			state.EffectiveGroupID = ""
+			state.LinkID = ""
+		case protocol.OperatorActionIssueClientToken:
+			source, approved, legacy := verifiedApprovedOperatorSource(
+				state,
+				event.AcceptedAt,
+				submissions,
+				reviews,
+			)
+			if !state.Active ||
+				!state.Claimed ||
+				state.EffectiveGroupID != event.GroupID ||
+				(!approved && !legacy) ||
+				(approved && source.GroupID != event.GroupID) ||
+				!validHexID(event.TokenID, "opt_", 32) ||
+				!protocol.IsDigest(event.ClientTokenHash) ||
+				event.TokenTTLSeconds < 60 ||
+				event.TokenTTLSeconds > 3600 {
+				return inconsistentMessage(
+					"operator token issue %s is not authorized by its current approved claim",
+					event.ActionID,
+				)
+			}
+			acceptedAt, acceptedErr := time.Parse(time.RFC3339Nano, event.AcceptedAt)
+			expiresAt, expiresErr := time.Parse(time.RFC3339Nano, event.TokenExpiresAt)
+			if acceptedErr != nil ||
+				expiresErr != nil ||
+				!expiresAt.Equal(acceptedAt.Add(time.Duration(event.TokenTTLSeconds)*time.Second)) {
+				return inconsistentMessage(
+					"operator token issue %s has an invalid expiry",
+					event.ActionID,
+				)
+			}
+			if _, duplicate := tokens[event.TokenID]; duplicate {
+				return inconsistentMessage(
+					"operator token %s has multiple issue events",
+					event.TokenID,
+				)
+			}
+			if priorTokenID, duplicate := tokenHashes[event.ClientTokenHash]; duplicate {
+				return inconsistentMessage(
+					"operator tokens %s and %s reuse a client-token hash",
+					priorTokenID,
+					event.TokenID,
+				)
+			}
+			tokens[event.TokenID] = verifiedOperatorTokenState{
+				Issue:  event,
+				Legacy: legacy,
+			}
+			tokenHashes[event.ClientTokenHash] = event.TokenID
+		case protocol.OperatorActionRevokeClientToken:
+			token, found := tokens[event.TokenID]
+			if !found ||
+				token.Revoked ||
+				event.DeploymentID != token.Issue.DeploymentID ||
+				event.GroupID != token.Issue.GroupID ||
+				event.ClientTokenHash != token.Issue.ClientTokenHash ||
+				event.TokenExpiresAt != token.Issue.TokenExpiresAt ||
+				!operatorEventBeforeExpiry(event.AcceptedAt, token.Issue.TokenExpiresAt) {
+				return inconsistentMessage(
+					"operator token revocation %s does not extend one active issue",
+					event.ActionID,
+				)
+			}
+			token.Revoked = true
+			tokens[event.TokenID] = token
+		case protocol.OperatorActionRedeemClientToken:
+			token, found := tokens[event.TokenID]
+			issuerState, issuerExists := deployments[event.RelatedDeploymentID]
+			if !found ||
+				token.Revoked ||
+				token.Redeemed ||
+				event.RelatedDeploymentID != token.Issue.DeploymentID ||
+				event.GroupID != token.Issue.GroupID ||
+				event.ClientTokenHash != token.Issue.ClientTokenHash ||
+				!operatorEventBeforeExpiry(event.AcceptedAt, token.Issue.TokenExpiresAt) ||
+				!issuerExists ||
+				!issuerState.Active ||
+				!issuerState.Claimed ||
+				issuerState.EffectiveGroupID != token.Issue.GroupID {
+				return inconsistentMessage(
+					"operator token redemption %s does not consume one active issue",
+					event.ActionID,
+				)
+			}
+			source, approved, legacy := verifiedApprovedOperatorSource(
+				issuerState,
+				event.AcceptedAt,
+				submissions,
+				reviews,
+			)
+			if (!approved && !(legacy && token.Legacy)) ||
+				(approved && source.GroupID != token.Issue.GroupID) {
+				return inconsistentMessage(
+					"operator token redemption %s is not authorized by the issuer claim",
+					event.ActionID,
+				)
+			}
+			copied, tokenDerivedClaim := submissions[event.ActionID]
+			if tokenDerivedClaim {
+				if state.Claimed ||
+					!approved ||
+					event.SourceClaimActionID != source.ClaimActionID ||
+					event.SourcePrivateRecordHash != source.PrivateRecordHash ||
+					!sameOperatorCompanySubmission(copied, source) {
+					return inconsistentMessage(
+						"operator token-derived claim %s does not match its approved source",
+						event.ActionID,
+					)
+				}
+				state.Claimed = true
+				state.ClaimActionID = event.ActionID
+				state.ClaimGroupID = event.GroupID
+				state.EffectiveGroupID = event.GroupID
+				state.LinkID = ""
+			} else {
+				if !state.Claimed ||
+					event.LinkID == "" ||
+					event.SourceClaimActionID != "" ||
+					event.SourcePrivateRecordHash != "" {
+					return inconsistentMessage(
+						"operator group redemption %s has unexpected source anchors",
+						event.ActionID,
+					)
+				}
+				state.EffectiveGroupID = event.GroupID
+				state.LinkID = event.LinkID
+			}
+			token.Redeemed = true
+			tokens[event.TokenID] = token
+		case protocol.OperatorActionRevokeGroupLink:
+			state.EffectiveGroupID = state.ClaimGroupID
+			state.LinkID = ""
+		case protocol.OperatorActionDeactivateDeployment:
+			state.Active = false
+		case protocol.OperatorActionReactivateDeployment:
+			state.Active = true
+		}
+		deployments[event.SubjectDeploymentID] = state
+	}
+	return nil
+}
+
+func verifiedApprovedOperatorSource(
+	state verifiedOperatorDeploymentState,
+	acceptedAt string,
+	submissions map[string]store.OperatorClaimSubmission,
+	reviews map[string]store.OperatorClaimReview,
+) (store.OperatorClaimSubmission, bool, bool) {
+	submission, structured := submissions[state.ClaimActionID]
+	if !structured {
+		return store.OperatorClaimSubmission{}, false, state.Claimed
+	}
+	review, approved := reviews[state.ClaimActionID]
+	if !approved {
+		return submission, false, false
+	}
+	reviewedAt, reviewErr := time.Parse(time.RFC3339Nano, review.ReviewedAt)
+	actionAt, actionErr := time.Parse(time.RFC3339Nano, acceptedAt)
+	if reviewErr != nil || actionErr != nil || reviewedAt.After(actionAt) {
+		return submission, false, false
+	}
+	if submission.Website == "" {
+		return submission, false, false
+	}
+	return submission, true, false
+}
+
+func sameOperatorCompanySubmission(
+	copied store.OperatorClaimSubmission,
+	source store.OperatorClaimSubmission,
+) bool {
+	return copied.GroupID == source.GroupID &&
+		copied.LegalName == source.LegalName &&
+		copied.RegistrationNumber == source.RegistrationNumber &&
+		copied.Jurisdiction == source.Jurisdiction &&
+		copied.RegisteredAddress == source.RegisteredAddress &&
+		copied.Website == source.Website &&
+		copied.VerificationContactName == source.VerificationContactName &&
+		copied.VerificationContactRole == source.VerificationContactRole &&
+		copied.VerificationContactEmail == source.VerificationContactEmail &&
+		copied.AuthorityAttested == source.AuthorityAttested &&
+		copied.OperatorAvatarURL == source.OperatorAvatarURL
+}
+
+func operatorEventBeforeExpiry(acceptedAt string, expiresAt string) bool {
+	accepted, acceptedErr := time.Parse(time.RFC3339Nano, acceptedAt)
+	expires, expiresErr := time.Parse(time.RFC3339Nano, expiresAt)
+	return acceptedErr == nil && expiresErr == nil && accepted.Before(expires)
 }
 
 func (sqliteStore *Store) verifiedOperatorClaimReviewRows(
