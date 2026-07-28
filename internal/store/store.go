@@ -10,14 +10,21 @@ import (
 )
 
 var (
-	ErrNotFound                 = errors.New("record not found")
-	ErrIdempotencyConflict      = errors.New("idempotency key was already used with a different payload")
-	ErrReplayConflict           = errors.New("nonce was already used by a different request")
-	ErrInconsistentState        = errors.New("registry database contains inconsistent state")
-	ErrRegistryKeyMismatch      = errors.New("configured registry signing key does not match persisted registry identity")
-	ErrAcceptedAtFinalized      = errors.New("accepted_at would alter an already finalized checkpoint")
-	ErrAcceptedAtBeforeHead     = errors.New("accepted_at is before the current ledger head")
-	ErrAcceptedAtBeforeIdentity = errors.New("accepted_at is before registry identity creation")
+	ErrNotFound                    = errors.New("record not found")
+	ErrIdempotencyConflict         = errors.New("idempotency key was already used with a different payload")
+	ErrReplayConflict              = errors.New("nonce was already used by a different request")
+	ErrInconsistentState           = errors.New("registry database contains inconsistent state")
+	ErrRegistryKeyMismatch         = errors.New("configured registry signing key does not match persisted registry identity")
+	ErrAcceptedAtFinalized         = errors.New("accepted_at would alter an already finalized checkpoint")
+	ErrAcceptedAtBeforeHead        = errors.New("accepted_at is before the current ledger head")
+	ErrAcceptedAtBeforeIdentity    = errors.New("accepted_at is before registry identity creation")
+	ErrOperatorActionConflict      = errors.New("operator action conflicts with current state")
+	ErrOperatorClaimRequired       = errors.New("an active operator claim is required")
+	ErrClientTokenExpired          = errors.New("operator client token is expired")
+	ErrClientTokenRevoked          = errors.New("operator client token is revoked")
+	ErrDeploymentInactive          = errors.New("deployment is inactive")
+	ErrAnnouncementConflict        = errors.New("announcement publication ID was already used with different contents")
+	ErrAnnouncementClockBeforeHead = errors.New("accepted_at is before the current announcement head")
 )
 
 type RegistryIdentity struct {
@@ -124,8 +131,12 @@ type Store interface {
 
 	LedgerHead(context.Context) (LedgerHead, error)
 	VerifyLedger(context.Context) error
+	VerifyLedgerWeightRows(context.Context) error
 	VerifyRecords(context.Context, ed25519.PublicKey, string, string) error
 	FinalizeCompletedCheckpoints(context.Context, time.Time, string, string, CheckpointSigner) ([]CheckpointRecord, error)
 	Checkpoint(context.Context, string) (CheckpointRecord, error)
 	VerifyCheckpoints(context.Context, ed25519.PublicKey, string, string) error
+
+	OperatorNetworkStore
+	AnnouncementStore
 }

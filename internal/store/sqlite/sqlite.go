@@ -79,8 +79,12 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM used_nonces) +
 			(SELECT COUNT(*) FROM idempotency_records) +
 			(SELECT COUNT(*) FROM ledger_entries) +
+			(SELECT COUNT(*) FROM ledger_weight_rows) +
 			(SELECT COUNT(*) FROM mau_batches) +
-			(SELECT COUNT(*) FROM checkpoints)`).Scan(&recordCount); err != nil {
+			(SELECT COUNT(*) FROM checkpoints) +
+			(SELECT COUNT(*) FROM operator_audit_events) +
+			(SELECT COUNT(*) FROM operator_action_nonces) +
+			(SELECT COUNT(*) FROM announcements)`).Scan(&recordCount); err != nil {
 		return false, fmt.Errorf("inspect registry persistent state: %w", err)
 	}
 	return recordCount == 0, nil

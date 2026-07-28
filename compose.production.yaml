@@ -1,4 +1,6 @@
 services:
+  # No public publish route is exposed. Signed announcements are appended only
+  # with the local CLI against the protected registry database/signing key.
   registry:
     build:
       context: .

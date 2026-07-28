@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -17,9 +19,11 @@ import (
 )
 
 const (
-	receiptPathPrefix    = "/v1/mau/batches/"
-	receiptPathSuffix    = "/receipt"
-	checkpointPathPrefix = "/v1/ledger/checkpoints/"
+	receiptPathPrefix          = "/v1/mau/batches/"
+	receiptPathSuffix          = "/receipt"
+	checkpointPathPrefix       = "/v1/ledger/checkpoints/"
+	leaderboardGroupPathPrefix = "/v1/leaderboard/groups/"
+	leaderboardGroupPathSuffix = "/deployments"
 )
 
 type Options struct {
@@ -79,7 +83,13 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 
 	// Signatures cover the literal protocol path and never cover a query. Do
 	// not allow alternate request-target spellings to reach a signed endpoint.
-	if request.URL.RawQuery != "" || request.URL.EscapedPath() != request.URL.Path {
+	publicCursorRead := request.Method == http.MethodGet &&
+		(request.URL.Path == protocol.LeaderboardPath ||
+			request.URL.Path == protocol.AnnouncementPath ||
+			(strings.HasPrefix(request.URL.Path, leaderboardGroupPathPrefix) &&
+				strings.HasSuffix(request.URL.Path, leaderboardGroupPathSuffix)))
+	if (!publicCursorRead && request.URL.RawQuery != "") ||
+		request.URL.EscapedPath() != request.URL.Path {
 		writeError(
 			response,
 			http.StatusBadRequest,
@@ -106,6 +116,23 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		if requireMethod(response, request, http.MethodPost) {
 			api.submitBatch(response, request)
 		}
+	case request.URL.Path == protocol.OperatorActionPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.operatorAction(response, request)
+		}
+	case request.URL.Path == protocol.LeaderboardPath:
+		if requireMethod(response, request, http.MethodGet) {
+			api.leaderboard(response, request)
+		}
+	case request.URL.Path == protocol.AnnouncementPath:
+		if requireMethod(response, request, http.MethodGet) {
+			api.announcements(response, request)
+		}
+	case strings.HasPrefix(request.URL.Path, leaderboardGroupPathPrefix) &&
+		strings.HasSuffix(request.URL.Path, leaderboardGroupPathSuffix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.leaderboardDeployments(response, request)
+		}
 	case strings.HasPrefix(request.URL.Path, receiptPathPrefix) &&
 		strings.HasSuffix(request.URL.Path, receiptPathSuffix):
 		if requireMethod(response, request, http.MethodGet) {
@@ -118,6 +145,221 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
 	}
+}
+
+func (api *API) announcements(response http.ResponseWriter, request *http.Request) {
+	query, err := url.ParseQuery(request.URL.RawQuery)
+	if err != nil {
+		writeError(
+			response,
+			http.StatusBadRequest,
+			"invalid_request",
+			"query string is malformed",
+		)
+		return
+	}
+	for key, values := range query {
+		switch key {
+		case "kind", "severity", "channel", "include_expired", "limit", "cursor":
+		default:
+			writeError(
+				response,
+				http.StatusBadRequest,
+				"invalid_request",
+				"query parameter is not supported",
+			)
+			return
+		}
+		if len(values) != 1 {
+			writeError(
+				response,
+				http.StatusBadRequest,
+				"invalid_request",
+				"query parameter must occur once",
+			)
+			return
+		}
+	}
+	for _, key := range []string{
+		"kind",
+		"severity",
+		"channel",
+		"include_expired",
+		"limit",
+		"cursor",
+	} {
+		if _, supplied := query[key]; supplied && query.Get(key) == "" {
+			writeError(
+				response,
+				http.StatusBadRequest,
+				"invalid_request",
+				"query parameter must not be empty",
+			)
+			return
+		}
+	}
+	limit := parseOptionalLimit(query.Get("limit"))
+	if rawLimit := query.Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed < 1 || parsed > 100 {
+			writeError(
+				response,
+				http.StatusBadRequest,
+				"invalid_request",
+				"limit must be between 1 and 100",
+			)
+			return
+		}
+		limit = parsed
+	}
+	includeExpired := false
+	if raw := query.Get("include_expired"); raw != "" {
+		if raw != "true" && raw != "false" {
+			writeError(
+				response,
+				http.StatusBadRequest,
+				"invalid_request",
+				"include_expired must be true or false",
+			)
+			return
+		}
+		includeExpired = raw == "true"
+	}
+	result, err := api.service.AnnouncementFeed(
+		request.Context(),
+		service.AnnouncementFeedOptions{
+			Kind:           query.Get("kind"),
+			Severity:       query.Get("severity"),
+			Channel:        query.Get("channel"),
+			IncludeExpired: includeExpired,
+			Limit:          limit,
+			Cursor:         query.Get("cursor"),
+		},
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) operatorAction(response http.ResponseWriter, request *http.Request) {
+	var action protocol.OperatorActionRequest
+	if err := api.decodeJSON(response, request, &action); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.ApplyOperatorAction(request.Context(), action)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) leaderboard(response http.ResponseWriter, request *http.Request) {
+	query, ok := api.leaderboardQuery(response, request)
+	if !ok {
+		return
+	}
+	view := query.Get("view")
+	if view == "" {
+		view = "claimed"
+	}
+	result, err := api.service.Leaderboard(
+		request.Context(),
+		view,
+		query.Get("through_period"),
+		parseOptionalLimit(query.Get("limit")),
+		query.Get("cursor"),
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) leaderboardDeployments(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	query, ok := api.leaderboardQuery(response, request)
+	if !ok {
+		return
+	}
+	if _, supplied := query["view"]; supplied {
+		writeError(
+			response,
+			http.StatusBadRequest,
+			"invalid_request",
+			"query parameter is not supported",
+		)
+		return
+	}
+	groupID := strings.TrimSuffix(
+		strings.TrimPrefix(request.URL.Path, leaderboardGroupPathPrefix),
+		leaderboardGroupPathSuffix,
+	)
+	if groupID == "" || strings.Contains(groupID, "/") {
+		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
+		return
+	}
+	result, err := api.service.LeaderboardDeployments(
+		request.Context(),
+		groupID,
+		query.Get("through_period"),
+		parseOptionalLimit(query.Get("limit")),
+		query.Get("cursor"),
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) leaderboardQuery(
+	response http.ResponseWriter,
+	request *http.Request,
+) (url.Values, bool) {
+	query, err := url.ParseQuery(request.URL.RawQuery)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request", "query string is malformed")
+		return nil, false
+	}
+	for key, values := range query {
+		switch key {
+		case "view", "through_period", "limit", "cursor":
+		default:
+			writeError(response, http.StatusBadRequest, "invalid_request", "query parameter is not supported")
+			return nil, false
+		}
+		if len(values) != 1 {
+			writeError(response, http.StatusBadRequest, "invalid_request", "query parameter must occur once")
+			return nil, false
+		}
+	}
+	if rawLimit := query.Get("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit < 1 || limit > 100 {
+			writeError(response, http.StatusBadRequest, "invalid_request", "limit must be between 1 and 100")
+			return nil, false
+		}
+	}
+	return query, true
+}
+
+func parseOptionalLimit(value string) int {
+	if value == "" {
+		return 0
+	}
+	limit, _ := strconv.Atoi(value)
+	return limit
 }
 
 func (api *API) identity(response http.ResponseWriter, request *http.Request) {
@@ -357,12 +599,24 @@ func requestErrorStatus(code string) int {
 	switch code {
 	case "invalid_signature":
 		return http.StatusUnauthorized
-	case "deployment_not_found", "receipt_not_found", "checkpoint_not_found":
+	case "deployment_not_found",
+		"receipt_not_found",
+		"checkpoint_not_found",
+		"operator_reference_not_found":
 		return http.StatusNotFound
-	case "idempotency_conflict", "replay_conflict", "checkpoint_not_finalized":
+	case "idempotency_conflict",
+		"replay_conflict",
+		"announcement_conflict",
+		"checkpoint_not_finalized",
+		"operator_claim_required",
+		"client_token_expired",
+		"client_token_revoked",
+		"deployment_inactive",
+		"operator_action_conflict":
 		return http.StatusConflict
 	case "registry_clock_before_checkpoint",
 		"registry_clock_before_ledger_head",
+		"registry_clock_before_announcement_head",
 		"registry_clock_before_identity",
 		"registry_integrity_unavailable":
 		return http.StatusServiceUnavailable

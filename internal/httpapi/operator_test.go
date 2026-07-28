@@ -1,0 +1,993 @@
+package httpapi_test
+
+import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"database/sql"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/fssrepository/myscoutee-registry/internal/app"
+	"github.com/fssrepository/myscoutee-registry/internal/config"
+	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
+	"github.com/fssrepository/myscoutee-registry/internal/protocol"
+	_ "modernc.org/sqlite"
+)
+
+type operatorAPIFixture struct {
+	now     time.Time
+	clock   *mutableClock
+	ids     *sequentialIDs
+	cfg     config.Config
+	runtime *app.Runtime
+	server  *httptest.Server
+}
+
+type operatorDeployment struct {
+	id         string
+	privateKey ed25519.PrivateKey
+}
+
+func TestSignedOperatorActionsAndLeaderboard(t *testing.T) {
+	fixture := newOperatorAPIFixture(t)
+	alpha := fixture.registerDeployment(t, "alpha")
+	beta := fixture.registerDeployment(t, "beta")
+	charlie := fixture.registerDeployment(t, "charlie")
+	delta := fixture.registerDeployment(t, "delta")
+	echo := fixture.registerDeployment(t, "echo")
+
+	alphaClaim := fixture.operatorAction(t, alpha, protocol.OperatorActionRequest{
+		Nonce:             "nonce_operator_alpha_claim_01",
+		IdempotencyKey:    "operator_alpha_claim_01",
+		Action:            protocol.OperatorActionClaim,
+		OperatorName:      "Alpha Cooperative",
+		OperatorAvatarURL: "https://example.test/alpha.png",
+	})
+	invalidClaim := alphaClaim
+	resignOperatorAction(t, beta.privateKey, &invalidClaim)
+	status, body := jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		invalidClaim,
+	)
+	assertAPIError(t, status, body, http.StatusUnauthorized, "invalid_signature")
+
+	alphaClaimResponse := fixture.acceptOperatorAction(
+		t,
+		alphaClaim,
+		http.StatusCreated,
+	)
+	assertOperatorReceipt(
+		t,
+		fixture,
+		alphaClaim,
+		alphaClaimResponse.Receipt,
+		1,
+		protocol.OperatorAuditZeroHash,
+	)
+	if alphaClaimResponse.Duplicate ||
+		alphaClaimResponse.Receipt.ClaimState != "claimed" ||
+		alphaClaimResponse.Receipt.GroupID == "" {
+		t.Fatalf("unexpected alpha claim response: %+v", alphaClaimResponse)
+	}
+	alphaGroupID := alphaClaimResponse.Receipt.GroupID
+
+	alphaClaimRetry := alphaClaim
+	alphaClaimRetry.Nonce = "nonce_operator_alpha_claim_02"
+	resignOperatorAction(t, alpha.privateKey, &alphaClaimRetry)
+	alphaClaimDuplicate := fixture.acceptOperatorAction(
+		t,
+		alphaClaimRetry,
+		http.StatusOK,
+	)
+	if !alphaClaimDuplicate.Duplicate ||
+		alphaClaimDuplicate.Receipt != alphaClaimResponse.Receipt {
+		t.Fatalf(
+			"idempotent claim did not return the original receipt: first=%+v retry=%+v",
+			alphaClaimResponse,
+			alphaClaimDuplicate,
+		)
+	}
+
+	idempotencyConflict := alphaClaim
+	idempotencyConflict.Nonce = "nonce_operator_alpha_claim_03"
+	idempotencyConflict.OperatorName = "Changed Alpha"
+	signOperatorActionPayload(t, alpha.privateKey, &idempotencyConflict)
+	status, body = jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		idempotencyConflict,
+	)
+	assertAPIError(t, status, body, http.StatusConflict, "idempotency_conflict")
+
+	replayConflict := alphaClaim
+	replayConflict.IdempotencyKey = "operator_alpha_claim_replay"
+	resignOperatorAction(t, alpha.privateKey, &replayConflict)
+	status, body = jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		replayConflict,
+	)
+	assertAPIError(t, status, body, http.StatusConflict, "replay_conflict")
+
+	previousAuditHash := alphaClaimResponse.Receipt.AuditHash
+	nextAuditIndex := int64(2)
+	claim := func(
+		deployment operatorDeployment,
+		name string,
+		suffix string,
+	) protocol.OperatorActionResponse {
+		t.Helper()
+		request := fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
+			Nonce:          "nonce_operator_" + suffix + "_claim",
+			IdempotencyKey: "operator_" + suffix + "_claim",
+			Action:         protocol.OperatorActionClaim,
+			OperatorName:   name,
+		})
+		response := fixture.acceptOperatorAction(t, request, http.StatusCreated)
+		assertOperatorReceipt(
+			t,
+			fixture,
+			request,
+			response.Receipt,
+			nextAuditIndex,
+			previousAuditHash,
+		)
+		nextAuditIndex++
+		previousAuditHash = response.Receipt.AuditHash
+		return response
+	}
+	betaClaimResponse := claim(beta, "Beta Forum", "beta")
+	charlieClaimResponse := claim(charlie, "Charlie Board", "charlie")
+	deltaClaimResponse := claim(delta, "Delta Community", "delta")
+
+	revokedTokenRequest := fixture.operatorAction(t, alpha, protocol.OperatorActionRequest{
+		Nonce:           "nonce_operator_token_revoked_01",
+		IdempotencyKey:  "operator_token_revoked_01",
+		Action:          protocol.OperatorActionIssueClientToken,
+		TokenTTLSeconds: 600,
+	})
+	revokedTokenResponse := fixture.acceptOperatorAction(
+		t,
+		revokedTokenRequest,
+		http.StatusCreated,
+	)
+	assertOperatorReceipt(
+		t,
+		fixture,
+		revokedTokenRequest,
+		revokedTokenResponse.Receipt,
+		nextAuditIndex,
+		previousAuditHash,
+	)
+	nextAuditIndex++
+	previousAuditHash = revokedTokenResponse.Receipt.AuditHash
+	assertIssuedClientToken(t, fixture, revokedTokenResponse)
+
+	revokedTokenRetry := revokedTokenRequest
+	revokedTokenRetry.Nonce = "nonce_operator_token_revoked_02"
+	resignOperatorAction(t, alpha.privateKey, &revokedTokenRetry)
+	duplicateTokenResponse := fixture.acceptOperatorAction(
+		t,
+		revokedTokenRetry,
+		http.StatusOK,
+	)
+	if !duplicateTokenResponse.Duplicate ||
+		duplicateTokenResponse.Receipt.ClientToken != "" ||
+		duplicateTokenResponse.Receipt.TokenID != revokedTokenResponse.Receipt.TokenID {
+		t.Fatalf(
+			"token issue retry must return the receipt without re-exposing the secret: %+v",
+			duplicateTokenResponse,
+		)
+	}
+
+	revokeTokenRequest := fixture.operatorAction(t, alpha, protocol.OperatorActionRequest{
+		Nonce:          "nonce_operator_revoke_token_01",
+		IdempotencyKey: "operator_revoke_token_01",
+		Action:         protocol.OperatorActionRevokeClientToken,
+		TokenID:        revokedTokenResponse.Receipt.TokenID,
+	})
+	revokeTokenResponse := fixture.acceptOperatorAction(
+		t,
+		revokeTokenRequest,
+		http.StatusCreated,
+	)
+	assertOperatorReceipt(
+		t,
+		fixture,
+		revokeTokenRequest,
+		revokeTokenResponse.Receipt,
+		nextAuditIndex,
+		previousAuditHash,
+	)
+	nextAuditIndex++
+	previousAuditHash = revokeTokenResponse.Receipt.AuditHash
+
+	redeemRevoked := fixture.operatorAction(t, beta, protocol.OperatorActionRequest{
+		Nonce:          "nonce_operator_redeem_revoked",
+		IdempotencyKey: "operator_redeem_revoked",
+		Action:         protocol.OperatorActionRedeemClientToken,
+		ClientToken:    revokedTokenResponse.Receipt.ClientToken,
+	})
+	status, body = jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		redeemRevoked,
+	)
+	assertAPIError(t, status, body, http.StatusConflict, "client_token_revoked")
+
+	activeTokenRequest := fixture.operatorAction(t, alpha, protocol.OperatorActionRequest{
+		Nonce:           "nonce_operator_token_active_01",
+		IdempotencyKey:  "operator_token_active_01",
+		Action:          protocol.OperatorActionIssueClientToken,
+		TokenTTLSeconds: 900,
+	})
+	activeTokenResponse := fixture.acceptOperatorAction(
+		t,
+		activeTokenRequest,
+		http.StatusCreated,
+	)
+	assertOperatorReceipt(
+		t,
+		fixture,
+		activeTokenRequest,
+		activeTokenResponse.Receipt,
+		nextAuditIndex,
+		previousAuditHash,
+	)
+	nextAuditIndex++
+	previousAuditHash = activeTokenResponse.Receipt.AuditHash
+	assertIssuedClientToken(t, fixture, activeTokenResponse)
+
+	redeemRequest := fixture.operatorAction(t, beta, protocol.OperatorActionRequest{
+		Nonce:          "nonce_operator_redeem_active",
+		IdempotencyKey: "operator_redeem_active",
+		Action:         protocol.OperatorActionRedeemClientToken,
+		ClientToken:    activeTokenResponse.Receipt.ClientToken,
+	})
+	redeemResponse := fixture.acceptOperatorAction(
+		t,
+		redeemRequest,
+		http.StatusCreated,
+	)
+	assertOperatorReceipt(
+		t,
+		fixture,
+		redeemRequest,
+		redeemResponse.Receipt,
+		nextAuditIndex,
+		previousAuditHash,
+	)
+	nextAuditIndex++
+	previousAuditHash = redeemResponse.Receipt.AuditHash
+	if redeemResponse.Receipt.GroupID != alphaGroupID ||
+		redeemResponse.Receipt.RelatedDeploymentID != alpha.id ||
+		redeemResponse.Receipt.LinkID == "" {
+		t.Fatalf("redeem did not join beta to alpha's group: %+v", redeemResponse)
+	}
+
+	revokeActiveTokenRequest := fixture.operatorAction(
+		t,
+		alpha,
+		protocol.OperatorActionRequest{
+			Nonce:          "nonce_operator_revoke_token_02",
+			IdempotencyKey: "operator_revoke_token_02",
+			Action:         protocol.OperatorActionRevokeClientToken,
+			TokenID:        activeTokenResponse.Receipt.TokenID,
+		},
+	)
+	revokeActiveTokenResponse := fixture.acceptOperatorAction(
+		t,
+		revokeActiveTokenRequest,
+		http.StatusCreated,
+	)
+	assertOperatorReceipt(
+		t,
+		fixture,
+		revokeActiveTokenRequest,
+		revokeActiveTokenResponse.Receipt,
+		nextAuditIndex,
+		previousAuditHash,
+	)
+	nextAuditIndex++
+	previousAuditHash = revokeActiveTokenResponse.Receipt.AuditHash
+
+	redeemAfterRevocation := fixture.operatorAction(t, delta, protocol.OperatorActionRequest{
+		Nonce:          "nonce_operator_redeem_after_revoke",
+		IdempotencyKey: "operator_redeem_after_revoke",
+		Action:         protocol.OperatorActionRedeemClientToken,
+		ClientToken:    activeTokenResponse.Receipt.ClientToken,
+	})
+	status, body = jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		redeemAfterRevocation,
+	)
+	assertAPIError(t, status, body, http.StatusConflict, "client_token_revoked")
+
+	claimedPage := fixture.leaderboard(t, "view=claimed&through_period=2026-06&limit=1")
+	if len(claimedPage.Items) != 1 ||
+		claimedPage.Items[0].GroupID != alphaGroupID ||
+		claimedPage.Items[0].Label != "Alpha Cooperative" ||
+		claimedPage.Items[0].AvatarURL != "https://example.test/alpha.png" ||
+		claimedPage.Items[0].DeploymentCount != 2 ||
+		claimedPage.Items[0].WeightNumerator != "0" ||
+		claimedPage.Items[0].WeightDenominator != "1" ||
+		claimedPage.NextCursor == "" {
+		t.Fatalf("unexpected first claimed leaderboard page: %+v", claimedPage)
+	}
+	assertLeaderboardSnapshot(t, fixture, claimedPage.Snapshot)
+
+	repeatedClaimedPage := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=1",
+	)
+	if !reflect.DeepEqual(repeatedClaimedPage, claimedPage) {
+		t.Fatalf(
+			"unchanged leaderboard boundary did not produce a stable page:\nfirst=%+v\nsecond=%+v",
+			claimedPage,
+			repeatedClaimedPage,
+		)
+	}
+
+	tamperedCursor := tamperCursor(claimedPage.NextCursor)
+	status, body = rawRequest(
+		t,
+		http.MethodGet,
+		fixture.server.URL+protocol.LeaderboardPath+
+			"?view=claimed&limit=1&cursor="+url.QueryEscape(tamperedCursor),
+		nil,
+		false,
+	)
+	assertAPIError(t, status, body, http.StatusBadRequest, "invalid_cursor")
+
+	status, body = rawRequest(
+		t,
+		http.MethodGet,
+		fixture.server.URL+protocol.LeaderboardPath+
+			"?view=unclaimed&limit=1&cursor="+
+			url.QueryEscape(claimedPage.NextCursor),
+		nil,
+		false,
+	)
+	assertAPIError(t, status, body, http.StatusBadRequest, "invalid_cursor")
+
+	groupPath := fixture.server.URL + "/v1/leaderboard/groups/" +
+		alphaGroupID + "/deployments"
+	groupPage := fixture.groupDeployments(t, groupPath, "through_period=2026-06&limit=1")
+	if len(groupPage.Items) != 1 ||
+		groupPage.Items[0].DeploymentID != alpha.id ||
+		groupPage.Items[0].MembershipState != "owner" ||
+		groupPage.NextCursor == "" {
+		t.Fatalf("unexpected first group deployment page: %+v", groupPage)
+	}
+	assertLeaderboardSnapshot(t, fixture, groupPage.Snapshot)
+
+	revokeLinkRequest := fixture.operatorAction(t, beta, protocol.OperatorActionRequest{
+		Nonce:          "nonce_operator_revoke_link",
+		IdempotencyKey: "operator_revoke_link",
+		Action:         protocol.OperatorActionRevokeGroupLink,
+		LinkID:         redeemResponse.Receipt.LinkID,
+	})
+	revokeLinkResponse := fixture.acceptOperatorAction(
+		t,
+		revokeLinkRequest,
+		http.StatusCreated,
+	)
+	assertOperatorReceipt(
+		t,
+		fixture,
+		revokeLinkRequest,
+		revokeLinkResponse.Receipt,
+		nextAuditIndex,
+		previousAuditHash,
+	)
+	if revokeLinkResponse.Receipt.SubjectDeploymentID != beta.id ||
+		revokeLinkResponse.Receipt.RelatedDeploymentID != alpha.id ||
+		revokeLinkResponse.Receipt.GroupID != alphaGroupID {
+		t.Fatalf("unexpected group-link revocation receipt: %+v", revokeLinkResponse)
+	}
+
+	oldGroupPageTwo := fixture.groupDeployments(
+		t,
+		groupPath,
+		"limit=1&cursor="+url.QueryEscape(groupPage.NextCursor),
+	)
+	if oldGroupPageTwo.Snapshot != groupPage.Snapshot ||
+		len(oldGroupPageTwo.Items) != 1 ||
+		oldGroupPageTwo.Items[0].DeploymentID != beta.id ||
+		oldGroupPageTwo.Items[0].MembershipState != "linked" {
+		t.Fatalf(
+			"signed group cursor did not preserve the pre-revocation snapshot: %+v",
+			oldGroupPageTwo,
+		)
+	}
+
+	oldClaimedGroups := []string{alphaGroupID}
+	cursor := claimedPage.NextCursor
+	for cursor != "" {
+		page := fixture.leaderboard(
+			t,
+			"view=claimed&limit=1&cursor="+url.QueryEscape(cursor),
+		)
+		if page.Snapshot != claimedPage.Snapshot {
+			t.Fatalf("cursor page changed immutable snapshot: %+v", page.Snapshot)
+		}
+		if len(page.Items) != 1 {
+			t.Fatalf("cursor page item count = %d, want 1", len(page.Items))
+		}
+		oldClaimedGroups = append(oldClaimedGroups, page.Items[0].GroupID)
+		cursor = page.NextCursor
+	}
+	expectedOldGroups := []string{
+		alphaGroupID,
+		charlieClaimResponse.Receipt.GroupID,
+		deltaClaimResponse.Receipt.GroupID,
+	}
+	if !reflect.DeepEqual(oldClaimedGroups, expectedOldGroups) {
+		t.Fatalf(
+			"snapshot-pinned groups = %v, want %v",
+			oldClaimedGroups,
+			expectedOldGroups,
+		)
+	}
+
+	freshClaimedPage := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=10",
+	)
+	freshGroupIDs := leaderboardGroupIDs(freshClaimedPage.Items)
+	expectedFreshGroups := []string{
+		alphaGroupID,
+		betaClaimResponse.Receipt.GroupID,
+		charlieClaimResponse.Receipt.GroupID,
+		deltaClaimResponse.Receipt.GroupID,
+	}
+	if !reflect.DeepEqual(freshGroupIDs, expectedFreshGroups) {
+		t.Fatalf("fresh claimed groups = %v, want %v", freshGroupIDs, expectedFreshGroups)
+	}
+	if freshClaimedPage.Items[0].DeploymentCount != 1 ||
+		freshClaimedPage.Items[1].Label != "Beta Forum" {
+		t.Fatalf("revoked link did not restore separate operator rows: %+v", freshClaimedPage)
+	}
+
+	freshAlphaDeployments := fixture.groupDeployments(
+		t,
+		groupPath,
+		"through_period=2026-06&limit=10",
+	)
+	if len(freshAlphaDeployments.Items) != 1 ||
+		freshAlphaDeployments.Items[0].DeploymentID != alpha.id {
+		t.Fatalf(
+			"fresh alpha group still contains revoked deployment: %+v",
+			freshAlphaDeployments,
+		)
+	}
+
+	unclaimedPage := fixture.leaderboard(
+		t,
+		"view=unclaimed&through_period=2026-06&limit=10",
+	)
+	if len(unclaimedPage.Items) != 1 ||
+		unclaimedPage.Items[0].RowID != echo.id ||
+		unclaimedPage.Items[0].ClaimState != "unclaimed" {
+		t.Fatalf("unexpected unclaimed leaderboard: %+v", unclaimedPage)
+	}
+
+	founderPage := fixture.leaderboard(
+		t,
+		"view=founder&through_period=2026-06&limit=10",
+	)
+	if len(founderPage.Items) != 1 ||
+		founderPage.Items[0].RowID != "founder" ||
+		founderPage.Items[0].ShareNumerator != "1" ||
+		founderPage.Items[0].ShareDenominator != "1" {
+		t.Fatalf("unexpected founder leaderboard: %+v", founderPage)
+	}
+
+	queryValidationCases := []struct {
+		name string
+		path string
+		code string
+	}{
+		{
+			name: "unsupported parameter",
+			path: protocol.LeaderboardPath + "?sort=weight",
+			code: "invalid_request",
+		},
+		{
+			name: "repeated parameter",
+			path: protocol.LeaderboardPath + "?view=claimed&view=unclaimed",
+			code: "invalid_request",
+		},
+		{
+			name: "invalid limit",
+			path: protocol.LeaderboardPath + "?limit=0",
+			code: "invalid_request",
+		},
+		{
+			name: "invalid view",
+			path: protocol.LeaderboardPath + "?view=verified",
+			code: "invalid_request",
+		},
+		{
+			name: "incomplete month",
+			path: protocol.LeaderboardPath + "?through_period=2026-07",
+			code: "invalid_request",
+		},
+		{
+			name: "malformed cursor",
+			path: protocol.LeaderboardPath + "?cursor=not-a-signed-cursor",
+			code: "invalid_cursor",
+		},
+		{
+			name: "malformed group",
+			path: "/v1/leaderboard/groups/not-a-group/deployments",
+			code: "invalid_request",
+		},
+		{
+			name: "group view is unsupported",
+			path: "/v1/leaderboard/groups/" + alphaGroupID +
+				"/deployments?view=claimed",
+			code: "invalid_request",
+		},
+	}
+	for _, testCase := range queryValidationCases {
+		t.Run("query validation/"+testCase.name, func(t *testing.T) {
+			status, body := rawRequest(
+				t,
+				http.MethodGet,
+				fixture.server.URL+testCase.path,
+				nil,
+				false,
+			)
+			assertAPIError(t, status, body, http.StatusBadRequest, testCase.code)
+		})
+	}
+
+	if err := fixture.runtime.Service.VerifyState(context.Background()); err != nil {
+		t.Fatalf("verify final operator and leaderboard state: %v", err)
+	}
+}
+
+func TestOperatorAuditTamperingFailsClosed(t *testing.T) {
+	testCases := []struct {
+		name       string
+		trigger    string
+		statement  string
+		wantDetail string
+	}{
+		{
+			name:       "audit hash",
+			trigger:    "operator_audit_events_no_update",
+			statement:  "UPDATE operator_audit_events SET audit_hash = '" + protocol.ZeroHash + "'",
+			wantDetail: "audit hash verification failed",
+		},
+		{
+			name:       "registry receipt",
+			trigger:    "operator_audit_events_no_update",
+			statement:  "UPDATE operator_audit_events SET receipt_signature = zeroblob(64)",
+			wantDetail: "registry receipt verification failed",
+		},
+		{
+			name:       "accepted nonce proof",
+			trigger:    "operator_action_nonces_no_update",
+			statement:  "UPDATE operator_action_nonces SET deployment_signature = zeroblob(64)",
+			wantDetail: "request proof verification failed",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			fixture := newOperatorAPIFixture(t)
+			deployment := fixture.registerDeployment(t, "tamper")
+			request := fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
+				Nonce:          "nonce_operator_tamper_claim",
+				IdempotencyKey: "operator_tamper_claim",
+				Action:         protocol.OperatorActionClaim,
+				OperatorName:   "Tamper Test Operator",
+			})
+			fixture.acceptOperatorAction(t, request, http.StatusCreated)
+
+			tamperDatabase, err := sql.Open("sqlite", fixture.cfg.DatabasePath)
+			if err != nil {
+				t.Fatalf("open independent tamper-test connection: %v", err)
+			}
+			defer tamperDatabase.Close()
+			if _, err := tamperDatabase.Exec("PRAGMA busy_timeout = 5000"); err != nil {
+				t.Fatalf("set tamper-test busy timeout: %v", err)
+			}
+			if _, err := tamperDatabase.Exec("DROP TRIGGER " + testCase.trigger); err != nil {
+				t.Fatalf("drop append-only trigger for corruption simulation: %v", err)
+			}
+			if _, err := tamperDatabase.Exec(testCase.statement); err != nil {
+				t.Fatalf("simulate operator audit corruption: %v", err)
+			}
+
+			err = fixture.runtime.Service.VerifyState(context.Background())
+			if err == nil || !strings.Contains(err.Error(), testCase.wantDetail) {
+				t.Fatalf(
+					"operator corruption verification error = %v, want detail %q",
+					err,
+					testCase.wantDetail,
+				)
+			}
+			status, body := rawRequest(
+				t,
+				http.MethodGet,
+				fixture.server.URL+"/healthz",
+				nil,
+				false,
+			)
+			assertAPIError(
+				t,
+				status,
+				body,
+				http.StatusServiceUnavailable,
+				"registry_unavailable",
+			)
+			status, body = rawRequest(
+				t,
+				http.MethodGet,
+				fixture.server.URL+protocol.LeaderboardPath,
+				nil,
+				false,
+			)
+			assertAPIError(
+				t,
+				status,
+				body,
+				http.StatusServiceUnavailable,
+				"registry_integrity_unavailable",
+			)
+		})
+	}
+}
+
+func newOperatorAPIFixture(t *testing.T) *operatorAPIFixture {
+	t.Helper()
+	directory := t.TempDir()
+	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
+	clock := &mutableClock{value: now}
+	ids := &sequentialIDs{}
+	cfg := config.Config{
+		ListenAddress:       "127.0.0.1:0",
+		RegistryScope:       testRegistryScope,
+		DatabasePath:        filepath.Join(directory, "registry.db"),
+		SigningKeyPath:      filepath.Join(directory, "registry-key.pem"),
+		GenerateSigningKey:  true,
+		TimestampSkew:       5 * time.Minute,
+		MaxRequestBodyBytes: 64 * 1024,
+		CheckpointInterval:  time.Minute,
+		ShutdownTimeout:     5 * time.Second,
+		HealthcheckURL:      "http://127.0.0.1/healthz",
+	}
+	runtime, err := app.Bootstrap(context.Background(), cfg, app.Options{
+		Now:   clock.Now,
+		NewID: ids.New,
+	})
+	if err != nil {
+		t.Fatalf("bootstrap operator registry: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := runtime.Close(); err != nil {
+			t.Errorf("close operator registry: %v", err)
+		}
+	})
+	server := httptest.NewServer(httpapi.New(runtime.Service, httpapi.Options{
+		MaxRequestBodyBytes: cfg.MaxRequestBodyBytes,
+	}))
+	t.Cleanup(server.Close)
+	return &operatorAPIFixture{
+		now:     now,
+		clock:   clock,
+		ids:     ids,
+		cfg:     cfg,
+		runtime: runtime,
+		server:  server,
+	}
+}
+
+func (fixture *operatorAPIFixture) registerDeployment(
+	t *testing.T,
+	suffix string,
+) operatorDeployment {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate %s deployment key: %v", suffix, err)
+	}
+	request := signedRegistration(
+		t,
+		privateKey,
+		fixture.now.Format(time.RFC3339),
+		"nonce_registration_operator_"+suffix,
+		"registration_operator_"+suffix,
+		"operator-test-1.0.0",
+	)
+	status, body := jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.RegistrationPath,
+		request,
+	)
+	if status != http.StatusCreated {
+		t.Fatalf(
+			"register %s deployment status = %d, body = %s",
+			suffix,
+			status,
+			body,
+		)
+	}
+	var response protocol.RegistrationResponse
+	decodeResponse(t, body, &response)
+	verifyRegistrationReceipt(t, response)
+	return operatorDeployment{
+		id:         response.DeploymentID,
+		privateKey: privateKey,
+	}
+}
+
+func (fixture *operatorAPIFixture) operatorAction(
+	t *testing.T,
+	deployment operatorDeployment,
+	request protocol.OperatorActionRequest,
+) protocol.OperatorActionRequest {
+	t.Helper()
+	request.ProtocolVersion = protocol.Version
+	request.RegistryScope = testRegistryScope
+	request.DeploymentID = deployment.id
+	request.Timestamp = fixture.now.Format(time.RFC3339)
+	signOperatorActionPayload(t, deployment.privateKey, &request)
+	return request
+}
+
+func signOperatorActionPayload(
+	t *testing.T,
+	privateKey ed25519.PrivateKey,
+	request *protocol.OperatorActionRequest,
+) {
+	t.Helper()
+	clientTokenHash := ""
+	if request.Action == protocol.OperatorActionRedeemClientToken {
+		clientTokenHash = protocol.Digest([]byte(request.ClientToken))
+	}
+	request.PayloadHash = protocol.Digest(protocol.OperatorActionPayload(
+		request.Action,
+		request.OperatorName,
+		request.OperatorAvatarURL,
+		clientTokenHash,
+		request.TokenTTLSeconds,
+		request.TokenID,
+		request.LinkID,
+	))
+	resignOperatorAction(t, privateKey, request)
+}
+
+func resignOperatorAction(
+	t *testing.T,
+	privateKey ed25519.PrivateKey,
+	request *protocol.OperatorActionRequest,
+) {
+	t.Helper()
+	request.Signature = protocol.EncodeSignature(ed25519.Sign(
+		privateKey,
+		protocol.CanonicalRequest(
+			http.MethodPost,
+			protocol.OperatorActionPath,
+			request.ProtocolVersion,
+			request.RegistryScope,
+			request.DeploymentID,
+			request.Timestamp,
+			request.Nonce,
+			request.IdempotencyKey,
+			request.PayloadHash,
+		),
+	))
+}
+
+func (fixture *operatorAPIFixture) acceptOperatorAction(
+	t *testing.T,
+	request protocol.OperatorActionRequest,
+	expectedStatus int,
+) protocol.OperatorActionResponse {
+	t.Helper()
+	status, body := jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		request,
+	)
+	if status != expectedStatus {
+		t.Fatalf(
+			"operator action %s status = %d, want %d; body = %s",
+			request.Action,
+			status,
+			expectedStatus,
+			body,
+		)
+	}
+	var response protocol.OperatorActionResponse
+	decodeResponse(t, body, &response)
+	if response.ProtocolVersion != protocol.Version ||
+		response.RegistryScope != testRegistryScope {
+		t.Fatalf("unexpected operator action envelope: %+v", response)
+	}
+	return response
+}
+
+func assertOperatorReceipt(
+	t *testing.T,
+	fixture *operatorAPIFixture,
+	request protocol.OperatorActionRequest,
+	receipt protocol.OperatorActionReceipt,
+	expectedAuditIndex int64,
+	expectedPreviousHash string,
+) {
+	t.Helper()
+	if receipt.AuditIndex != expectedAuditIndex ||
+		receipt.PreviousAuditHash != expectedPreviousHash ||
+		receipt.DeploymentID != request.DeploymentID ||
+		receipt.Action != request.Action ||
+		receipt.RegistryScope != testRegistryScope ||
+		receipt.RegistryKeyID != fixture.runtime.SigningKey.KeyID() {
+		t.Fatalf("unexpected operator receipt: %+v", receipt)
+	}
+	expectedAuditHash := protocol.Digest(protocol.OperatorAuditMessage(
+		receipt.AuditIndex,
+		receipt.ActionID,
+		receipt.DeploymentID,
+		receipt.SubjectDeploymentID,
+		receipt.RelatedDeploymentID,
+		receipt.Action,
+		request.PayloadHash,
+		receipt.AcceptedAt,
+		receipt.ClaimState,
+		receipt.GroupID,
+		receipt.LinkID,
+		receipt.TokenID,
+		receipt.ClientTokenHash,
+		receipt.TokenExpiresAt,
+		receipt.PreviousAuditHash,
+	))
+	if receipt.AuditHash != expectedAuditHash {
+		t.Fatalf(
+			"operator receipt audit hash = %q, want %q",
+			receipt.AuditHash,
+			expectedAuditHash,
+		)
+	}
+	signature, err := protocol.ParseSignature(receipt.Signature)
+	if err != nil {
+		t.Fatalf("parse operator receipt signature: %v", err)
+	}
+	if !protocol.Verify(
+		fixture.runtime.SigningKey.PublicKey(),
+		protocol.OperatorActionReceiptMessage(receipt),
+		signature,
+	) {
+		t.Fatalf("operator action receipt signature verification failed")
+	}
+}
+
+func assertIssuedClientToken(
+	t *testing.T,
+	fixture *operatorAPIFixture,
+	response protocol.OperatorActionResponse,
+) {
+	t.Helper()
+	receipt := response.Receipt
+	if !strings.HasPrefix(receipt.ClientToken, "opc_") ||
+		!strings.HasPrefix(receipt.TokenID, "opt_") ||
+		receipt.ClientTokenHash != protocol.Digest([]byte(receipt.ClientToken)) {
+		t.Fatalf("unexpected issued client token receipt: %+v", receipt)
+	}
+	expiresAt, err := time.Parse(time.RFC3339Nano, receipt.TokenExpiresAt)
+	if err != nil {
+		t.Fatalf("parse client token expiry: %v", err)
+	}
+	if !expiresAt.After(fixture.now) {
+		t.Fatalf("client token expiry %s is not after issue time", receipt.TokenExpiresAt)
+	}
+}
+
+func (fixture *operatorAPIFixture) leaderboard(
+	t *testing.T,
+	rawQuery string,
+) protocol.LeaderboardPageDto {
+	t.Helper()
+	endpoint := fixture.server.URL + protocol.LeaderboardPath
+	if rawQuery != "" {
+		endpoint += "?" + rawQuery
+	}
+	status, body := rawRequest(t, http.MethodGet, endpoint, nil, false)
+	if status != http.StatusOK {
+		t.Fatalf("leaderboard status = %d, body = %s", status, body)
+	}
+	var page protocol.LeaderboardPageDto
+	decodeResponse(t, body, &page)
+	return page
+}
+
+func (fixture *operatorAPIFixture) groupDeployments(
+	t *testing.T,
+	path string,
+	rawQuery string,
+) protocol.LeaderboardDeploymentPageDto {
+	t.Helper()
+	endpoint := path
+	if rawQuery != "" {
+		endpoint += "?" + rawQuery
+	}
+	status, body := rawRequest(t, http.MethodGet, endpoint, nil, false)
+	if status != http.StatusOK {
+		t.Fatalf("leaderboard group status = %d, body = %s", status, body)
+	}
+	var page protocol.LeaderboardDeploymentPageDto
+	decodeResponse(t, body, &page)
+	return page
+}
+
+func assertLeaderboardSnapshot(
+	t *testing.T,
+	fixture *operatorAPIFixture,
+	snapshot protocol.LeaderboardSnapshotDto,
+) {
+	t.Helper()
+	if snapshot.FormulaVersion != protocol.LeaderboardFormulaVersion ||
+		snapshot.RulesetVersion != protocol.LeaderboardRulesetVersion ||
+		snapshot.ThroughPeriod != "2026-06" ||
+		snapshot.RegistryScope != testRegistryScope ||
+		snapshot.RegistryKeyID != fixture.runtime.SigningKey.KeyID() {
+		t.Fatalf("unexpected leaderboard snapshot: %+v", snapshot)
+	}
+	expectedHash := protocol.Digest(protocol.LeaderboardSnapshotHashMessage(snapshot))
+	if snapshot.SnapshotHash != expectedHash {
+		t.Fatalf(
+			"leaderboard snapshot hash = %q, want %q",
+			snapshot.SnapshotHash,
+			expectedHash,
+		)
+	}
+	signature, err := protocol.ParseSignature(snapshot.Signature)
+	if err != nil {
+		t.Fatalf("parse leaderboard snapshot signature: %v", err)
+	}
+	if !protocol.Verify(
+		fixture.runtime.SigningKey.PublicKey(),
+		protocol.LeaderboardSnapshotMessage(snapshot),
+		signature,
+	) {
+		t.Fatalf("leaderboard snapshot signature verification failed")
+	}
+}
+
+func tamperCursor(cursor string) string {
+	if cursor == "" {
+		return "tampered"
+	}
+	replacement := byte('A')
+	if cursor[0] == replacement {
+		replacement = 'B'
+	}
+	return string(replacement) + cursor[1:]
+}
+
+func leaderboardGroupIDs(items []protocol.LeaderboardRowDto) []string {
+	groupIDs := make([]string, 0, len(items))
+	for _, item := range items {
+		groupIDs = append(groupIDs, item.GroupID)
+	}
+	return groupIDs
+}

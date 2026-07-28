@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fssrepository/myscoutee-registry/internal/announcementfile"
 	"github.com/fssrepository/myscoutee-registry/internal/app"
 	"github.com/fssrepository/myscoutee-registry/internal/config"
 	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
@@ -25,8 +28,17 @@ func main() {
 		err = runHealthcheck()
 	} else if len(os.Args) == 2 && os.Args[1] == "initialize" {
 		err = runInitialize(logger)
+	} else if len(os.Args) >= 2 && os.Args[1] == "publish-announcement" {
+		err = runPublishAnnouncement(
+			os.Args[2:],
+			os.Stdin,
+			os.Stdout,
+		)
 	} else if len(os.Args) != 1 {
-		err = fmt.Errorf("usage: %s [healthcheck|initialize]", os.Args[0])
+		err = fmt.Errorf(
+			"usage: %s [healthcheck|initialize|publish-announcement --file PATH|-]",
+			os.Args[0],
+		)
 	} else {
 		err = runServer(logger)
 	}
@@ -34,6 +46,87 @@ func main() {
 		logger.Error("registry stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func runPublishAnnouncement(
+	args []string,
+	stdin io.Reader,
+	stdout io.Writer,
+) error {
+	flags := flag.NewFlagSet("publish-announcement", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	filePath := flags.String(
+		"file",
+		"",
+		"strict announcement JSON file, or - to read JSON from stdin",
+	)
+	flags.Usage = func() {
+		fmt.Fprintln(
+			stdout,
+			"Usage: /registry publish-announcement --file PATH|-",
+		)
+		fmt.Fprintln(
+			stdout,
+			"Appends one registry-signed announcement directly to the local registry database.",
+		)
+		fmt.Fprintln(
+			stdout,
+			"Use --file - with docker compose exec -T to pipe a strict JSON document.",
+		)
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() != 0 || *filePath == "" {
+		flags.Usage()
+		return errors.New("publish-announcement requires exactly one --file value")
+	}
+
+	reader := stdin
+	var file *os.File
+	if *filePath != "-" {
+		var err error
+		file, err = os.Open(*filePath)
+		if err != nil {
+			return fmt.Errorf("open announcement file: %w", err)
+		}
+		defer file.Close()
+		reader = file
+	}
+	draft, err := announcementfile.Decode(reader)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	runtime, err := app.Bootstrap(ctx, cfg, app.Options{})
+	if err != nil {
+		return fmt.Errorf("open registry for announcement publication: %w", err)
+	}
+	defer runtime.Close()
+
+	result, err := runtime.Service.PublishAnnouncement(ctx, draft)
+	if err != nil {
+		return fmt.Errorf("publish announcement: %w", err)
+	}
+	if err := runtime.Service.VerifyState(ctx); err != nil {
+		return fmt.Errorf("verify registry after announcement publication: %w", err)
+	}
+	encoder := json.NewEncoder(stdout)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(result); err != nil {
+		return fmt.Errorf("write publication result: %w", err)
+	}
+	return nil
 }
 
 func runInitialize(logger *slog.Logger) error {

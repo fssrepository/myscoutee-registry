@@ -1,19 +1,35 @@
 # MyScoutee Registry
 
-A small, reusable signed deployment registry. Milestone 1 provides:
+A small, reusable signed deployment registry. The implemented foundation
+provides:
 
 - proof-of-possession deployment registration with Ed25519;
 - one accepted record kind: a zero-count `installation-test` MAU batch;
 - a SQLite WAL append-only, hash-linked ledger;
+- a directly maintained leaderboard query row for every ledger entry, written
+  in the same SQLite transaction;
 - signed registration and batch receipts plus completed-UTC-day checkpoints;
+- signed, append-only operator claim/grouping actions with expiring client
+  tokens;
+- signed, snapshot-bound cursor leaderboard reads;
+- a registry-signed, append-only operator announcement/update-manifest feed
+  published only through a local CLI;
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
-It does not implement global user deduplication, real MAU accounting, Firebase
-migration, operator login, claims, weight, or a leaderboard.
+It does not yet implement global user deduplication, production MAU
+qualification, Firebase migration, or legal/buyer validation of operator
+claims. With protocol-v1 accepting only zero-count installation tests, a real
+registry's measured deployment weights remain zero until the production MAU
+ruleset is introduced.
 
-The normative wire and signature format is
-[`docs/protocol-v1.md`](docs/protocol-v1.md).
+The registration/ledger wire and signature format is
+[`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
+client-code grouping, audit, and leaderboard behavior is documented in
+[`docs/operator-network-v1.md`](docs/operator-network-v1.md).
+The local publication boundary, signed pull feed, and independently
+package-signed update manifest are documented in
+[`docs/announcements-v1.md`](docs/announcements-v1.md).
 
 ## Local development quick start
 
@@ -77,8 +93,8 @@ normal workflow:
 
 1. the operator prepares a candidate registry URL and expected scope;
 2. Java fetches and verifies that endpoint's self-signed
-   `/v1/registry/identity`, then the browser displays its scope, public key, and
-   key ID;
+   `/v1/registry/identity`; the browser displays the scope while Java retains
+   and pins the cryptographic identity;
 3. the operator explicitly confirms that exact endpoint/scope/key identity;
 4. Java invokes a narrow host-persistence boundary to generate and store the
    deployment key, returning only its public fingerprint to the browser;
@@ -206,6 +222,10 @@ follow the signing-key lifecycle rules below.
 | `POST` | `/v1/mau/batches` | `201` appended, `200` idempotent duplicate |
 | `GET` | `/v1/mau/batches/{batch_id}/receipt` | Stored signed receipt |
 | `GET` | `/v1/ledger/checkpoints/{YYYY-MM-DD}` | Completed UTC day checkpoint |
+| `POST` | `/v1/operator/actions` | Signed claim, client-token/group-link, or deployment-state action |
+| `GET` | `/v1/leaderboard?view=founder\|claimed\|unclaimed` | Signed snapshot-bound cursor page |
+| `GET` | `/v1/leaderboard/groups/{group_id}/deployments` | Cursor page of the deployments kept separate inside one virtual operator group |
+| `GET` | `/v1/announcements` | Registry-signed, snapshot-bound cursor feed of active operator notices and update manifests |
 | `GET` | `/healthz` | Storage and full integrity status |
 
 Errors are JSON:
@@ -214,15 +234,45 @@ Errors are JSON:
 {"error":{"code":"invalid_signature","message":"..."}}
 ```
 
-Signed endpoints reject query strings and percent-encoded path aliases. JSON
-is size-bounded, valid UTF-8, exactly one value, free of duplicate/unknown
-fields, and served only as `application/json` (optional charset must be UTF-8).
-Protocol timestamps must be RFC 3339 UTC values ending in `Z`.
+Signed mutation endpoints reject query strings, and every endpoint rejects
+percent-encoded path aliases. The unsigned leaderboard GET endpoints accept
+only their documented, single-occurrence query parameters; the announcement GET
+does the same for its documented filters. Both read models return
+registry-signed snapshots and opaque cursors. JSON is size-bounded, valid
+UTF-8, exactly one value, free of duplicate/unknown fields, and served only as
+`application/json` (optional charset must be UTF-8). Protocol timestamps must
+be RFC 3339 UTC values ending in `Z`.
 
 The identity preflight is stable and creates no ledger entry. Clients verify
 its Ed25519 self-signature and deterministic key ID before asking an operator
 to pin the endpoint, scope, and key. It fails closed if full registry integrity
 verification fails.
+
+## Local announcement publication
+
+There is no HTTP publish API and production starts with no fake announcement.
+After reviewing a strict JSON file, a registry administrator can append it
+while the server is running:
+
+```bash
+cd /home/raxim/workspace/myscoutee-backend/server
+docker compose -f docker-compose-dev.yml exec -T registry \
+  /registry publish-announcement --file - \
+  < ../../myscoutee-registry/examples/announcement-general.json
+
+curl --fail --show-error \
+  'http://127.0.0.1:8081/v1/announcements?limit=20'
+```
+
+`/registry publish-announcement --help` documents file and stdin usage. The
+command returns the complete signed entry and whether the caller-chosen
+`publication_id` was an idempotent duplicate. Update the template's URLs,
+timestamps, digests, deterministic `pkey_...` package key ID, and detached
+package signature before use. Revocation and supersession are later append-only
+announcements, never an edit of a published row. Production permissions/backup
+guidance and exact application-development, restart-persistence, and optional
+demo-volume reset commands are in
+[`docs/announcements-v1.md`](docs/announcements-v1.md).
 
 ## Configuration
 
@@ -292,8 +342,21 @@ into the other scope.
 
 SQLite uses WAL, foreign keys, `synchronous=FULL`, one serialized connection,
 and append-only `UPDATE`/`DELETE` rejection triggers for identity,
-deployments, nonces, idempotency records, ledger entries, batches, and
-checkpoints.
+deployments, nonces, idempotency records, ledger entries, batches,
+leaderboard query rows, operator audit events, announcements, and checkpoints.
+
+The accounting ledger is a linear SHA-256 hash chain, not a Merkle tree. Each
+entry commits to its canonical contents and the previous entry hash. Signed,
+hash-linked daily checkpoints commit to the completed-day ledger head. This
+provides full replay/tamper verification; it does not claim Merkle inclusion
+proofs.
+
+`ledger_weight_rows` is not a projection and is never rebuilt asynchronously.
+Accepting a batch performs two related inserts in one transaction: the
+authoritative ledger entry and its exact query-friendly weight row. If either
+insert fails, neither is committed. Integrity verification requires exactly
+one matching query row per ledger entry and rejects missing, extra, or
+mismatched rows.
 
 On every restart and health check, the registry validates:
 
@@ -302,11 +365,17 @@ On every restart and health check, the registry validates:
   and central registration receipts;
 - MAU request proofs, commitments, batch-to-ledger fields, ledger hashes,
   receipt signatures, idempotency links, and initial nonce links;
-- ledger index/hash/timestamp monotonicity and the full checkpoint chain.
+- ledger index/hash/timestamp monotonicity and the full checkpoint chain;
+- exact ledger/query-row cardinality and field equality;
+- the operator action hash chain, deployment signatures, replay/idempotency
+  records, and registry-signed action receipts.
+- the announcement hash chain, normalized nested-content hashes, publication
+  idempotency hashes, registry signatures, and stored canonical JSON.
 
-Registration and batch writes fail closed when this verification fails. New
-ledger timestamps cannot precede registry creation, the current ledger head, or
-an already finalized day.
+Registration, batch, operator-action, announcement-publication, and signed
+read-model operations fail closed when this verification fails. New ledger
+timestamps cannot precede registry creation, the current ledger head, or an
+already finalized day.
 
 Protocol v1 does not define recovery aliasing for a lost local installation
 idempotency key: that key is included in the commitment and therefore in the
@@ -334,4 +403,7 @@ cover registration, duplicates, replay and idempotency conflicts, invalid
 signatures, strict decoding, sovereign scope rejection, ledger/receipt
 verification, clock rollback safeguards, completed-day checkpoints,
 append-only triggers, key restart/loss/replacement guards, and fail-closed
-integrity behavior.
+integrity behavior. Announcement tests additionally cover strict manifest
+validation, registry/package signature formats, expiry/filtering,
+snapshot-bound cursor traversal and tampering, append-only publication,
+live-volume CLI publication, and restart persistence.
