@@ -1,0 +1,71 @@
+limit_req_zone $binary_remote_addr zone=registry_request_rate:10m rate=${REGISTRY_EDGE_REQUEST_RATE};
+limit_conn_zone $binary_remote_addr zone=registry_connection_limit:10m;
+limit_req_status 429;
+limit_conn_status 429;
+server_tokens off;
+
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+upstream registry_backend {
+    zone registry_backend 64k;
+    server registry:8080 resolve;
+    keepalive 16;
+}
+
+server {
+    listen 8080 default_server;
+    listen [::]:8080 default_server;
+    server_name _;
+
+    return 308 https://${REGISTRY_PUBLIC_HOSTNAME}:${REGISTRY_HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen 8443 ssl default_server;
+    listen [::]:8443 ssl default_server;
+    server_name ${REGISTRY_PUBLIC_HOSTNAME};
+
+    ssl_certificate /etc/nginx/tls/fullchain.pem;
+    ssl_certificate_key /etc/nginx/tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:registry_tls:10m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    client_max_body_size ${REGISTRY_EDGE_MAX_BODY_SIZE};
+    client_body_timeout 10s;
+    client_header_timeout 10s;
+    keepalive_timeout 30s;
+    send_timeout 15s;
+    large_client_header_buffers 2 8k;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    limit_req zone=registry_request_rate burst=${REGISTRY_EDGE_REQUEST_BURST} nodelay;
+    limit_conn registry_connection_limit ${REGISTRY_EDGE_CONNECTION_LIMIT};
+
+    location / {
+        # No URI component and no rewrite: Nginx forwards the original request
+        # target so the registry can reject query strings and encoded aliases.
+        proxy_pass http://registry_backend;
+        proxy_http_version 1.1;
+        proxy_request_buffering on;
+        proxy_buffering on;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port ${REGISTRY_HTTPS_PORT};
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_set_header Forwarded "";
+        proxy_set_header Connection "";
+        proxy_hide_header X-Content-Type-Options;
+
+        proxy_connect_timeout 3s;
+        proxy_send_timeout 15s;
+        proxy_read_timeout 15s;
+    }
+}

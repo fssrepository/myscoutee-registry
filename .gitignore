@@ -1,0 +1,9 @@
+/registry
+/coverage.out
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+!.env.production.example
