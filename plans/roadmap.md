@@ -251,9 +251,9 @@ Deliverables:
 - a virtual operator-ownership grouping model that associates multiple
   independently claimed deployments without treating the association as
   server routing, clustering, or shared deployment identity;
-- a claim-popup client-code flow: a deployment in an approved operator group
-  may issue a short-lived, single-use code and copy it through the shared
-  protected-value dialog;
+- a claim-popup client-code flow: a deployment whose own current claim is
+  approved and remains in that claim's operator group may issue a short-lived,
+  single-use code and copy it through the shared protected-value dialog;
 - entering that code on an unclaimed deployment avoids repeating the company
   form, but creates a separate `pending-review` claim from the approved company
   submission; entering it on an already claimed deployment changes only its

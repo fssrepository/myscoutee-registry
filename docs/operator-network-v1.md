@@ -72,8 +72,9 @@ Acceptance immediately returns `claim_state: "pending-review"`, creates or
 retains the operator group, and makes the deployment a provisional claimed
 leaderboard member. Resubmitting a claim retains its group but creates a new
 claim action; a reviewer must approve that exact current action. Client-code
-issuance requires at least one current approved company submission in the
-effective operator group.
+issuance requires the issuing deployment's own current claim to be approved,
+and that claim's group must be its effective operator group. A pending
+token-derived deployment cannot amplify one accepted code into more codes.
 
 The application may accept an explicit `Idempotency-Key` HTTP header at its
 operator API boundary. When absent, it derives a stable `claim_...` key from
@@ -187,11 +188,14 @@ use fails with `client_token_used`.
 
 Redeeming on an already claimed deployment changes only that deployment's
 virtual operator-group membership. Redeeming on an unclaimed deployment
-copies the group's current approved private company submission into a new
-append-only submission owned by the receiving deployment and creates a new
+copies the issuing deployment's exact current approved private company
+submission into a new append-only submission owned by the receiving deployment
+and creates a new
 `PENDING_REVIEW` claim in that group. The receiving deployment signs the
 client-token hash; the registry records the issuing deployment, token ID/hash,
-copied private-record hash, and new claim boundary in the same transaction.
+source claim action ID, source private-record hash, and new claim boundary in
+the same transaction. The source approval timestamp must be no later than both
+the token issue and redemption acceptance timestamps.
 The copied claim appears in the existing list/show/approve CLI flow and must
 be approved independently. In both cases each deployment's identity,
 accounting rows, MAU receipts, and ledger ownership remain separately
@@ -202,6 +206,71 @@ hash-linked operator audit event, and the versioned network-state row used by
 leaderboard reads. Claim acceptance also appends its private submission and
 direct status row in that transaction. Replay, idempotency conflict, invalid
 state, and invalid signatures append nothing.
+
+The source anchors are explicit optional fields on the public action receipt:
+
+```text
+source_claim_action_id
+source_private_record_hash
+```
+
+They are both absent on every legacy action and on client-code redemption by
+an already claimed deployment. When both are absent, the operator audit and
+receipt retain their original v1 canonical messages exactly. When both are
+present, only a token-derived pending claim is valid and the registry signs:
+
+```text
+myscoutee-registry-operator-audit-v2
+<audit_index>
+<action_id>
+<deployment_id>
+<subject_deployment_id>
+<related_deployment_id>
+<action>
+<payload_hash>
+<accepted_at>
+<claim_state>
+<group_id>
+<link_id>
+<token_id>
+<client_token_hash>
+<source_claim_action_id>
+<source_private_record_hash>
+<token_expires_at>
+<previous_audit_hash>
+```
+
+and:
+
+```text
+myscoutee-registry-operator-action-receipt-v2
+<audit_index>
+<audit_hash>
+<previous_audit_hash>
+<action_id>
+<deployment_id>
+<subject_deployment_id>
+<related_deployment_id>
+<action>
+<accepted_at>
+<claim_state>
+<group_id>
+<link_id>
+<token_id>
+<client_token_hash>
+<source_claim_action_id>
+<source_private_record_hash>
+<token_expires_at>
+<registry_scope>
+<registry_key_id>
+```
+
+Integrity verification replays token issue, revocation, expiry, and redemption
+semantics, rejects more than one accepted redemption per token, verifies the
+source approval boundary, and compares every copied company field with the
+anchored source submission. For a pre-extension token-derived v1 row without
+anchors, verification reconstructs the issuer's current approved source at that
+historical boundary and performs the same field-for-field comparison.
 
 ## Administrative review CLI
 

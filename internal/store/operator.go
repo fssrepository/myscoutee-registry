@@ -40,34 +40,34 @@ type OperatorActionInput struct {
 }
 
 type OperatorAuditEvent struct {
-	AuditIndex          int64
-	ActionID            string
-	DeploymentID        string
-	SubjectDeploymentID string
-	RelatedDeploymentID string
-	Action              string
-	RequestTimestamp    string
-	Nonce               string
-	IdempotencyKey      string
-	PayloadHash         string
-	RequestHash         string
-	DeploymentSignature []byte
-	OperatorName        string
-	OperatorAvatarURL   string
-	ClaimState          string
-	GroupID             string
-	LinkID              string
-	TokenID             string
-	ClientTokenHash     string
-	SourceClaimActionID string
+	AuditIndex              int64
+	ActionID                string
+	DeploymentID            string
+	SubjectDeploymentID     string
+	RelatedDeploymentID     string
+	Action                  string
+	RequestTimestamp        string
+	Nonce                   string
+	IdempotencyKey          string
+	PayloadHash             string
+	RequestHash             string
+	DeploymentSignature     []byte
+	OperatorName            string
+	OperatorAvatarURL       string
+	ClaimState              string
+	GroupID                 string
+	LinkID                  string
+	TokenID                 string
+	ClientTokenHash         string
+	SourceClaimActionID     string
 	SourcePrivateRecordHash string
-	TokenTTLSeconds     int64
-	TokenExpiresAt      string
-	AcceptedAt          string
-	PreviousAuditHash   string
-	AuditHash           string
-	RegistryKeyID       string
-	ReceiptSignature    []byte
+	TokenTTLSeconds         int64
+	TokenExpiresAt          string
+	AcceptedAt              string
+	PreviousAuditHash       string
+	AuditHash               string
+	RegistryKeyID           string
+	ReceiptSignature        []byte
 }
 
 type OperatorAuditSigner func(OperatorAuditEvent) ([]byte, error)

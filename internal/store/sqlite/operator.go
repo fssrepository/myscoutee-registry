@@ -146,12 +146,12 @@ func (sqliteStore *Store) AppendOperatorAction(
 		event.ClaimState,
 		event.GroupID,
 		event.LinkID,
-			event.TokenID,
-			event.ClientTokenHash,
-			event.SourceClaimActionID,
-			event.SourcePrivateRecordHash,
-			event.TokenExpiresAt,
-			event.PreviousAuditHash,
+		event.TokenID,
+		event.ClientTokenHash,
+		event.SourceClaimActionID,
+		event.SourcePrivateRecordHash,
+		event.TokenExpiresAt,
+		event.PreviousAuditHash,
 	))
 	event.ReceiptSignature, err = signReceipt(event)
 	if err != nil {
@@ -584,6 +584,34 @@ func approvedOperatorClaimSubmissionTx(
 	groupID string,
 	acceptedAt string,
 ) (store.OperatorClaimSubmission, error) {
+	var claimActionID, approvedAt string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT claim_action_id, approved_at
+		FROM operator_claim_status
+		WHERE deployment_id = ?
+		  AND group_id = ?
+		  AND verification_state = 'approved'
+		  AND approved_at <> ''`,
+		deploymentID,
+		groupID,
+	).Scan(&claimActionID, &approvedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return store.OperatorClaimSubmission{}, store.ErrNotFound
+		}
+		return store.OperatorClaimSubmission{}, fmt.Errorf(
+			"read approved operator claim boundary: %w",
+			err,
+		)
+	}
+	approvedTime, approvedErr := time.Parse(time.RFC3339Nano, approvedAt)
+	acceptedTime, acceptedErr := time.Parse(time.RFC3339Nano, acceptedAt)
+	if approvedErr != nil || acceptedErr != nil {
+		return store.OperatorClaimSubmission{}, store.ErrInconsistentState
+	}
+	if approvedTime.After(acceptedTime) {
+		return store.OperatorClaimSubmission{}, store.ErrNotFound
+	}
+
 	submission, err := scanOperatorClaimSubmission(tx.QueryRowContext(ctx, `
 		SELECT
 			submission.claim_action_id,
@@ -602,19 +630,11 @@ func approvedOperatorClaimSubmissionTx(
 			submission.payload_hash,
 			submission.submitted_at,
 			submission.private_record_hash
-		FROM operator_claim_status status
-		JOIN operator_claim_verification_submissions submission
-		  ON submission.claim_action_id = status.claim_action_id
-		WHERE status.deployment_id = ?
-		  AND status.group_id = ?
-		  AND status.verification_state = 'approved'
-		  AND status.approved_at <> ''
-		  AND status.approved_at <= ?
+		FROM operator_claim_verification_submissions submission
+		WHERE submission.claim_action_id = ?
 		  AND submission.website <> ''
 		LIMIT 1`,
-		deploymentID,
-		groupID,
-		acceptedAt,
+		claimActionID,
 	))
 	if err != nil {
 		return store.OperatorClaimSubmission{}, fmt.Errorf(
@@ -750,11 +770,11 @@ func insertOperatorAuditEventTx(
 		event.ClaimState,
 		event.GroupID,
 		event.LinkID,
-			event.TokenID,
-			event.ClientTokenHash,
-			event.SourceClaimActionID,
-			event.SourcePrivateRecordHash,
-			event.TokenTTLSeconds,
+		event.TokenID,
+		event.ClientTokenHash,
+		event.SourceClaimActionID,
+		event.SourcePrivateRecordHash,
+		event.TokenTTLSeconds,
 		event.TokenExpiresAt,
 		event.AcceptedAt,
 		event.PreviousAuditHash,
@@ -798,21 +818,21 @@ func writeOperatorClaimStateTx(
 			event.LinkID != "" {
 			return nil
 		}
-			source, err := approvedOperatorClaimSubmissionTx(
-				ctx,
-				tx,
-				event.RelatedDeploymentID,
-				event.GroupID,
-				event.AcceptedAt,
-			)
-			if err != nil {
-				return err
-			}
-			if source.ClaimActionID != event.SourceClaimActionID ||
-				source.PrivateRecordHash != event.SourcePrivateRecordHash {
-				return store.ErrInconsistentState
-			}
-			return writePendingOperatorClaimTx(ctx, tx, event, source)
+		source, err := approvedOperatorClaimSubmissionTx(
+			ctx,
+			tx,
+			event.RelatedDeploymentID,
+			event.GroupID,
+			event.AcceptedAt,
+		)
+		if err != nil {
+			return err
+		}
+		if source.ClaimActionID != event.SourceClaimActionID ||
+			source.PrivateRecordHash != event.SourcePrivateRecordHash {
+			return store.ErrInconsistentState
+		}
+		return writePendingOperatorClaimTx(ctx, tx, event, source)
 	case protocol.OperatorActionWithdrawClaim:
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE operator_claim_status

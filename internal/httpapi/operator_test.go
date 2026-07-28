@@ -1063,6 +1063,207 @@ func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T)
 	}
 }
 
+func TestClientTokenApprovalCannotAuthorizePastIssue(t *testing.T) {
+	fixture := newOperatorAPIFixture(t)
+	issuer := fixture.registerDeployment(t, "clock-issuer")
+	claimDraft := operatorClaimRequest("Clock Boundary Cooperative")
+	claimDraft.Nonce = "nonce_clock_boundary_claim"
+	claimDraft.IdempotencyKey = "clock_boundary_claim"
+	claim := fixture.acceptOperatorAction(
+		t,
+		fixture.operatorAction(t, issuer, claimDraft),
+		http.StatusCreated,
+	)
+
+	fixture.clock.Set(fixture.now.Add(2 * time.Hour))
+	if _, err := fixture.runtime.Service.ApproveOperatorClaim(
+		context.Background(),
+		service.OperatorClaimApproval{
+			DeploymentID:    issuer.id,
+			ClaimActionID:   claim.Receipt.ActionID,
+			GroupID:         claim.Receipt.GroupID,
+			LegalName:       claimDraft.LegalName,
+			ReviewerID:      "network-review-team",
+			ReviewReference: "case:clock-boundary",
+			IdempotencyKey:  "approve_clock_boundary",
+		},
+	); err != nil {
+		t.Fatalf("approve future-boundary claim: %v", err)
+	}
+
+	fixture.clock.Set(fixture.now.Add(time.Hour))
+	request := fixture.operatorAction(t, issuer, protocol.OperatorActionRequest{
+		Nonce:           "nonce_clock_boundary_issue",
+		IdempotencyKey:  "clock_boundary_issue",
+		Action:          protocol.OperatorActionIssueClientToken,
+		TokenTTLSeconds: 300,
+	})
+	statusCode, body := jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		request,
+	)
+	assertAPIError(
+		t,
+		statusCode,
+		body,
+		http.StatusConflict,
+		"operator_claim_required",
+	)
+}
+
+func TestTokenDerivedClaimSourceIntegrityFailsClosed(t *testing.T) {
+	t.Run("source reference", func(t *testing.T) {
+		fixture, _, _, _, redeemed := createTokenDerivedClaim(t, "source-reference")
+		database, err := sql.Open("sqlite", fixture.cfg.DatabasePath)
+		if err != nil {
+			t.Fatalf("open source-reference tamper database: %v", err)
+		}
+		if _, err := database.Exec("DROP TRIGGER operator_audit_events_no_update"); err != nil {
+			database.Close()
+			t.Fatalf("drop operator audit append-only trigger: %v", err)
+		}
+		if _, err := database.Exec(`
+			UPDATE operator_audit_events
+			SET source_claim_action_id = 'opa_ffffffffffffffffffffffffffffffff'
+			WHERE action_id = ?`,
+			redeemed.Receipt.ActionID,
+		); err != nil {
+			database.Close()
+			t.Fatalf("tamper source claim reference: %v", err)
+		}
+		if err := database.Close(); err != nil {
+			t.Fatalf("close source-reference tamper database: %v", err)
+		}
+		if err := fixture.runtime.Service.VerifyState(context.Background()); err == nil ||
+			!strings.Contains(err.Error(), "audit hash verification failed") {
+			t.Fatalf("source-reference corruption verification error = %v", err)
+		}
+	})
+
+	t.Run("copied company data", func(t *testing.T) {
+		fixture, _, target, _, redeemed := createTokenDerivedClaim(t, "copied-data")
+		submission, _, err := fixture.runtime.Store.OperatorClaimSubmission(
+			context.Background(),
+			target.id,
+		)
+		if err != nil {
+			t.Fatalf("read copied submission before tamper: %v", err)
+		}
+		submission.RegisteredAddress = "Tampered copied address"
+		privateRecordHash := protocol.Digest(protocol.OperatorClaimPrivateRecordMessage(
+			submission.ClaimActionID,
+			submission.DeploymentID,
+			submission.GroupID,
+			submission.PayloadHash,
+			submission.LegalName,
+			submission.RegistrationNumber,
+			submission.Jurisdiction,
+			submission.RegisteredAddress,
+			submission.Website,
+			submission.VerificationContactName,
+			submission.VerificationContactRole,
+			submission.VerificationContactEmail,
+			submission.AuthorityAttested,
+			submission.OperatorAvatarURL,
+			submission.SubmittedAt,
+		))
+
+		database, err := sql.Open("sqlite", fixture.cfg.DatabasePath)
+		if err != nil {
+			t.Fatalf("open copied-data tamper database: %v", err)
+		}
+		if _, err := database.Exec(
+			"DROP TRIGGER operator_claim_verification_no_update",
+		); err != nil {
+			database.Close()
+			t.Fatalf("drop private submission append-only trigger: %v", err)
+		}
+		if _, err := database.Exec(`
+			UPDATE operator_claim_verification_submissions
+			SET registered_address = ?, private_record_hash = ?
+			WHERE claim_action_id = ?`,
+			submission.RegisteredAddress,
+			privateRecordHash,
+			redeemed.Receipt.ActionID,
+		); err != nil {
+			database.Close()
+			t.Fatalf("tamper copied private submission: %v", err)
+		}
+		if _, err := database.Exec(`
+			UPDATE operator_claim_status
+			SET private_record_hash = ?
+			WHERE deployment_id = ?`,
+			privateRecordHash,
+			target.id,
+		); err != nil {
+			database.Close()
+			t.Fatalf("align copied direct status hash: %v", err)
+		}
+		if err := database.Close(); err != nil {
+			t.Fatalf("close copied-data tamper database: %v", err)
+		}
+		if err := fixture.runtime.Service.VerifyState(context.Background()); err == nil ||
+			!strings.Contains(err.Error(), "does not match its approved source") {
+			t.Fatalf("copied-data corruption verification error = %v", err)
+		}
+	})
+}
+
+func createTokenDerivedClaim(
+	t *testing.T,
+	suffix string,
+) (*operatorAPIFixture, operatorDeployment, operatorDeployment, protocol.OperatorActionResponse, protocol.OperatorActionResponse) {
+	t.Helper()
+	fixture := newOperatorAPIFixture(t)
+	issuer := fixture.registerDeployment(t, suffix+"-issuer")
+	target := fixture.registerDeployment(t, suffix+"-target")
+	claimDraft := operatorClaimRequest("Source Integrity Cooperative")
+	claimDraft.Nonce = "nonce_" + suffix + "_claim"
+	claimDraft.IdempotencyKey = suffix + "_claim"
+	claim := fixture.acceptOperatorAction(
+		t,
+		fixture.operatorAction(t, issuer, claimDraft),
+		http.StatusCreated,
+	)
+	if _, err := fixture.runtime.Service.ApproveOperatorClaim(
+		context.Background(),
+		service.OperatorClaimApproval{
+			DeploymentID:    issuer.id,
+			ClaimActionID:   claim.Receipt.ActionID,
+			GroupID:         claim.Receipt.GroupID,
+			LegalName:       claimDraft.LegalName,
+			ReviewerID:      "network-review-team",
+			ReviewReference: "case:" + suffix,
+			IdempotencyKey:  "approve_" + suffix,
+		},
+	); err != nil {
+		t.Fatalf("approve source-integrity issuer: %v", err)
+	}
+	issued := fixture.acceptOperatorAction(
+		t,
+		fixture.operatorAction(t, issuer, protocol.OperatorActionRequest{
+			Nonce:           "nonce_" + suffix + "_issue",
+			IdempotencyKey:  suffix + "_issue",
+			Action:          protocol.OperatorActionIssueClientToken,
+			TokenTTLSeconds: 300,
+		}),
+		http.StatusCreated,
+	)
+	redeemed := fixture.acceptOperatorAction(
+		t,
+		fixture.operatorAction(t, target, protocol.OperatorActionRequest{
+			Nonce:          "nonce_" + suffix + "_redeem",
+			IdempotencyKey: suffix + "_redeem",
+			Action:         protocol.OperatorActionRedeemClientToken,
+			ClientToken:    issued.Receipt.ClientToken,
+		}),
+		http.StatusCreated,
+	)
+	return fixture, issuer, target, claim, redeemed
+}
+
 func newOperatorAPIFixture(t *testing.T) *operatorAPIFixture {
 	t.Helper()
 	directory := t.TempDir()

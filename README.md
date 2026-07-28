@@ -292,9 +292,10 @@ create their operator group and provisional leaderboard membership. The
 private registered address/contact is kept out of the public operator ledger,
 status, and leaderboard. It is stored in an access-limited append-only table
 linked to the public payload digest. Every company field, including the
-absolute HTTPS website, is required. A deployment in an approved group may
-issue a short-lived, single-use client code; redeeming it on an unclaimed
-deployment creates another independently reviewable `PENDING_REVIEW` claim
+absolute HTTPS website, is required. A deployment whose own current claim is
+approved and remains in that claim's group may issue a short-lived, single-use
+client code; redeeming it on an unclaimed deployment creates another
+independently reviewable `PENDING_REVIEW` claim
 without asking the operator to re-enter the approved company data.
 
 The operational CLI requires the configured database, signing key, and

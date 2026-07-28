@@ -65,27 +65,27 @@ type OperatorActionRequest struct {
 }
 
 type OperatorActionReceipt struct {
-	AuditIndex          int64  `json:"audit_index"`
-	AuditHash           string `json:"audit_hash"`
-	PreviousAuditHash   string `json:"previous_audit_hash"`
-	ActionID            string `json:"action_id"`
-	DeploymentID        string `json:"deployment_id"`
-	SubjectDeploymentID string `json:"subject_deployment_id"`
-	RelatedDeploymentID string `json:"related_deployment_id,omitempty"`
-	Action              string `json:"action"`
-	AcceptedAt          string `json:"accepted_at"`
-	ClaimState          string `json:"claim_state,omitempty"`
-	GroupID             string `json:"group_id,omitempty"`
-	LinkID              string `json:"link_id,omitempty"`
-	TokenID             string `json:"token_id,omitempty"`
-	ClientToken         string `json:"client_token,omitempty"`
-	ClientTokenHash     string `json:"client_token_hash,omitempty"`
-	SourceClaimActionID string `json:"source_claim_action_id,omitempty"`
+	AuditIndex              int64  `json:"audit_index"`
+	AuditHash               string `json:"audit_hash"`
+	PreviousAuditHash       string `json:"previous_audit_hash"`
+	ActionID                string `json:"action_id"`
+	DeploymentID            string `json:"deployment_id"`
+	SubjectDeploymentID     string `json:"subject_deployment_id"`
+	RelatedDeploymentID     string `json:"related_deployment_id,omitempty"`
+	Action                  string `json:"action"`
+	AcceptedAt              string `json:"accepted_at"`
+	ClaimState              string `json:"claim_state,omitempty"`
+	GroupID                 string `json:"group_id,omitempty"`
+	LinkID                  string `json:"link_id,omitempty"`
+	TokenID                 string `json:"token_id,omitempty"`
+	ClientToken             string `json:"client_token,omitempty"`
+	ClientTokenHash         string `json:"client_token_hash,omitempty"`
+	SourceClaimActionID     string `json:"source_claim_action_id,omitempty"`
 	SourcePrivateRecordHash string `json:"source_private_record_hash,omitempty"`
-	TokenExpiresAt      string `json:"token_expires_at,omitempty"`
-	RegistryScope       string `json:"registry_scope"`
-	RegistryKeyID       string `json:"registry_key_id"`
-	Signature           string `json:"signature"`
+	TokenExpiresAt          string `json:"token_expires_at,omitempty"`
+	RegistryScope           string `json:"registry_scope"`
+	RegistryKeyID           string `json:"registry_key_id"`
+	Signature               string `json:"signature"`
 }
 
 type OperatorActionResponse struct {

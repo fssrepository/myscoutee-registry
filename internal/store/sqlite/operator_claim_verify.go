@@ -85,12 +85,12 @@ func (sqliteStore *Store) verifyOperatorClaimReviews(
 }
 
 type verifiedOperatorDeploymentState struct {
-	Active          bool
-	Claimed         bool
-	ClaimActionID   string
-	ClaimGroupID    string
+	Active           bool
+	Claimed          bool
+	ClaimActionID    string
+	ClaimGroupID     string
 	EffectiveGroupID string
-	LinkID          string
+	LinkID           string
 }
 
 type verifiedOperatorTokenState struct {
@@ -233,8 +233,9 @@ func verifyOperatorActionSemantics(
 			if tokenDerivedClaim {
 				if state.Claimed ||
 					!approved ||
-					event.SourceClaimActionID != source.ClaimActionID ||
-					event.SourcePrivateRecordHash != source.PrivateRecordHash ||
+					(event.SourceClaimActionID != "" &&
+						(event.SourceClaimActionID != source.ClaimActionID ||
+							event.SourcePrivateRecordHash != source.PrivateRecordHash)) ||
 					!sameOperatorCompanySubmission(copied, source) {
 					return inconsistentMessage(
 						"operator token-derived claim %s does not match its approved source",

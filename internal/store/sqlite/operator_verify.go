@@ -199,11 +199,11 @@ func (sqliteStore *Store) verifyOperatorAuditEvents(
 			event.ClaimState,
 			event.GroupID,
 			event.LinkID,
-				event.TokenID,
-				event.ClientTokenHash,
-				event.SourceClaimActionID,
-				event.SourcePrivateRecordHash,
-				event.TokenExpiresAt,
+			event.TokenID,
+			event.ClientTokenHash,
+			event.SourceClaimActionID,
+			event.SourcePrivateRecordHash,
+			event.TokenExpiresAt,
 			event.PreviousAuditHash,
 		))
 		if event.AuditHash != expectedAuditHash {
@@ -433,8 +433,9 @@ func operatorEventPayloadHash(
 			if event.ClaimState != protocol.OperatorClaimStatePendingReview ||
 				event.LinkID != "" ||
 				event.RelatedDeploymentID == "" ||
-				!validHexID(event.SourceClaimActionID, "opa_", 32) ||
-				!protocol.IsDigest(event.SourcePrivateRecordHash) ||
+				(hasSourceClaim &&
+					(!validHexID(event.SourceClaimActionID, "opa_", 32) ||
+						!protocol.IsDigest(event.SourcePrivateRecordHash))) ||
 				validateOperatorClaimSubmission(event, submission) != nil {
 				return "", false, store.ErrInconsistentState
 			}
@@ -511,24 +512,24 @@ func operatorReceipt(
 	registryScope string,
 ) protocol.OperatorActionReceipt {
 	return protocol.OperatorActionReceipt{
-		AuditIndex:          event.AuditIndex,
-		AuditHash:           event.AuditHash,
-		PreviousAuditHash:   event.PreviousAuditHash,
-		ActionID:            event.ActionID,
-		DeploymentID:        event.DeploymentID,
-		SubjectDeploymentID: event.SubjectDeploymentID,
-		RelatedDeploymentID: event.RelatedDeploymentID,
-		Action:              event.Action,
-		AcceptedAt:          event.AcceptedAt,
-		ClaimState:          event.ClaimState,
-		GroupID:             event.GroupID,
-		LinkID:              event.LinkID,
-		TokenID:             event.TokenID,
-		ClientTokenHash:     event.ClientTokenHash,
-		SourceClaimActionID: event.SourceClaimActionID,
+		AuditIndex:              event.AuditIndex,
+		AuditHash:               event.AuditHash,
+		PreviousAuditHash:       event.PreviousAuditHash,
+		ActionID:                event.ActionID,
+		DeploymentID:            event.DeploymentID,
+		SubjectDeploymentID:     event.SubjectDeploymentID,
+		RelatedDeploymentID:     event.RelatedDeploymentID,
+		Action:                  event.Action,
+		AcceptedAt:              event.AcceptedAt,
+		ClaimState:              event.ClaimState,
+		GroupID:                 event.GroupID,
+		LinkID:                  event.LinkID,
+		TokenID:                 event.TokenID,
+		ClientTokenHash:         event.ClientTokenHash,
+		SourceClaimActionID:     event.SourceClaimActionID,
 		SourcePrivateRecordHash: event.SourcePrivateRecordHash,
-		TokenExpiresAt:      event.TokenExpiresAt,
-		RegistryScope:       registryScope,
-		RegistryKeyID:       event.RegistryKeyID,
+		TokenExpiresAt:          event.TokenExpiresAt,
+		RegistryScope:           registryScope,
+		RegistryKeyID:           event.RegistryKeyID,
 	}
 }
