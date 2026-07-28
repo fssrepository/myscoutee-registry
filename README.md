@@ -4,10 +4,12 @@ A small, reusable signed deployment registry. The implemented foundation
 provides:
 
 - proof-of-possession deployment registration with Ed25519;
-- one accepted record kind: a zero-count `installation-test` MAU batch;
+- zero-count `installation-test` MAU batches that never affect weight;
+- signed daily aggregate revenue snapshots and immutable correction revisions,
+  separated by ISO-4217 settlement currency;
 - a SQLite WAL append-only, hash-linked ledger;
-- a directly maintained leaderboard query row for every ledger entry, written
-  in the same SQLite transaction;
+- directly maintained leaderboard weight and revenue query rows, written in
+  the same SQLite transaction as their authoritative ledger/source records;
 - signed registration and batch receipts plus completed-UTC-day checkpoints;
 - signed structured company-verification claims, append-only administrative
   review receipts, direct signed status, and expiring grouping tokens;
@@ -20,11 +22,13 @@ provides:
   checkpoint finalization.
 
 It does not yet implement global user deduplication, production MAU
-qualification, Firebase migration, beneficial-owner due diligence, or document
-upload/review. Company claims have an explicit local administrative approval
-boundary. With protocol-v1 accepting only zero-count installation tests, a
-real registry's measured deployment weights remain zero until the production
-MAU ruleset is introduced.
+qualification, Firebase migration, beneficial-owner due diligence, document
+upload/review, or share-weighted revenue allocation. Company claims have an
+explicit local administrative approval boundary. With protocol-v1 accepting
+only zero-count installation tests, a real registry's measured deployment
+weights remain zero until the production MAU ruleset is introduced. Revenue
+receipts and the technical 5% network-pool calculation do not establish a
+legal payout or valuation.
 
 The registration/ledger wire and signature format is
 [`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
@@ -224,6 +228,8 @@ follow the signing-key lifecycle rules below.
 | `POST` | `/v1/deployments/register` | `201` new, `200` signed duplicate |
 | `POST` | `/v1/mau/batches` | `201` appended, `200` idempotent duplicate |
 | `GET` | `/v1/mau/batches/{batch_id}/receipt` | Stored signed receipt |
+| `POST` | `/v1/revenue/batches` | `201` appended daily aggregate, `200` idempotent duplicate |
+| `GET` | `/v1/revenue/batches/{revbatch_id}/receipt` | Stored signed revenue receipt |
 | `GET` | `/v1/ledger/checkpoints/{YYYY-MM-DD}` | Completed UTC day checkpoint |
 | `POST` | `/v1/operator/actions` | Signed claim, client-token/group-link, or deployment-state action |
 | `GET` | `/v1/operator/claims/{deployment_id}` | Direct registry-signed company-verification status |
@@ -313,6 +319,17 @@ docker compose exec -T registry \
 
 docker compose exec -T registry \
   /registry leaderboard --view claimed --limit 20
+
+docker compose exec -T registry \
+  /registry revenue --period 2026-07-27 --currency EUR
+
+docker compose exec -T registry \
+  /registry revenue --period 2026-07-27 --currency EUR \
+  --deployment-id dep_0123456789abcdef0123456789abcdef
+
+docker compose exec -T registry \
+  /registry revenue --period 2026-07-27 --currency EUR \
+  --group-id opg_0123456789abcdef0123456789abcdef
 ```
 
 Commands emit JSON. An exact approval retry exits `0` with `duplicate: true`;
@@ -321,6 +338,16 @@ an idempotency conflict or a withdrawn/superseded claim target exits `1`.
 CLI access is the review authority; the registry signature binds what it
 recorded but is not a separate human signature. Cursors and
 `next_deployment_id` values are opaque and must be copied unchanged.
+
+The revenue command reads the already-initialized local registry database and
+never publishes a query endpoint. It reports one settlement currency at a
+time, performs no foreign-exchange conversion, and keeps
+`network_commission_pool_minor` equal to the global day/currency pool even
+when the other totals are filtered to one deployment or current claimed
+group. `reported_estimated_commission_minor` remains the sum of the selected
+rows' individually rounded estimates. The global pool is
+`floor(SUM(active commission_basis_minor) * 500 / 10000)`; it is not the sum
+of per-deployment rounded estimates and is not a payout instruction.
 
 The complete list/show/approve flow, JSON examples, signed status receipt,
 cursor examples, exit codes, privacy/backup handling, and stale-target
@@ -406,12 +433,14 @@ hash-linked daily checkpoints commit to the completed-day ledger head. This
 provides full replay/tamper verification; it does not claim Merkle inclusion
 proofs.
 
-`ledger_weight_rows` is not a projection and is never rebuilt asynchronously.
-Accepting a batch performs two related inserts in one transaction: the
-authoritative ledger entry and its exact query-friendly weight row. If either
-insert fails, neither is committed. Integrity verification requires exactly
-one matching query row per ledger entry and rejects missing, extra, or
-mismatched rows.
+`ledger_weight_rows` and `revenue_query_rows` are not asynchronous projections
+and are never repaired from the ledger. An installation-test acceptance writes
+its authoritative ledger entry and exact weight row in one transaction. A
+revenue acceptance writes its ledger entry, immutable source batch, and one
+exact query row per reported currency in one transaction; an explicit
+zero-revenue snapshot deliberately has no currency row. If any required insert
+fails, none is committed. Integrity verification rejects missing, extra, or
+mismatched source/query rows.
 
 On every restart and health check, the registry validates:
 
@@ -420,6 +449,9 @@ On every restart and health check, the registry validates:
   and central registration receipts;
 - MAU request proofs, commitments, batch-to-ledger fields, ledger hashes,
   receipt signatures, idempotency links, and initial nonce links;
+- revenue request proofs, canonical currency aggregates, immutable revision
+  links, direct query rows, ledger entries, receipts, nonces, idempotency
+  links, and bounded active aggregates;
 - ledger index/hash/timestamp monotonicity and the full checkpoint chain;
 - exact ledger/query-row cardinality and field equality;
 - the operator action hash chain, deployment signatures, replay/idempotency
@@ -429,10 +461,10 @@ On every restart and health check, the registry validates:
 - the announcement hash chain, normalized nested-content hashes, publication
   idempotency hashes, registry signatures, and stored canonical JSON.
 
-Registration, batch, operator-action, announcement-publication, and signed
-read-model operations fail closed when this verification fails. New ledger
-timestamps cannot precede registry creation, the current ledger head, or an
-already finalized day.
+Registration, MAU/revenue batch, operator-action,
+announcement-publication, and signed read-model operations fail closed when
+this verification fails. New ledger timestamps cannot precede registry
+creation, the current ledger head, or an already finalized day.
 
 Protocol v1 does not define recovery aliasing for a lost local installation
 idempotency key: that key is included in the commitment and therefore in the
@@ -470,3 +502,7 @@ additionally cover strict manifest validation, registry/package signature
 formats, expiry/filtering,
 snapshot-bound cursor traversal and tampering, append-only publication,
 live-volume CLI publication, and restart persistence.
+Revenue tests additionally cover real deployment signatures, immutable
+receipts, exact idempotent retries, correction chains, stale-correction
+rejection, explicit zero-revenue days, deterministic currency validation, and
+aggregate-level commission rounding.

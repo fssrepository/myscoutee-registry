@@ -86,6 +86,17 @@ Deliverables:
   retry state, and central-receipt verification;
 - self-signed deployment registration with an opaque deployment ID;
 - one zero-count `installation-test-v1` batch that can never affect weight;
+- signed `daily-revenue` aggregate snapshots by original-payment UTC day and
+  settlement currency, with a pinned minor-unit table, fixed
+  `net-captured-revenue-v1` ruleset, 500-basis-point technical network pool,
+  explicit zero days, and immutable revision/supersession corrections;
+- revenue ledger/source/query rows written directly in one transaction, with
+  signed receipts and fail-closed replay verification instead of an
+  asynchronously rebuilt projection;
+- local registry-administrator revenue queries for global,
+  deployment-specific, and current claimed-group totals; currencies are never
+  combined, there is no public revenue-query endpoint, and filtered
+  breakdowns retain the global day/currency commission pool;
 - Go HTTP registry in Docker;
 - dedicated production Compose deployment on the separate registry host, with
   operator-supplied TLS certificate/key material and a registry-owned Nginx
@@ -109,6 +120,9 @@ Exit criteria:
 
 - restarting either deployment or registry preserves identity and signatures;
 - repeating a batch returns the original receipt and does not append;
+- exact revenue retries return the original receipt, stale or branching
+  corrections fail, and the global pool is calculated once from the active
+  day/currency basis instead of by summing rounded deployment estimates;
 - invalid signature, stale timestamp, nonce replay, and idempotency conflict are
   rejected;
 - ledger and checkpoint verification succeed after restart;
@@ -483,6 +497,9 @@ Exit criteria:
 - whether central token validation is required for every counted identity;
 - the global-link consent and privacy model;
 - the final weight window and founder/operator allocation formula;
+- share-weighted revenue allocation and legal settlement, which require an
+  immutable production weight snapshot and cannot be inferred from the current
+  zero-count installation-test records;
 - claim retroactivity and transfer terms;
 - the preferred external operator/company identity provider;
 - the forum provider;
