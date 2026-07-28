@@ -1,0 +1,43 @@
+{
+  "protocol_version": "1",
+  "publication_id": "release-1.2.3-stable-2026-07-28",
+  "kind": "UPDATE",
+  "severity": "NOTICE",
+  "published_at": "2026-07-28T12:00:00Z",
+  "localizations": [
+    {
+      "locale": "en",
+      "title": "MyScoutee 1.2.3 is available",
+      "body": "Review the signed package origin, compatibility, backup requirement, and release notes before approving installation."
+    },
+    {
+      "locale": "hu",
+      "title": "Elérhető a MyScoutee 1.2.3",
+      "body": "Telepítés jóváhagyása előtt ellenőrizze az aláírt csomag forrását, kompatibilitását, a biztonsági mentés követelményét és a kiadási megjegyzéseket."
+    }
+  ],
+  "links": [
+    {
+      "relation": "release-notes",
+      "url": "https://github.com/example/myscoutee/releases/tag/v1.2.3"
+    }
+  ],
+  "update_manifest": {
+    "manifest_version": "1",
+    "release_version": "1.2.3",
+    "channel": "stable",
+    "published_at": "2026-07-28T12:00:00Z",
+    "minimum_compatible_version": "1.0.0",
+    "maximum_compatible_version": "1.2.2",
+    "artifact_url": "https://github.com/example/myscoutee/releases/download/v1.2.3/myscoutee_1.2.3_amd64.deb",
+    "artifact_size_bytes": 104857600,
+    "artifact_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "package_signing_key_id": "pkey_00000000000000000000000000000000",
+    "package_signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+    "release_notes_url": "https://github.com/example/myscoutee/releases/tag/v1.2.3",
+    "backup_required": true,
+    "expected_downtime_seconds": 300,
+    "status": "AVAILABLE",
+    "supersedes_version": "1.2.2"
+  }
+}

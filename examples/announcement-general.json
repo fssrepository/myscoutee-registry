@@ -1,0 +1,26 @@
+{
+  "protocol_version": "1",
+  "publication_id": "operator-community-2026-07-28",
+  "kind": "GENERAL",
+  "severity": "NOTICE",
+  "published_at": "2026-07-28T12:00:00Z",
+  "expires_at": "2026-08-28T12:00:00Z",
+  "localizations": [
+    {
+      "locale": "en",
+      "title": "Operator community is available",
+      "body": "Use the operator Community menu for live chat and searchable support discussions."
+    },
+    {
+      "locale": "hu",
+      "title": "Elérhető az üzemeltetői közösség",
+      "body": "Az üzemeltetői Közösség menüben élő csevegés és kereshető támogatási fórum érhető el."
+    }
+  ],
+  "links": [
+    {
+      "relation": "community",
+      "url": "https://community.example.invalid/operators"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+services:
+  registry:
+    environment:
+      REGISTRY_GENERATE_SIGNING_KEY: "false"
+      REGISTRY_SIGNING_KEY_PATH: "/run/registry-key/registry-signing-key.pem"
+    volumes:
+      - type: bind
+        source: "${REGISTRY_PROVISIONED_KEY_PATH:?set REGISTRY_PROVISIONED_KEY_PATH}"
+        target: "/run/registry-key/registry-signing-key.pem"
+        read_only: true
