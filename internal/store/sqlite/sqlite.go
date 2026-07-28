@@ -62,6 +62,113 @@ func Open(path string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+// OpenExisting refuses to create or initialize a registry database. It checks
+// for an existing initialized identity using a read-only connection before the
+// ordinary migration/open path is allowed to make any changes.
+func OpenExisting(path string) (*Store, error) {
+	if _, err := InspectExistingRegistryIdentity(path); err != nil {
+		return nil, err
+	}
+	return Open(path)
+}
+
+// InspectExistingRegistryIdentity reads the existing identity without running
+// migrations or changing SQLite pragmas. Operational callers use it to verify
+// the configured key/scope before allowing OpenExisting to mutate schema.
+func InspectExistingRegistryIdentity(path string) (store.RegistryIdentity, error) {
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return store.RegistryIdentity{}, fmt.Errorf("resolve SQLite database path: %w", err)
+	}
+	info, err := os.Lstat(absolutePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return store.RegistryIdentity{}, fmt.Errorf(
+				"registry database does not exist: %s",
+				absolutePath,
+			)
+		}
+		return store.RegistryIdentity{}, fmt.Errorf("inspect registry database: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"registry database must be an existing regular non-symlink file: %s",
+			absolutePath,
+		)
+	}
+
+	dsnURL := url.URL{Scheme: "file", Path: absolutePath}
+	query := dsnURL.Query()
+	query.Add("mode", "ro")
+	dsnURL.RawQuery = query.Encode()
+	preflight, err := sql.Open("sqlite", dsnURL.String())
+	if err != nil {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"inspect existing SQLite database: %w",
+			err,
+		)
+	}
+	defer preflight.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var identityTableCount int
+	if err := preflight.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM sqlite_master
+		WHERE type = 'table' AND name = 'registry_identity'`).Scan(
+		&identityTableCount,
+	); err != nil {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"inspect initialized registry identity: %w",
+			err,
+		)
+	}
+	if identityTableCount != 1 {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"registry database is not initialized with exactly one identity: %s",
+			absolutePath,
+		)
+	}
+	var persisted store.RegistryIdentity
+	if err := preflight.QueryRowContext(ctx, `
+		SELECT
+			protocol_version,
+			registry_scope,
+			registry_key_id,
+			public_key_der,
+			created_at
+		FROM registry_identity
+		WHERE singleton = 1`).Scan(
+		&persisted.ProtocolVersion,
+		&persisted.RegistryScope,
+		&persisted.RegistryKeyID,
+		&persisted.PublicKeyDER,
+		&persisted.CreatedAt,
+	); err != nil {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"inspect initialized registry identity: %w",
+			err,
+		)
+	}
+	var identityCount int
+	if err := preflight.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM registry_identity`,
+	).Scan(&identityCount); err != nil || identityCount != 1 {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"registry database is not initialized with exactly one identity: %s",
+			absolutePath,
+		)
+	}
+	if err := preflight.Close(); err != nil {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"close registry database preflight: %w",
+			err,
+		)
+	}
+	return persisted, nil
+}
+
 func (sqliteStore *Store) Close() error {
 	return sqliteStore.db.Close()
 }
@@ -79,8 +186,13 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM used_nonces) +
 			(SELECT COUNT(*) FROM idempotency_records) +
 			(SELECT COUNT(*) FROM ledger_entries) +
+			(SELECT COUNT(*) FROM ledger_weight_rows) +
 			(SELECT COUNT(*) FROM mau_batches) +
-			(SELECT COUNT(*) FROM checkpoints)`).Scan(&recordCount); err != nil {
+			(SELECT COUNT(*) FROM checkpoints) +
+			(SELECT COUNT(*) FROM operator_audit_events) +
+			(SELECT COUNT(*) FROM operator_action_nonces) +
+			(SELECT COUNT(*) FROM operator_network_state_rows) +
+			(SELECT COUNT(*) FROM announcements)`).Scan(&recordCount); err != nil {
 		return false, fmt.Errorf("inspect registry persistent state: %w", err)
 	}
 	return recordCount == 0, nil

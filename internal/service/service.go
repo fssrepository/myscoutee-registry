@@ -432,6 +432,9 @@ func (registry *Service) VerifyState(ctx context.Context) error {
 	if err := registry.store.VerifyLedger(ctx); err != nil {
 		return fmt.Errorf("verify ledger: %w", err)
 	}
+	if err := registry.store.VerifyLedgerWeightRows(ctx); err != nil {
+		return fmt.Errorf("verify ledger weight rows: %w", err)
+	}
 	if err := registry.store.VerifyRecords(
 		ctx,
 		registry.signingKey.PublicKey(),
@@ -447,6 +450,22 @@ func (registry *Service) VerifyState(ctx context.Context) error {
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify checkpoints: %w", err)
+	}
+	if err := registry.store.VerifyOperatorNetwork(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify operator audit network: %w", err)
+	}
+	if err := registry.store.VerifyAnnouncements(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify announcements: %w", err)
 	}
 	return nil
 }

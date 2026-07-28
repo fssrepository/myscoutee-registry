@@ -98,3 +98,50 @@ func TestDigestAndCanonicalBase64Validation(t *testing.T) {
 		t.Fatalf("unpadded or wrong-size signatures must be rejected")
 	}
 }
+
+func TestStructuredOperatorClaimCanonicalPayloadCommitsEveryField(t *testing.T) {
+	t.Parallel()
+	payload := string(OperatorClaimPayload(
+		"Example Cooperative",
+		"REG-42",
+		"Slovakia",
+		"Main Street 1",
+		"https://example.test",
+		"Alex Reviewer",
+		"Director",
+		"alex@example.test",
+		true,
+		"https://example.test/avatar.png",
+	))
+	want := "" +
+		"myscoutee-registry-operator-claim-payload-v2\n" +
+		"claim\n" +
+		"Example Cooperative\n" +
+		"REG-42\n" +
+		"Slovakia\n" +
+		"Main Street 1\n" +
+		"https://example.test\n" +
+		"Alex Reviewer\n" +
+		"Director\n" +
+		"alex@example.test\n" +
+		"true\n" +
+		"https://example.test/avatar.png\n"
+	if payload != want {
+		t.Fatalf("canonical operator claim payload mismatch:\nwant %q\n got %q", want, payload)
+	}
+	changed := OperatorClaimPayload(
+		"Example Cooperative",
+		"REG-42",
+		"Slovakia",
+		"Changed address",
+		"https://example.test",
+		"Alex Reviewer",
+		"Director",
+		"alex@example.test",
+		true,
+		"https://example.test/avatar.png",
+	)
+	if Digest([]byte(payload)) == Digest(changed) {
+		t.Fatalf("changing a private claim field must change the canonical digest")
+	}
+}

@@ -97,3 +97,143 @@ func (sqliteStore *Store) VerifyLedger(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
+	rows, err := sqliteStore.db.QueryContext(ctx, `
+		SELECT
+			l.ledger_index,
+			l.deployment_id,
+			l.period,
+			l.ruleset_version,
+			l.qualified_mau_count,
+			l.accepted_at,
+			l.entry_hash,
+			w.ledger_index,
+			w.deployment_id,
+			w.period,
+			w.ruleset_version,
+			w.qualified_mau_count,
+			w.weight_numerator,
+			w.weight_denominator,
+			w.accepted_at,
+			w.source_entry_hash
+		FROM ledger_entries l
+		LEFT JOIN ledger_weight_rows w ON w.ledger_index = l.ledger_index
+		ORDER BY l.ledger_index`)
+	if err != nil {
+		return fmt.Errorf("read ledger weight rows: %w", err)
+	}
+
+	for rows.Next() {
+		var (
+			ledgerIndex       int64
+			deploymentID      string
+			period            string
+			rulesetVersion    string
+			qualifiedMAUCount int64
+			acceptedAt        string
+			entryHash         string
+
+			rowLedgerIndex       sql.NullInt64
+			rowDeploymentID      sql.NullString
+			rowPeriod            sql.NullString
+			rowRulesetVersion    sql.NullString
+			rowQualifiedMAUCount sql.NullInt64
+			rowWeightNumerator   sql.NullInt64
+			rowWeightDenominator sql.NullInt64
+			rowAcceptedAt        sql.NullString
+			rowSourceEntryHash   sql.NullString
+		)
+		if err := rows.Scan(
+			&ledgerIndex,
+			&deploymentID,
+			&period,
+			&rulesetVersion,
+			&qualifiedMAUCount,
+			&acceptedAt,
+			&entryHash,
+			&rowLedgerIndex,
+			&rowDeploymentID,
+			&rowPeriod,
+			&rowRulesetVersion,
+			&rowQualifiedMAUCount,
+			&rowWeightNumerator,
+			&rowWeightDenominator,
+			&rowAcceptedAt,
+			&rowSourceEntryHash,
+		); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan ledger weight row: %w", err)
+		}
+		if !rowLedgerIndex.Valid {
+			rows.Close()
+			return fmt.Errorf("ledger entry %d has no matching ledger weight row", ledgerIndex)
+		}
+		if rowLedgerIndex.Int64 != ledgerIndex {
+			rows.Close()
+			return fmt.Errorf(
+				"ledger weight row %d has ledger index %d",
+				ledgerIndex,
+				rowLedgerIndex.Int64,
+			)
+		}
+		if !rowDeploymentID.Valid || rowDeploymentID.String != deploymentID {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched deployment ID", ledgerIndex)
+		}
+		if !rowPeriod.Valid || rowPeriod.String != period {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched period", ledgerIndex)
+		}
+		if !rowRulesetVersion.Valid || rowRulesetVersion.String != rulesetVersion {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched ruleset version", ledgerIndex)
+		}
+		if !rowQualifiedMAUCount.Valid || rowQualifiedMAUCount.Int64 != qualifiedMAUCount {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched qualified MAU count", ledgerIndex)
+		}
+		if !rowWeightNumerator.Valid || rowWeightNumerator.Int64 != qualifiedMAUCount {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched weight numerator", ledgerIndex)
+		}
+		if !rowWeightDenominator.Valid || rowWeightDenominator.Int64 != 1 {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched weight denominator", ledgerIndex)
+		}
+		if !rowAcceptedAt.Valid || rowAcceptedAt.String != acceptedAt {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched accepted_at", ledgerIndex)
+		}
+		if !rowSourceEntryHash.Valid || rowSourceEntryHash.String != entryHash {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched source entry hash", ledgerIndex)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate ledger weight rows: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close ledger-weight rows: %w", err)
+	}
+
+	var extraLedgerIndex int64
+	err = sqliteStore.db.QueryRowContext(ctx, `
+		SELECT w.ledger_index
+		FROM ledger_weight_rows w
+		LEFT JOIN ledger_entries l ON l.ledger_index = w.ledger_index
+		WHERE l.ledger_index IS NULL
+		ORDER BY w.ledger_index
+		LIMIT 1`).Scan(&extraLedgerIndex)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("find extra ledger weight rows: %w", err)
+	}
+	return fmt.Errorf(
+		"ledger weight row %d has no matching ledger entry",
+		extraLedgerIndex,
+	)
+}

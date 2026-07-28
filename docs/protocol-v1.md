@@ -417,3 +417,9 @@ operator reported truthful activity or that a local account is one human.
 
 No raw email, Firebase UID, access token, profile, chat, location, payment
 detail, or other direct user identifier is accepted by protocol v1.
+
+The later registry-signed, read-only operator announcement and update-manifest
+extension is specified separately in
+[`announcements-v1.md`](announcements-v1.md). It adds no public mutation or
+remote-install endpoint and does not change deployment-registration or
+accounting signatures.

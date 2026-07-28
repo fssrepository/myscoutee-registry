@@ -1,4 +1,7 @@
 services:
+  # This service starts without fake announcements. The local binary's
+  # publish-announcement command appends reviewed JSON to this persistent WAL
+  # database while the HTTP process remains running.
   registry:
     build:
       context: .

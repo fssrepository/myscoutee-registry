@@ -129,6 +129,33 @@ func (sqliteStore *Store) AcceptInstallationBatch(
 		return store.BatchRecord{}, false, fmt.Errorf("append ledger entry: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `
+		INSERT INTO ledger_weight_rows (
+			ledger_index,
+			deployment_id,
+			period,
+			ruleset_version,
+			qualified_mau_count,
+			weight_numerator,
+			weight_denominator,
+			accepted_at,
+			source_entry_hash
+		) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+		entry.LedgerIndex,
+		entry.DeploymentID,
+		entry.Period,
+		entry.RulesetVersion,
+		entry.QualifiedMAUCount,
+		entry.QualifiedMAUCount,
+		entry.AcceptedAt,
+		entry.EntryHash,
+	)
+	if err != nil {
+		return store.BatchRecord{}, false, fmt.Errorf(
+			"append ledger leaderboard row: %w",
+			err,
+		)
+	}
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO mau_batches (
 			batch_id,
 			deployment_id,
