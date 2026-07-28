@@ -10,8 +10,11 @@ identity or a transfer of ledger ownership.
 - Every operator mutation is signed by the already registered deployment key.
 - The registry verifies the signature, timestamp, nonce, idempotency key, and
   payload hash before accepting an action.
-- A deployment submits or withdraws its own company claim. A client token never
-  changes deployment identity, MAU history, or ledger ownership.
+- A deployment submits or withdraws its own company claim. An approved
+  deployment may also issue a short-lived, single-use client code so another
+  deployment can reuse the approved company submission as a new
+  `PENDING_REVIEW` claim. A client code never changes deployment identity, MAU
+  history, or ledger ownership.
 - Approval is an administrative action available only through local access to
   the registry container and its existing database/signing key. `reviewer_id`
   identifies that local audit actor; it is not a separate reviewer signature
@@ -36,7 +39,7 @@ using action `claim` and these claim fields:
 | `registration_number` | required, 1–80 UTF-8 bytes |
 | `jurisdiction` | required, 1–80 UTF-8 bytes |
 | `registered_address` | required, 1–500 UTF-8 bytes |
-| `website` | optional absolute HTTPS URL, at most 2048 UTF-8 bytes |
+| `website` | required absolute HTTPS URL, at most 2048 UTF-8 bytes |
 | `verification_contact_name` | required, 1–120 UTF-8 bytes |
 | `verification_contact_role` | required, 1–120 UTF-8 bytes |
 | `verification_contact_email` | required canonical lowercase address, at most 254 UTF-8 bytes |
@@ -67,9 +70,10 @@ claim
 
 Acceptance immediately returns `claim_state: "pending-review"`, creates or
 retains the operator group, and makes the deployment a provisional claimed
-leaderboard member. Its grouping/client-token operations remain available
-while review is pending. Resubmitting a claim retains its group but creates a
-new claim action; a reviewer must approve that exact current action.
+leaderboard member. Resubmitting a claim retains its group but creates a new
+claim action; a reviewer must approve that exact current action. Client-code
+issuance requires at least one current approved company submission in the
+effective operator group.
 
 The application may accept an explicit `Idempotency-Key` HTTP header at its
 operator API boundary. When absent, it derives a stable `claim_...` key from
@@ -175,9 +179,22 @@ Supported actions are:
 - `deactivate-deployment`
 - `reactivate-deployment`
 
-Client tokens are valid for 60–3600 seconds. The plaintext value is returned
-once and only its SHA-256 hash is stored. Redeeming a token creates virtual
-group membership; each deployment's accounting rows remain separately
+Client tokens are valid for 60–3600 seconds and are single-use. The plaintext
+value is returned only in the issue receipt and only its SHA-256 hash is
+stored. An exact retry of the same deployment-signed idempotent redemption
+returns the original receipt; a different redemption after the first accepted
+use fails with `client_token_used`.
+
+Redeeming on an already claimed deployment changes only that deployment's
+virtual operator-group membership. Redeeming on an unclaimed deployment
+copies the group's current approved private company submission into a new
+append-only submission owned by the receiving deployment and creates a new
+`PENDING_REVIEW` claim in that group. The receiving deployment signs the
+client-token hash; the registry records the issuing deployment, token ID/hash,
+copied private-record hash, and new claim boundary in the same transaction.
+The copied claim appears in the existing list/show/approve CLI flow and must
+be approved independently. In both cases each deployment's identity,
+accounting rows, MAU receipts, and ledger ownership remain separately
 auditable.
 
 Each accepted mutation atomically appends the deployment-signed nonce proof,

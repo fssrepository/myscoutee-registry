@@ -12,7 +12,8 @@ provides:
   the same SQLite transaction as their authoritative ledger/source records;
 - signed registration and batch receipts plus completed-UTC-day checkpoints;
 - signed structured company-verification claims, append-only administrative
-  review receipts, direct signed status, and expiring grouping tokens;
+  review receipts, direct signed status, and short-lived single-use client
+  codes for reviewed company-data reuse or virtual grouping;
 - transactionally maintained, versioned operator-network rows used directly by
   leaderboard queries;
 - signed, snapshot-bound cursor leaderboard reads;
@@ -290,7 +291,11 @@ Structured claims are accepted as `PENDING_REVIEW` and immediately retain or
 create their operator group and provisional leaderboard membership. The
 private registered address/contact is kept out of the public operator ledger,
 status, and leaderboard. It is stored in an access-limited append-only table
-linked to the public payload digest.
+linked to the public payload digest. Every company field, including the
+absolute HTTPS website, is required. A deployment in an approved group may
+issue a short-lived, single-use client code; redeeming it on an unclaimed
+deployment creates another independently reviewable `PENDING_REVIEW` claim
+without asking the operator to re-enter the approved company data.
 
 The operational CLI requires the configured database, signing key, and
 registry identity to already exist. A missing or mistyped Compose volume fails

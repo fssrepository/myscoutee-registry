@@ -902,6 +902,27 @@ func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T)
 	claimDraft.IdempotencyKey = "client_code_issuer_claim"
 	claimRequest := fixture.operatorAction(t, issuer, claimDraft)
 	claim := fixture.acceptOperatorAction(t, claimRequest, http.StatusCreated)
+
+	prematureIssue := fixture.operatorAction(t, issuer, protocol.OperatorActionRequest{
+		Nonce:           "nonce_issue_client_code_before_approval",
+		IdempotencyKey:  "issue_client_code_before_approval",
+		Action:          protocol.OperatorActionIssueClientToken,
+		TokenTTLSeconds: 300,
+	})
+	statusCode, body := jsonRequest(
+		t,
+		http.MethodPost,
+		fixture.server.URL+protocol.OperatorActionPath,
+		prematureIssue,
+	)
+	assertAPIError(
+		t,
+		statusCode,
+		body,
+		http.StatusConflict,
+		"operator_claim_required",
+	)
+
 	if _, err := fixture.runtime.Service.ApproveOperatorClaim(
 		context.Background(),
 		service.OperatorClaimApproval{
@@ -940,7 +961,7 @@ func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T)
 		t.Fatalf("unexpected token-derived pending claim: %+v", redeemed)
 	}
 
-	statusCode, body := rawRequest(
+	statusCode, body = rawRequest(
 		t,
 		http.MethodGet,
 		fixture.server.URL+protocol.OperatorClaimStatusPathPrefix+target.id,
@@ -971,6 +992,16 @@ func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T)
 		detail.RegisteredAddress != claimDraft.RegisteredAddress ||
 		detail.VerificationContactEmail != claimDraft.VerificationContactEmail {
 		t.Fatalf("token-derived review detail did not retain approved company data: %+v", detail)
+	}
+
+	redeemRetry := redeemRequest
+	redeemRetry.Nonce = "nonce_redeem_client_code_retry"
+	resignOperatorAction(t, target.privateKey, &redeemRetry)
+	retried := fixture.acceptOperatorAction(t, redeemRetry, http.StatusOK)
+	if !retried.Duplicate ||
+		retried.Receipt.ActionID != redeemed.Receipt.ActionID ||
+		retried.Receipt.AuditHash != redeemed.Receipt.AuditHash {
+		t.Fatalf("token redemption retry did not return its original receipt: %+v", retried)
 	}
 
 	replayRequest := fixture.operatorAction(t, replayTarget, protocol.OperatorActionRequest{

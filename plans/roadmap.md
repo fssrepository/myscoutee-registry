@@ -251,17 +251,20 @@ Deliverables:
 - a virtual operator-ownership grouping model that associates multiple
   independently claimed deployments without treating the association as
   server routing, clustering, or shared deployment identity;
-- a separate Operator Settings connection flow, independent from claiming:
-  one claimed deployment exposes or generates a signed client code, and the
-  operator enters that code on another claimed deployment to request that both
-  deployments belong to the same virtual operator group;
-- configurable client-code expiry plus explicit rotation and revocation;
-  redemption and link acceptance are authenticated, deployment-signed, and
-  audited, but a code is not inherently one-time unless the operator selects
-  that policy; a code is never a deployment takeover bearer token;
-- explicit consent and current claimed/provisionally verified operator records
-  on both deployments before a group link becomes effective, without changing
-  either claim;
+- a claim-popup client-code flow: a deployment in an approved operator group
+  may issue a short-lived, single-use code and copy it through the shared
+  protected-value dialog;
+- entering that code on an unclaimed deployment avoids repeating the company
+  form, but creates a separate `pending-review` claim from the approved company
+  submission; entering it on an already claimed deployment changes only its
+  virtual operator-group membership;
+- configurable client-code expiry plus explicit revocation; issuance,
+  redemption, the issuing deployment, and the token hash are
+  deployment-signed and append-only audited, and a code is never a deployment
+  takeover bearer token;
+- independent registry-manager approval for every token-derived claim before
+  it becomes approved, with the same local list/show/approve CLI boundary as a
+  form-submitted claim;
 - an explicit trust label explaining that a valid client code proves only an
   authenticated request to group deployments; it does not prove beneficial
   ownership, operator authority, untampered server/software, truthful MAU, or
