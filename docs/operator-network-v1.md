@@ -73,9 +73,12 @@ new claim action; a reviewer must approve that exact current action.
 
 The application may accept an explicit `Idempotency-Key` HTTP header at its
 operator API boundary. When absent, it derives a stable `claim_...` key from
-the normalized signed claim payload, registry scope, and deployment ID.
+the normalized signed claim payload, registry scope, deployment ID, and the
+last durable claim-generation boundary. An already active identical local
+claim reuses its recorded key.
 Therefore an identical retry after a lost registry response resolves to the
-same central action; changed claim content derives a different key.
+same central action; changed content or a new post-withdrawal generation
+derives a different key.
 
 ## Privacy boundary
 
@@ -91,6 +94,13 @@ to the registry data volume, container shell, CLI stdout, logs, and backups;
 apply the governing retention/deletion policy to protected backups as well.
 Do not put contact data or other personal information in `reviewer_id` or
 `review_reference`.
+
+The submitting application also retains the signed structured request with its
+registry receipt in its existing private local receipt journal so it can
+re-verify the payload and recover idempotently. On POSIX package targets the
+state/receipt directories are enforced as mode `0700` and files as `0600`;
+permission failures stop the operation. Treat that journal and every backup as
+verification data subject to the same access and retention controls.
 
 ## Signed status
 

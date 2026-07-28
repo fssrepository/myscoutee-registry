@@ -20,6 +20,7 @@ import (
 	"github.com/fssrepository/myscoutee-registry/internal/app"
 	"github.com/fssrepository/myscoutee-registry/internal/config"
 	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
+	"github.com/fssrepository/myscoutee-registry/internal/identity"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 )
 
@@ -401,8 +402,10 @@ func TestOperatorOperationalCLIFailsClosedWithoutInitializedRegistry(t *testing.
 	if err := os.MkdirAll(stateDirectory, 0o700); err != nil {
 		t.Fatalf("create pristine state directory: %v", err)
 	}
-	if err := os.WriteFile(keyPath, []byte("not-used-before-db-preflight"), 0o600); err != nil {
-		t.Fatalf("write existing key sentinel: %v", err)
+	if _, generated, err := identity.LoadOrGenerate(keyPath, true); err != nil {
+		t.Fatalf("generate pristine-path test key: %v", err)
+	} else if !generated {
+		t.Fatalf("pristine-path test key was not generated")
 	}
 	if err := os.WriteFile(databasePath, nil, 0o600); err != nil {
 		t.Fatalf("write pristine database sentinel: %v", err)

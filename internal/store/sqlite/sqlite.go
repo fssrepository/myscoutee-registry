@@ -66,19 +66,35 @@ func Open(path string) (*Store, error) {
 // for an existing initialized identity using a read-only connection before the
 // ordinary migration/open path is allowed to make any changes.
 func OpenExisting(path string) (*Store, error) {
+	if _, err := InspectExistingRegistryIdentity(path); err != nil {
+		return nil, err
+	}
+	return Open(path)
+}
+
+// InspectExistingRegistryIdentity reads the existing identity without running
+// migrations or changing SQLite pragmas. Operational callers use it to verify
+// the configured key/scope before allowing OpenExisting to mutate schema.
+func InspectExistingRegistryIdentity(path string) (store.RegistryIdentity, error) {
 	absolutePath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("resolve SQLite database path: %w", err)
+		return store.RegistryIdentity{}, fmt.Errorf("resolve SQLite database path: %w", err)
 	}
 	info, err := os.Lstat(absolutePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("registry database does not exist: %s", absolutePath)
+			return store.RegistryIdentity{}, fmt.Errorf(
+				"registry database does not exist: %s",
+				absolutePath,
+			)
 		}
-		return nil, fmt.Errorf("inspect registry database: %w", err)
+		return store.RegistryIdentity{}, fmt.Errorf("inspect registry database: %w", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("registry database must be an existing regular non-symlink file: %s", absolutePath)
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"registry database must be an existing regular non-symlink file: %s",
+			absolutePath,
+		)
 	}
 
 	dsnURL := url.URL{Scheme: "file", Path: absolutePath}
@@ -87,7 +103,10 @@ func OpenExisting(path string) (*Store, error) {
 	dsnURL.RawQuery = query.Encode()
 	preflight, err := sql.Open("sqlite", dsnURL.String())
 	if err != nil {
-		return nil, fmt.Errorf("inspect existing SQLite database: %w", err)
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"inspect existing SQLite database: %w",
+			err,
+		)
 	}
 	defer preflight.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -99,31 +118,55 @@ func OpenExisting(path string) (*Store, error) {
 		WHERE type = 'table' AND name = 'registry_identity'`).Scan(
 		&identityTableCount,
 	); err != nil {
-		return nil, fmt.Errorf("inspect initialized registry identity: %w", err)
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"inspect initialized registry identity: %w",
+			err,
+		)
 	}
 	if identityTableCount != 1 {
-		return nil, fmt.Errorf(
+		return store.RegistryIdentity{}, fmt.Errorf(
 			"registry database is not initialized with exactly one identity: %s",
 			absolutePath,
+		)
+	}
+	var persisted store.RegistryIdentity
+	if err := preflight.QueryRowContext(ctx, `
+		SELECT
+			protocol_version,
+			registry_scope,
+			registry_key_id,
+			public_key_der,
+			created_at
+		FROM registry_identity
+		WHERE singleton = 1`).Scan(
+		&persisted.ProtocolVersion,
+		&persisted.RegistryScope,
+		&persisted.RegistryKeyID,
+		&persisted.PublicKeyDER,
+		&persisted.CreatedAt,
+	); err != nil {
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"inspect initialized registry identity: %w",
+			err,
 		)
 	}
 	var identityCount int
 	if err := preflight.QueryRowContext(
 		ctx,
 		`SELECT COUNT(*) FROM registry_identity`,
-	).Scan(&identityCount); err != nil {
-		return nil, fmt.Errorf("inspect initialized registry identity: %w", err)
-	}
-	if identityCount != 1 {
-		return nil, fmt.Errorf(
+	).Scan(&identityCount); err != nil || identityCount != 1 {
+		return store.RegistryIdentity{}, fmt.Errorf(
 			"registry database is not initialized with exactly one identity: %s",
 			absolutePath,
 		)
 	}
 	if err := preflight.Close(); err != nil {
-		return nil, fmt.Errorf("close registry database preflight: %w", err)
+		return store.RegistryIdentity{}, fmt.Errorf(
+			"close registry database preflight: %w",
+			err,
+		)
 	}
-	return Open(absolutePath)
+	return persisted, nil
 }
 
 func (sqliteStore *Store) Close() error {

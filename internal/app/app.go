@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -59,6 +60,31 @@ func BootstrapExisting(
 		return nil, fmt.Errorf(
 			"registry signing key must be an existing regular non-symlink file: %s",
 			absoluteKeyPath,
+		)
+	}
+	if !protocol.IsRegistryScope(cfg.RegistryScope) {
+		return nil, fmt.Errorf(
+			"REGISTRY_SCOPE is required and must contain a valid explicit registry scope",
+		)
+	}
+	signingKey, generated, err := identity.LoadOrGenerate(absoluteKeyPath, false)
+	if err != nil {
+		return nil, fmt.Errorf("load existing registry signing key: %w", err)
+	}
+	if generated {
+		return nil, fmt.Errorf("operational registry bootstrap must not generate a signing key")
+	}
+	persistedIdentity, err := sqlite.InspectExistingRegistryIdentity(cfg.DatabasePath)
+	if err != nil {
+		return nil, err
+	}
+	if persistedIdentity.ProtocolVersion != protocol.Version ||
+		persistedIdentity.RegistryScope != cfg.RegistryScope ||
+		persistedIdentity.RegistryKeyID != signingKey.KeyID() ||
+		!bytes.Equal(persistedIdentity.PublicKeyDER, signingKey.PublicKeyDER()) {
+		return nil, fmt.Errorf(
+			"%w: configured database, scope, and signing key identity do not match",
+			store.ErrInconsistentState,
 		)
 	}
 	cfg.GenerateSigningKey = false
