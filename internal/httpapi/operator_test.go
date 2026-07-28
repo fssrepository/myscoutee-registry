@@ -43,13 +43,11 @@ func TestSignedOperatorActionsAndLeaderboard(t *testing.T) {
 	delta := fixture.registerDeployment(t, "delta")
 	echo := fixture.registerDeployment(t, "echo")
 
-	alphaClaim := fixture.operatorAction(t, alpha, protocol.OperatorActionRequest{
-		Nonce:             "nonce_operator_alpha_claim_01",
-		IdempotencyKey:    "operator_alpha_claim_01",
-		Action:            protocol.OperatorActionClaim,
-		OperatorName:      "Alpha Cooperative",
-		OperatorAvatarURL: "https://example.test/alpha.png",
-	})
+	alphaClaimDraft := operatorClaimRequest("Alpha Cooperative")
+	alphaClaimDraft.Nonce = "nonce_operator_alpha_claim_01"
+	alphaClaimDraft.IdempotencyKey = "operator_alpha_claim_01"
+	alphaClaimDraft.OperatorAvatarURL = "https://example.test/alpha.png"
+	alphaClaim := fixture.operatorAction(t, alpha, alphaClaimDraft)
 	invalidClaim := alphaClaim
 	resignOperatorAction(t, beta.privateKey, &invalidClaim)
 	status, body := jsonRequest(
@@ -74,7 +72,7 @@ func TestSignedOperatorActionsAndLeaderboard(t *testing.T) {
 		protocol.OperatorAuditZeroHash,
 	)
 	if alphaClaimResponse.Duplicate ||
-		alphaClaimResponse.Receipt.ClaimState != "claimed" ||
+		alphaClaimResponse.Receipt.ClaimState != protocol.OperatorClaimStatePendingReview ||
 		alphaClaimResponse.Receipt.GroupID == "" {
 		t.Fatalf("unexpected alpha claim response: %+v", alphaClaimResponse)
 	}
@@ -99,7 +97,7 @@ func TestSignedOperatorActionsAndLeaderboard(t *testing.T) {
 
 	idempotencyConflict := alphaClaim
 	idempotencyConflict.Nonce = "nonce_operator_alpha_claim_03"
-	idempotencyConflict.OperatorName = "Changed Alpha"
+	idempotencyConflict.LegalName = "Changed Alpha"
 	signOperatorActionPayload(t, alpha.privateKey, &idempotencyConflict)
 	status, body = jsonRequest(
 		t,
@@ -128,12 +126,10 @@ func TestSignedOperatorActionsAndLeaderboard(t *testing.T) {
 		suffix string,
 	) protocol.OperatorActionResponse {
 		t.Helper()
-		request := fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
-			Nonce:          "nonce_operator_" + suffix + "_claim",
-			IdempotencyKey: "operator_" + suffix + "_claim",
-			Action:         protocol.OperatorActionClaim,
-			OperatorName:   name,
-		})
+		draft := operatorClaimRequest(name)
+		draft.Nonce = "nonce_operator_" + suffix + "_claim"
+		draft.IdempotencyKey = "operator_" + suffix + "_claim"
+		request := fixture.operatorAction(t, deployment, draft)
 		response := fixture.acceptOperatorAction(t, request, http.StatusCreated)
 		assertOperatorReceipt(
 			t,
@@ -592,12 +588,10 @@ func TestOperatorAuditTamperingFailsClosed(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			fixture := newOperatorAPIFixture(t)
 			deployment := fixture.registerDeployment(t, "tamper")
-			request := fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
-				Nonce:          "nonce_operator_tamper_claim",
-				IdempotencyKey: "operator_tamper_claim",
-				Action:         protocol.OperatorActionClaim,
-				OperatorName:   "Tamper Test Operator",
-			})
+			draft := operatorClaimRequest("Tamper Test Operator")
+			draft.Nonce = "nonce_operator_tamper_claim"
+			draft.IdempotencyKey = "operator_tamper_claim"
+			request := fixture.operatorAction(t, deployment, draft)
 			fixture.acceptOperatorAction(t, request, http.StatusCreated)
 
 			tamperDatabase, err := sql.Open("sqlite", fixture.cfg.DatabasePath)
@@ -772,7 +766,36 @@ func signOperatorActionPayload(
 		request.TokenID,
 		request.LinkID,
 	))
+	if request.Action == protocol.OperatorActionClaim {
+		request.PayloadHash = protocol.Digest(protocol.OperatorClaimPayload(
+			request.LegalName,
+			request.RegistrationNumber,
+			request.Jurisdiction,
+			request.RegisteredAddress,
+			request.Website,
+			request.VerificationContactName,
+			request.VerificationContactRole,
+			request.VerificationContactEmail,
+			request.AuthorityAttested,
+			request.OperatorAvatarURL,
+		))
+	}
 	resignOperatorAction(t, privateKey, request)
+}
+
+func operatorClaimRequest(legalName string) protocol.OperatorActionRequest {
+	return protocol.OperatorActionRequest{
+		Action:                   protocol.OperatorActionClaim,
+		LegalName:                legalName,
+		RegistrationNumber:       "REG-2026-001",
+		Jurisdiction:             "Slovakia",
+		RegisteredAddress:        "Main Street 1, 811 01 Bratislava, Slovakia",
+		Website:                  "https://operator.example.test",
+		VerificationContactName:  "Review Contact",
+		VerificationContactRole:  "Director",
+		VerificationContactEmail: "review@example.test",
+		AuthorityAttested:        true,
+	}
 }
 
 func resignOperatorAction(

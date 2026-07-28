@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	OperatorActionPath = "/v1/operator/actions"
-	LeaderboardPath    = "/v1/leaderboard"
+	OperatorActionPath            = "/v1/operator/actions"
+	OperatorClaimStatusPathPrefix = "/v1/operator/claims/"
+	LeaderboardPath               = "/v1/leaderboard"
 
 	OperatorActionClaim                = "claim"
 	OperatorActionWithdrawClaim        = "withdraw-claim"
@@ -17,7 +18,19 @@ const (
 	OperatorActionDeactivateDeployment = "deactivate-deployment"
 	OperatorActionReactivateDeployment = "reactivate-deployment"
 
-	OperatorAuditZeroHash = ZeroHash
+	OperatorAuditZeroHash       = ZeroHash
+	OperatorClaimReviewZeroHash = ZeroHash
+
+	OperatorClaimStateClaimed       = "claimed"
+	OperatorClaimStatePendingReview = "pending-review"
+	OperatorClaimStateApproved      = "approved"
+	OperatorClaimStateWithdrawn     = "withdrawn"
+
+	OperatorClaimReviewApproved = "approved"
+
+	OperatorVerificationStatusPendingReview = "PENDING_REVIEW"
+	OperatorVerificationStatusApproved      = "APPROVED"
+	OperatorVerificationStatusWithdrawn     = "WITHDRAWN"
 
 	LeaderboardFormulaVersion = "six-complete-month-average-v1"
 	LeaderboardRulesetVersion = "qmau-v1"
@@ -25,21 +38,30 @@ const (
 )
 
 type OperatorActionRequest struct {
-	ProtocolVersion   string `json:"protocol_version"`
-	RegistryScope     string `json:"registry_scope"`
-	DeploymentID      string `json:"deployment_id"`
-	Timestamp         string `json:"timestamp"`
-	Nonce             string `json:"nonce"`
-	IdempotencyKey    string `json:"idempotency_key"`
-	Action            string `json:"action"`
-	OperatorName      string `json:"operator_name,omitempty"`
-	OperatorAvatarURL string `json:"operator_avatar_url,omitempty"`
-	ClientToken       string `json:"client_token,omitempty"`
-	TokenTTLSeconds   int64  `json:"token_ttl_seconds,omitempty"`
-	TokenID           string `json:"token_id,omitempty"`
-	LinkID            string `json:"link_id,omitempty"`
-	PayloadHash       string `json:"payload_hash"`
-	Signature         string `json:"signature"`
+	ProtocolVersion          string `json:"protocol_version"`
+	RegistryScope            string `json:"registry_scope"`
+	DeploymentID             string `json:"deployment_id"`
+	Timestamp                string `json:"timestamp"`
+	Nonce                    string `json:"nonce"`
+	IdempotencyKey           string `json:"idempotency_key"`
+	Action                   string `json:"action"`
+	OperatorName             string `json:"operator_name,omitempty"`
+	OperatorAvatarURL        string `json:"operator_avatar_url,omitempty"`
+	LegalName                string `json:"legal_name,omitempty"`
+	RegistrationNumber       string `json:"registration_number,omitempty"`
+	Jurisdiction             string `json:"jurisdiction,omitempty"`
+	RegisteredAddress        string `json:"registered_address,omitempty"`
+	Website                  string `json:"website,omitempty"`
+	VerificationContactName  string `json:"verification_contact_name,omitempty"`
+	VerificationContactRole  string `json:"verification_contact_role,omitempty"`
+	VerificationContactEmail string `json:"verification_contact_email,omitempty"`
+	AuthorityAttested        bool   `json:"authority_attested,omitempty"`
+	ClientToken              string `json:"client_token,omitempty"`
+	TokenTTLSeconds          int64  `json:"token_ttl_seconds,omitempty"`
+	TokenID                  string `json:"token_id,omitempty"`
+	LinkID                   string `json:"link_id,omitempty"`
+	PayloadHash              string `json:"payload_hash"`
+	Signature                string `json:"signature"`
 }
 
 type OperatorActionReceipt struct {
@@ -69,6 +91,82 @@ type OperatorActionResponse struct {
 	RegistryScope   string                `json:"registry_scope"`
 	Duplicate       bool                  `json:"duplicate"`
 	Receipt         OperatorActionReceipt `json:"receipt"`
+}
+
+type OperatorClaimStatusReceipt struct {
+	DeploymentID       string `json:"deployment_id"`
+	ClaimActionID      string `json:"claim_action_id"`
+	ClaimAuditIndex    int64  `json:"claim_audit_index"`
+	ClaimAuditHash     string `json:"claim_audit_hash"`
+	GroupID            string `json:"group_id"`
+	LegalName          string `json:"legal_name"`
+	VerificationStatus string `json:"verification_status"`
+	SubmittedAt        string `json:"submitted_at"`
+	ReviewID           string `json:"review_id,omitempty"`
+	ReviewIndex        int64  `json:"review_index,omitempty"`
+	ReviewHash         string `json:"review_hash"`
+	ApprovedAt         string `json:"approved_at,omitempty"`
+	RegistryScope      string `json:"registry_scope"`
+	RegistryKeyID      string `json:"registry_key_id"`
+	Signature          string `json:"signature"`
+}
+
+type OperatorClaimStatusResponse struct {
+	ProtocolVersion string                     `json:"protocol_version"`
+	RegistryScope   string                     `json:"registry_scope"`
+	Status          OperatorClaimStatusReceipt `json:"status"`
+}
+
+type OperatorClaimReviewReceipt struct {
+	ReviewIndex        int64  `json:"review_index"`
+	ReviewID           string `json:"review_id"`
+	DeploymentID       string `json:"deployment_id"`
+	ClaimActionID      string `json:"claim_action_id"`
+	GroupID            string `json:"group_id"`
+	LegalName          string `json:"legal_name"`
+	Decision           string `json:"decision"`
+	ReviewerID         string `json:"reviewer_id"`
+	ReviewReference    string `json:"review_reference"`
+	IdempotencyKey     string `json:"idempotency_key"`
+	ReviewedAt         string `json:"reviewed_at"`
+	PreviousReviewHash string `json:"previous_review_hash"`
+	ReviewHash         string `json:"review_hash"`
+	RegistryScope      string `json:"registry_scope"`
+	RegistryKeyID      string `json:"registry_key_id"`
+	Signature          string `json:"signature"`
+}
+
+type OperatorClaimReviewResult struct {
+	Duplicate bool                       `json:"duplicate"`
+	Receipt   OperatorClaimReviewReceipt `json:"receipt"`
+}
+
+type OperatorClaimReviewListItem struct {
+	DeploymentID       string `json:"deployment_id"`
+	ClaimActionID      string `json:"claim_action_id"`
+	GroupID            string `json:"group_id"`
+	LegalName          string `json:"legal_name"`
+	VerificationStatus string `json:"verification_status"`
+	SubmittedAt        string `json:"submitted_at"`
+	ApprovedAt         string `json:"approved_at,omitempty"`
+	ReviewID           string `json:"review_id,omitempty"`
+}
+
+type OperatorClaimReviewDetail struct {
+	OperatorClaimReviewListItem
+	RegistrationNumber       string `json:"registration_number"`
+	Jurisdiction             string `json:"jurisdiction"`
+	RegisteredAddress        string `json:"registered_address"`
+	Website                  string `json:"website,omitempty"`
+	VerificationContactName  string `json:"verification_contact_name"`
+	VerificationContactRole  string `json:"verification_contact_role"`
+	VerificationContactEmail string `json:"verification_contact_email"`
+	AuthorityAttested        bool   `json:"authority_attested"`
+}
+
+type OperatorClaimReviewListPage struct {
+	Items            []OperatorClaimReviewListItem `json:"items"`
+	NextDeploymentID string                        `json:"next_deployment_id,omitempty"`
 }
 
 type LeaderboardSnapshotDto struct {
@@ -155,6 +253,38 @@ func OperatorActionPayload(
 	)
 }
 
+// OperatorClaimPayload is deliberately versioned separately from the legacy
+// operator action payload. This lets upgraded registries continue to verify
+// pre-verification claim audit rows while requiring every newly accepted claim
+// to commit to the complete, structured verification submission.
+func OperatorClaimPayload(
+	legalName string,
+	registrationNumber string,
+	jurisdiction string,
+	registeredAddress string,
+	website string,
+	verificationContactName string,
+	verificationContactRole string,
+	verificationContactEmail string,
+	authorityAttested bool,
+	operatorAvatarURL string,
+) []byte {
+	return canonical(
+		"myscoutee-registry-operator-claim-payload-v2",
+		OperatorActionClaim,
+		legalName,
+		registrationNumber,
+		jurisdiction,
+		registeredAddress,
+		website,
+		verificationContactName,
+		verificationContactRole,
+		verificationContactEmail,
+		strconv.FormatBool(authorityAttested),
+		operatorAvatarURL,
+	)
+}
+
 func OperatorAuditMessage(
 	auditIndex int64,
 	actionID string,
@@ -212,6 +342,91 @@ func OperatorActionReceiptMessage(receipt OperatorActionReceipt) []byte {
 		receipt.TokenExpiresAt,
 		receipt.RegistryScope,
 		receipt.RegistryKeyID,
+	)
+}
+
+func OperatorClaimPrivateRecordMessage(
+	claimActionID string,
+	deploymentID string,
+	groupID string,
+	payloadHash string,
+	legalName string,
+	registrationNumber string,
+	jurisdiction string,
+	registeredAddress string,
+	website string,
+	verificationContactName string,
+	verificationContactRole string,
+	verificationContactEmail string,
+	authorityAttested bool,
+	operatorAvatarURL string,
+	submittedAt string,
+) []byte {
+	return canonical(
+		"myscoutee-registry-operator-claim-private-record-v1",
+		claimActionID,
+		deploymentID,
+		groupID,
+		payloadHash,
+		legalName,
+		registrationNumber,
+		jurisdiction,
+		registeredAddress,
+		website,
+		verificationContactName,
+		verificationContactRole,
+		verificationContactEmail,
+		strconv.FormatBool(authorityAttested),
+		operatorAvatarURL,
+		submittedAt,
+	)
+}
+
+func OperatorClaimReviewHashMessage(receipt OperatorClaimReviewReceipt) []byte {
+	return canonical(
+		"myscoutee-registry-operator-claim-review-v1",
+		strconv.FormatInt(receipt.ReviewIndex, 10),
+		receipt.ReviewID,
+		receipt.DeploymentID,
+		receipt.ClaimActionID,
+		receipt.GroupID,
+		receipt.LegalName,
+		receipt.Decision,
+		receipt.ReviewerID,
+		receipt.ReviewReference,
+		receipt.IdempotencyKey,
+		receipt.ReviewedAt,
+		receipt.PreviousReviewHash,
+		receipt.RegistryScope,
+		receipt.RegistryKeyID,
+	)
+}
+
+func OperatorClaimReviewReceiptMessage(receipt OperatorClaimReviewReceipt) []byte {
+	return canonical(
+		"myscoutee-registry-operator-claim-review-receipt-v1",
+		receipt.ReviewHash,
+		receipt.RegistryKeyID,
+	)
+}
+
+func OperatorClaimStatusReceiptMessage(status OperatorClaimStatusReceipt) []byte {
+	return canonical(
+		"myscoutee-registry-operator-claim-status-receipt-v1",
+		status.DeploymentID,
+		status.ClaimActionID,
+		strconv.FormatInt(status.ClaimAuditIndex, 10),
+		status.ClaimAuditHash,
+		status.GroupID,
+		status.LegalName,
+		status.VerificationStatus,
+		status.SubmittedAt,
+		status.ReviewID,
+		strconv.FormatInt(status.ReviewIndex, 10),
+		status.ReviewHash,
+		status.ApprovedAt,
+		status.RegistryScope,
+		status.RegistryKeyID,
 	)
 }
 

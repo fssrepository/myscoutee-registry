@@ -19,6 +19,7 @@ import (
 	"github.com/fssrepository/myscoutee-registry/internal/app"
 	"github.com/fssrepository/myscoutee-registry/internal/config"
 	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
+	"github.com/fssrepository/myscoutee-registry/internal/service"
 )
 
 func main() {
@@ -34,9 +35,17 @@ func main() {
 			os.Stdin,
 			os.Stdout,
 		)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-operator-claims" {
+		err = runListOperatorClaims(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-operator-claim" {
+		err = runShowOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "approve-operator-claim" {
+		err = runApproveOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "leaderboard" {
+		err = runLeaderboard(os.Args[2:], os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|publish-announcement --file PATH|-]",
+			"usage: %s [healthcheck|initialize|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|leaderboard]",
 			os.Args[0],
 		)
 	} else {
@@ -46,6 +55,274 @@ func main() {
 		logger.Error("registry stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func runListOperatorClaims(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("list-operator-claims", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	status := flags.String(
+		"status",
+		"PENDING_REVIEW",
+		"PENDING_REVIEW, APPROVED, or WITHDRAWN",
+	)
+	limit := flags.Int("limit", 50, "number of summary rows (1-200)")
+	afterDeploymentID := flags.String(
+		"after-deployment-id",
+		"",
+		"exclusive deployment cursor copied from next_deployment_id",
+	)
+	flags.Usage = func() {
+		fmt.Fprintln(
+			stdout,
+			"Usage: /registry list-operator-claims [--status STATUS] [--limit N] [--after-deployment-id DEPLOYMENT_ID]",
+		)
+		fmt.Fprintln(stdout, "Outputs review-safe summaries only; pagination cursors are opaque.")
+		flags.PrintDefaults()
+	}
+	help, err := parseCLIFlags(flags, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		return nil
+	}
+	return withRegistryService(func(
+		ctx context.Context,
+		registryService *service.Service,
+	) error {
+		page, err := registryService.OperatorClaimsForReview(
+			ctx,
+			*status,
+			*limit,
+			*afterDeploymentID,
+		)
+		if err != nil {
+			return fmt.Errorf("list operator claims: %w", err)
+		}
+		return writeCLIJSON(stdout, page)
+	})
+}
+
+func runShowOperatorClaim(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("show-operator-claim", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	deploymentID := flags.String("deployment-id", "", "exact deployment ID")
+	flags.Usage = func() {
+		fmt.Fprintln(
+			stdout,
+			"Usage: /registry show-operator-claim --deployment-id DEPLOYMENT_ID",
+		)
+		fmt.Fprintln(
+			stdout,
+			"WARNING: output contains private address and verification-contact data; do not send it to shared logs.",
+		)
+		flags.PrintDefaults()
+	}
+	help, err := parseCLIFlags(flags, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		return nil
+	}
+	if *deploymentID == "" {
+		flags.Usage()
+		return errors.New("show-operator-claim requires --deployment-id")
+	}
+	return withRegistryService(func(
+		ctx context.Context,
+		registryService *service.Service,
+	) error {
+		detail, err := registryService.OperatorClaimForReview(ctx, *deploymentID)
+		if err != nil {
+			return fmt.Errorf("show operator claim: %w", err)
+		}
+		return writeCLIJSON(stdout, detail)
+	})
+}
+
+func runApproveOperatorClaim(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("approve-operator-claim", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	deploymentID := flags.String("deployment-id", "", "exact deployment ID from show")
+	claimActionID := flags.String("claim-action-id", "", "exact current claim action ID from show")
+	groupID := flags.String("group-id", "", "exact operator group ID from show")
+	legalName := flags.String("legal-name", "", "exact legal name from show")
+	reviewerID := flags.String(
+		"reviewer-id",
+		"",
+		"bounded non-empty legal audit actor identifier",
+	)
+	reviewReference := flags.String(
+		"review-reference",
+		"",
+		"bounded non-empty external review/case reference",
+	)
+	idempotencyKey := flags.String(
+		"idempotency-key",
+		"",
+		"8-128 character printable ASCII retry key",
+	)
+	flags.Usage = func() {
+		fmt.Fprintln(
+			stdout,
+			"Usage: /registry approve-operator-claim --deployment-id ID --claim-action-id ID --group-id ID --legal-name NAME --reviewer-id ID --review-reference REF --idempotency-key KEY",
+		)
+		fmt.Fprintln(
+			stdout,
+			"All claim identity fields must be copied from show-operator-claim; stale targets fail closed.",
+		)
+		flags.PrintDefaults()
+	}
+	help, err := parseCLIFlags(flags, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		return nil
+	}
+	if *deploymentID == "" ||
+		*claimActionID == "" ||
+		*groupID == "" ||
+		*legalName == "" ||
+		*reviewerID == "" ||
+		*reviewReference == "" ||
+		*idempotencyKey == "" {
+		flags.Usage()
+		return errors.New("approve-operator-claim requires every documented argument")
+	}
+	return withRegistryService(func(
+		ctx context.Context,
+		registryService *service.Service,
+	) error {
+		result, err := registryService.ApproveOperatorClaim(
+			ctx,
+			service.OperatorClaimApproval{
+				DeploymentID:    *deploymentID,
+				ClaimActionID:   *claimActionID,
+				GroupID:         *groupID,
+				LegalName:       *legalName,
+				ReviewerID:      *reviewerID,
+				ReviewReference: *reviewReference,
+				IdempotencyKey:  *idempotencyKey,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("approve operator claim: %w", err)
+		}
+		return writeCLIJSON(stdout, result)
+	})
+}
+
+func runLeaderboard(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("leaderboard", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	view := flags.String("view", "claimed", "founder, claimed, or unclaimed")
+	groupID := flags.String(
+		"group-id",
+		"",
+		"return deployments for this group instead of leaderboard rows",
+	)
+	throughPeriod := flags.String(
+		"through-period",
+		"",
+		"completed UTC month in YYYY-MM format",
+	)
+	limit := flags.Int("limit", 20, "page size (1-100)")
+	cursor := flags.String("cursor", "", "opaque next_cursor from the previous JSON page")
+	flags.Usage = func() {
+		fmt.Fprintln(
+			stdout,
+			"Usage: /registry leaderboard [--view VIEW|--group-id GROUP_ID] [--through-period YYYY-MM] [--limit N] [--cursor OPAQUE]",
+		)
+		fmt.Fprintln(stdout, "Outputs the same signed snapshot/page shape as the HTTP leaderboard API.")
+		flags.PrintDefaults()
+	}
+	help, err := parseCLIFlags(flags, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		return nil
+	}
+	viewExplicit := false
+	flags.Visit(func(item *flag.Flag) {
+		if item.Name == "view" {
+			viewExplicit = true
+		}
+	})
+	if *groupID != "" && viewExplicit {
+		return errors.New("leaderboard --group-id cannot be combined with --view")
+	}
+	return withRegistryService(func(
+		ctx context.Context,
+		registryService *service.Service,
+	) error {
+		if *groupID != "" {
+			page, err := registryService.LeaderboardDeployments(
+				ctx,
+				*groupID,
+				*throughPeriod,
+				*limit,
+				*cursor,
+			)
+			if err != nil {
+				return fmt.Errorf("query group leaderboard: %w", err)
+			}
+			return writeCLIJSON(stdout, page)
+		}
+		page, err := registryService.Leaderboard(
+			ctx,
+			*view,
+			*throughPeriod,
+			*limit,
+			*cursor,
+		)
+		if err != nil {
+			return fmt.Errorf("query leaderboard: %w", err)
+		}
+		return writeCLIJSON(stdout, page)
+	})
+}
+
+func parseCLIFlags(flags *flag.FlagSet, args []string) (bool, error) {
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return true, nil
+		}
+		return false, err
+	}
+	if flags.NArg() != 0 {
+		flags.Usage()
+		return false, errors.New("unexpected positional arguments")
+	}
+	return false, nil
+}
+
+func withRegistryService(
+	operation func(context.Context, *service.Service) error,
+) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	runtime, err := app.Bootstrap(ctx, cfg, app.Options{})
+	if err != nil {
+		return fmt.Errorf("open local registry: %w", err)
+	}
+	defer runtime.Close()
+	return operation(ctx, runtime.Service)
+}
+
+func writeCLIJSON(stdout io.Writer, value any) error {
+	encoder := json.NewEncoder(stdout)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return fmt.Errorf("write JSON result: %w", err)
+	}
+	return nil
 }
 
 func runPublishAnnouncement(

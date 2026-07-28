@@ -67,9 +67,9 @@ const leaderboardStateCTE = `
 				ORDER BY redeem.audit_index DESC
 			) AS rank
 		FROM operator_audit_events redeem
-		JOIN claims claim
-		  ON claim.deployment_id = redeem.subject_deployment_id
-		 AND claim.claim_state = 'claimed'
+			JOIN claims claim
+			  ON claim.deployment_id = redeem.subject_deployment_id
+			 AND claim.claim_state IN ('claimed', 'pending-review')
 		 AND redeem.audit_index > claim.audit_index
 		WHERE redeem.action_type = 'redeem-client-token'
 		  AND redeem.audit_index <= (SELECT audit_bound FROM bounds)
@@ -90,17 +90,18 @@ const leaderboardStateCTE = `
 	memberships AS (
 		SELECT
 			deployment.deployment_id,
-			CASE
-				WHEN claim.claim_state = 'claimed' THEN 1
-				ELSE 0
-			END AS claimed,
+				CASE
+					WHEN claim.claim_state IN ('claimed', 'pending-review') THEN 1
+					ELSE 0
+				END AS claimed,
+				COALESCE(claim.claim_state, '') AS claim_state,
 			CASE
 				WHEN activity.action_type = 'deactivate-deployment' THEN 0
 				ELSE 1
 			END AS active,
-			CASE
-				WHEN claim.claim_state = 'claimed'
-					THEN COALESCE(link.group_id, claim.group_id)
+				CASE
+					WHEN claim.claim_state IN ('claimed', 'pending-review')
+						THEN COALESCE(link.group_id, claim.group_id)
 				ELSE ''
 			END AS group_id,
 			COALESCE(link.link_id, '') AS link_id
@@ -114,20 +115,21 @@ const leaderboardStateCTE = `
 	),
 	group_profile_ranked AS (
 		SELECT
-			group_id,
-			operator_name,
-			operator_avatar_url,
+				group_id,
+				operator_name,
+				operator_avatar_url,
+				claim_state,
 			ROW_NUMBER() OVER (
 				PARTITION BY group_id
 				ORDER BY audit_index DESC
 			) AS rank
 		FROM operator_audit_events
-		WHERE action_type = 'claim'
-		  AND claim_state = 'claimed'
+			WHERE action_type = 'claim'
+			  AND claim_state IN ('claimed', 'pending-review')
 		  AND audit_index <= (SELECT audit_bound FROM bounds)
 	),
 	group_profiles AS (
-		SELECT group_id, operator_name, operator_avatar_url
+			SELECT group_id, operator_name, operator_avatar_url, claim_state
 		FROM group_profile_ranked
 		WHERE rank = 1
 	),
@@ -203,13 +205,13 @@ func (sqliteStore *Store) LeaderboardRows(
 	switch query.View {
 	case "claimed":
 		statement = leaderboardStateCTE + `
-			SELECT
-				membership.group_id,
-				'claimed',
-				membership.group_id,
-				COALESCE(NULLIF(profile.operator_name, ''), membership.group_id),
-				COALESCE(profile.operator_avatar_url, ''),
-				'claimed',
+				SELECT
+					membership.group_id,
+					'claimed',
+					membership.group_id,
+					COALESCE(NULLIF(profile.operator_name, ''), membership.group_id),
+					COALESCE(profile.operator_avatar_url, ''),
+					COALESCE(NULLIF(profile.claim_state, ''), 'pending-review'),
 				COUNT(*),
 				COALESCE(SUM(weight.weight), 0)
 			FROM memberships membership
@@ -222,8 +224,9 @@ func (sqliteStore *Store) LeaderboardRows(
 			  AND membership.group_id <> ''
 			GROUP BY
 				membership.group_id,
-				profile.operator_name,
-				profile.operator_avatar_url
+					profile.operator_name,
+					profile.operator_avatar_url,
+					profile.claim_state
 			HAVING (
 				? = 0
 				OR COALESCE(SUM(weight.weight), 0) < ?
@@ -323,7 +326,7 @@ func (sqliteStore *Store) LeaderboardDeployments(
 		SELECT
 			membership.deployment_id,
 			membership.group_id,
-			'claimed',
+				membership.claim_state,
 			CASE
 				WHEN membership.link_id = '' THEN 'owner'
 				ELSE 'linked'

@@ -120,6 +120,10 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		if requireMethod(response, request, http.MethodPost) {
 			api.operatorAction(response, request)
 		}
+	case strings.HasPrefix(request.URL.Path, protocol.OperatorClaimStatusPathPrefix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.operatorClaimStatus(response, request)
+		}
 	case request.URL.Path == protocol.LeaderboardPath:
 		if requireMethod(response, request, http.MethodGet) {
 			api.leaderboard(response, request)
@@ -259,6 +263,31 @@ func (api *API) operatorAction(response http.ResponseWriter, request *http.Reque
 		status = http.StatusOK
 	}
 	writeJSON(response, status, result)
+}
+
+func (api *API) operatorClaimStatus(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	deploymentID := strings.TrimPrefix(
+		request.URL.Path,
+		protocol.OperatorClaimStatusPathPrefix,
+	)
+	if deploymentID == "" || strings.Contains(deploymentID, "/") {
+		writeError(
+			response,
+			http.StatusBadRequest,
+			"invalid_request",
+			"deployment_id is malformed",
+		)
+		return
+	}
+	result, err := api.service.OperatorClaimStatus(request.Context(), deploymentID)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
 }
 
 func (api *API) leaderboard(response http.ResponseWriter, request *http.Request) {
@@ -599,10 +628,11 @@ func requestErrorStatus(code string) int {
 	switch code {
 	case "invalid_signature":
 		return http.StatusUnauthorized
-	case "deployment_not_found",
-		"receipt_not_found",
-		"checkpoint_not_found",
-		"operator_reference_not_found":
+		case "deployment_not_found",
+			"receipt_not_found",
+			"checkpoint_not_found",
+			"operator_reference_not_found",
+			"operator_claim_not_found":
 		return http.StatusNotFound
 	case "idempotency_conflict",
 		"replay_conflict",

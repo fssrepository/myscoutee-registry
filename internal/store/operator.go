@@ -16,6 +16,15 @@ type OperatorActionInput struct {
 	DeploymentSignature      []byte
 	OperatorName             string
 	OperatorAvatarURL        string
+	LegalName                string
+	RegistrationNumber       string
+	Jurisdiction             string
+	RegisteredAddress        string
+	Website                  string
+	VerificationContactName  string
+	VerificationContactRole  string
+	VerificationContactEmail string
+	AuthorityAttested        bool
 	ClientTokenHash          string
 	TokenTTLSeconds          int64
 	TokenID                  string
@@ -60,6 +69,87 @@ type OperatorAuditEvent struct {
 }
 
 type OperatorAuditSigner func(OperatorAuditEvent) ([]byte, error)
+
+type OperatorClaimSubmission struct {
+	ClaimActionID            string
+	DeploymentID             string
+	GroupID                  string
+	LegalName                string
+	RegistrationNumber       string
+	Jurisdiction             string
+	RegisteredAddress        string
+	Website                  string
+	VerificationContactName  string
+	VerificationContactRole  string
+	VerificationContactEmail string
+	AuthorityAttested        bool
+	OperatorAvatarURL        string
+	PayloadHash              string
+	SubmittedAt              string
+	PrivateRecordHash        string
+}
+
+type OperatorClaimStatus struct {
+	DeploymentID      string
+	ClaimActionID     string
+	ClaimAuditIndex   int64
+	ClaimAuditHash    string
+	GroupID           string
+	LegalName         string
+	VerificationState string
+	SubmittedAt       string
+	ReviewID          string
+	ReviewIndex       int64
+	ReviewHash        string
+	ApprovedAt        string
+	UpdatedAt         string
+	PrivateRecordHash string
+}
+
+type OperatorClaimReviewInput struct {
+	RegistryScope     string
+	DeploymentID      string
+	ClaimActionID     string
+	GroupID           string
+	LegalName         string
+	ReviewerID        string
+	ReviewReference   string
+	IdempotencyKey    string
+	CandidateReviewID string
+	ReviewedAt        string
+	RegistryKeyID     string
+}
+
+type OperatorClaimReview struct {
+	ReviewIndex        int64
+	ReviewID           string
+	DeploymentID       string
+	ClaimActionID      string
+	GroupID            string
+	LegalName          string
+	Decision           string
+	ReviewerID         string
+	ReviewReference    string
+	IdempotencyKey     string
+	ReviewedAt         string
+	PreviousReviewHash string
+	ReviewHash         string
+	RegistryKeyID      string
+	Signature          []byte
+}
+
+type OperatorClaimReviewSigner func(OperatorClaimReview) ([]byte, error)
+
+type OperatorClaimQuery struct {
+	Status            string
+	Limit             int
+	AfterDeploymentID string
+}
+
+type OperatorClaimPage struct {
+	Items            []OperatorClaimStatus
+	NextDeploymentID string
+}
 
 type LeaderboardBoundary struct {
 	LedgerIndex int64
@@ -124,6 +214,14 @@ type OperatorNetworkStore interface {
 		OperatorAuditSigner,
 	) (OperatorAuditEvent, bool, error)
 	OperatorAuditHead(context.Context) (OperatorAuditEvent, error)
+	OperatorClaimStatus(context.Context, string) (OperatorClaimStatus, error)
+	OperatorClaimSubmission(context.Context, string) (OperatorClaimSubmission, OperatorClaimStatus, error)
+	OperatorClaims(context.Context, OperatorClaimQuery) (OperatorClaimPage, error)
+	ApproveOperatorClaim(
+		context.Context,
+		OperatorClaimReviewInput,
+		OperatorClaimReviewSigner,
+	) (OperatorClaimReview, bool, error)
 	LeaderboardBoundary(context.Context) (LeaderboardBoundary, error)
 	LeaderboardTotals(
 		context.Context,

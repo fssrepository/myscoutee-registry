@@ -14,6 +14,7 @@ import (
 type operatorClaimState struct {
 	AuditIndex        int64
 	Claimed           bool
+	ClaimState        string
 	GroupID           string
 	OperatorName      string
 	OperatorAvatarURL string
@@ -158,6 +159,9 @@ func (sqliteStore *Store) AppendOperatorAction(
 	if err := insertOperatorAuditEventTx(ctx, tx, event); err != nil {
 		return store.OperatorAuditEvent{}, false, err
 	}
+	if err := writeOperatorClaimStateTx(ctx, tx, input, event); err != nil {
+		return store.OperatorAuditEvent{}, false, err
+	}
 	if err := insertOperatorNonceTx(ctx, tx, input, event.ActionID); err != nil {
 		return store.OperatorAuditEvent{}, false, err
 	}
@@ -187,8 +191,8 @@ func deriveOperatorActionTx(
 		if !active {
 			return store.ErrDeploymentInactive
 		}
-		event.ClaimState = "claimed"
-		event.OperatorName = input.OperatorName
+		event.ClaimState = protocol.OperatorClaimStatePendingReview
+		event.OperatorName = input.LegalName
 		event.OperatorAvatarURL = input.OperatorAvatarURL
 		if claim.Claimed {
 			event.GroupID = claim.GroupID
@@ -199,7 +203,7 @@ func deriveOperatorActionTx(
 		if !claim.Claimed {
 			return store.ErrOperatorClaimRequired
 		}
-		event.ClaimState = "withdrawn"
+		event.ClaimState = protocol.OperatorClaimStateWithdrawn
 		event.GroupID = claim.GroupID
 		event.OperatorName = claim.OperatorName
 		event.OperatorAvatarURL = claim.OperatorAvatarURL
@@ -211,7 +215,7 @@ func deriveOperatorActionTx(
 		if !active || !membership.Claimed {
 			return store.ErrOperatorClaimRequired
 		}
-		event.ClaimState = "claimed"
+		event.ClaimState = membership.ClaimState
 		event.GroupID = membership.GroupID
 		event.TokenID = input.CandidateTokenID
 		event.ClientTokenHash = input.CandidateClientTokenHash
@@ -267,7 +271,7 @@ func deriveOperatorActionTx(
 		if issuerMembership.GroupID == targetMembership.GroupID {
 			return store.ErrOperatorActionConflict
 		}
-		event.ClaimState = "claimed"
+		event.ClaimState = claim.ClaimState
 		event.GroupID = issuerMembership.GroupID
 		event.LinkID = input.CandidateLinkID
 		event.TokenID = token.TokenID
@@ -487,10 +491,9 @@ func operatorClaimTx(
 	query += " ORDER BY audit_index DESC LIMIT 1"
 
 	var state operatorClaimState
-	var claimState string
 	err := tx.QueryRowContext(ctx, query, arguments...).Scan(
 		&state.AuditIndex,
-		&claimState,
+		&state.ClaimState,
 		&state.GroupID,
 		&state.OperatorName,
 		&state.OperatorAvatarURL,
@@ -501,7 +504,8 @@ func operatorClaimTx(
 	if err != nil {
 		return operatorClaimState{}, fmt.Errorf("read operator claim state: %w", err)
 	}
-	state.Claimed = claimState == "claimed"
+	state.Claimed = state.ClaimState == protocol.OperatorClaimStateClaimed ||
+		state.ClaimState == protocol.OperatorClaimStatePendingReview
 	return state, nil
 }
 
@@ -688,6 +692,130 @@ func insertOperatorAuditEventTx(
 		event.ReceiptSignature,
 	); err != nil {
 		return fmt.Errorf("append operator audit event: %w", err)
+	}
+	return nil
+}
+
+func writeOperatorClaimStateTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	input store.OperatorActionInput,
+	event store.OperatorAuditEvent,
+) error {
+	switch event.Action {
+	case protocol.OperatorActionClaim:
+		privateRecordHash := protocol.Digest(protocol.OperatorClaimPrivateRecordMessage(
+			event.ActionID,
+			event.DeploymentID,
+			event.GroupID,
+			event.PayloadHash,
+			input.LegalName,
+			input.RegistrationNumber,
+			input.Jurisdiction,
+			input.RegisteredAddress,
+			input.Website,
+			input.VerificationContactName,
+			input.VerificationContactRole,
+			input.VerificationContactEmail,
+			input.AuthorityAttested,
+			input.OperatorAvatarURL,
+			event.AcceptedAt,
+		))
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO operator_claim_verification_submissions (
+				claim_action_id,
+				deployment_id,
+				group_id,
+				legal_name,
+				registration_number,
+				jurisdiction,
+				registered_address,
+				website,
+				verification_contact_name,
+				verification_contact_role,
+				verification_contact_email,
+				authority_attested,
+				operator_avatar_url,
+				payload_hash,
+				submitted_at,
+				private_record_hash
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			event.ActionID,
+			event.DeploymentID,
+			event.GroupID,
+			input.LegalName,
+			input.RegistrationNumber,
+			input.Jurisdiction,
+			input.RegisteredAddress,
+			input.Website,
+			input.VerificationContactName,
+			input.VerificationContactRole,
+			input.VerificationContactEmail,
+			input.AuthorityAttested,
+			input.OperatorAvatarURL,
+			event.PayloadHash,
+			event.AcceptedAt,
+			privateRecordHash,
+		); err != nil {
+			return fmt.Errorf("persist private operator claim submission: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO operator_claim_status (
+				deployment_id,
+				claim_action_id,
+				claim_audit_index,
+				claim_audit_hash,
+				group_id,
+				legal_name,
+				verification_state,
+				submitted_at,
+				review_id,
+				review_index,
+				review_hash,
+				approved_at,
+				updated_at,
+				private_record_hash
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?, '', ?, ?)
+			ON CONFLICT(deployment_id) DO UPDATE SET
+				claim_action_id = excluded.claim_action_id,
+				claim_audit_index = excluded.claim_audit_index,
+				claim_audit_hash = excluded.claim_audit_hash,
+				group_id = excluded.group_id,
+				legal_name = excluded.legal_name,
+				verification_state = excluded.verification_state,
+				submitted_at = excluded.submitted_at,
+				review_id = '',
+				review_index = 0,
+				review_hash = excluded.review_hash,
+				approved_at = '',
+				updated_at = excluded.updated_at,
+				private_record_hash = excluded.private_record_hash`,
+			event.DeploymentID,
+			event.ActionID,
+			event.AuditIndex,
+			event.AuditHash,
+			event.GroupID,
+			input.LegalName,
+			protocol.OperatorClaimStatePendingReview,
+			event.AcceptedAt,
+			protocol.OperatorClaimReviewZeroHash,
+			event.AcceptedAt,
+			privateRecordHash,
+		); err != nil {
+			return fmt.Errorf("write current operator claim status: %w", err)
+		}
+	case protocol.OperatorActionWithdrawClaim:
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE operator_claim_status
+			SET verification_state = ?,
+			    updated_at = ?
+			WHERE deployment_id = ?`,
+			protocol.OperatorClaimStateWithdrawn,
+			event.AcceptedAt,
+			event.SubjectDeploymentID,
+		); err != nil {
+			return fmt.Errorf("withdraw current operator claim status: %w", err)
+		}
 	}
 	return nil
 }

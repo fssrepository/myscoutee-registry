@@ -38,6 +38,15 @@ func (sqliteStore *Store) VerifyOperatorNetwork(
 	if err := sqliteStore.verifyOperatorActionNonces(ctx, actions, registryScope); err != nil {
 		return err
 	}
+	if err := sqliteStore.verifyOperatorClaimReviews(
+		ctx,
+		actions,
+		registryPublicKey,
+		registryKeyID,
+		registryScope,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -76,6 +85,11 @@ func (sqliteStore *Store) verifyOperatorAuditEvents(
 		return nil, err
 	}
 	verified := make(map[string]verifiedOperatorAction, len(records))
+	submissions, err := sqliteStore.operatorClaimSubmissions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	usedSubmissions := make(map[string]bool, len(submissions))
 	expectedIndex := int64(1)
 	previousHash := protocol.OperatorAuditZeroHash
 	var previousAcceptedAt time.Time
@@ -133,7 +147,19 @@ func (sqliteStore *Store) verifyOperatorAuditEvents(
 				event.ActionID,
 			)
 		}
-		expectedPayloadHash := operatorEventPayloadHash(event)
+		expectedPayloadHash, structuredClaim, err := operatorEventPayloadHash(
+			event,
+			submissions[event.ActionID],
+		)
+		if err != nil {
+			return nil, inconsistent(
+				"validate operator action private payload",
+				err,
+			)
+		}
+		if structuredClaim {
+			usedSubmissions[event.ActionID] = true
+		}
 		if event.PayloadHash != expectedPayloadHash {
 			return nil, inconsistentMessage(
 				"operator action %s payload hash verification failed",
@@ -206,6 +232,14 @@ func (sqliteStore *Store) verifyOperatorAuditEvents(
 		previousHash = event.AuditHash
 		previousAcceptedAt = acceptedAt
 		expectedIndex++
+	}
+	for actionID := range submissions {
+		if !usedSubmissions[actionID] {
+			return nil, inconsistentMessage(
+				"private operator claim submission %s has no matching structured claim",
+				actionID,
+			)
+		}
 	}
 	return verified, nil
 }
@@ -341,7 +375,10 @@ func (sqliteStore *Store) verifyOperatorActionNonces(
 	return nil
 }
 
-func operatorEventPayloadHash(event store.OperatorAuditEvent) string {
+func operatorEventPayloadHash(
+	event store.OperatorAuditEvent,
+	submission store.OperatorClaimSubmission,
+) (string, bool, error) {
 	operatorName := ""
 	operatorAvatarURL := ""
 	clientTokenHash := ""
@@ -350,6 +387,57 @@ func operatorEventPayloadHash(event store.OperatorAuditEvent) string {
 	linkID := ""
 	switch event.Action {
 	case protocol.OperatorActionClaim:
+		if event.ClaimState == protocol.OperatorClaimStatePendingReview {
+			if submission.ClaimActionID == "" ||
+				submission.ClaimActionID != event.ActionID ||
+				submission.DeploymentID != event.DeploymentID ||
+				submission.GroupID != event.GroupID ||
+				submission.LegalName != event.OperatorName ||
+				submission.OperatorAvatarURL != event.OperatorAvatarURL ||
+				submission.PayloadHash != event.PayloadHash ||
+				submission.SubmittedAt != event.AcceptedAt ||
+				!submission.AuthorityAttested {
+				return "", false, store.ErrInconsistentState
+			}
+			expectedPrivateHash := protocol.Digest(
+				protocol.OperatorClaimPrivateRecordMessage(
+					submission.ClaimActionID,
+					submission.DeploymentID,
+					submission.GroupID,
+					submission.PayloadHash,
+					submission.LegalName,
+					submission.RegistrationNumber,
+					submission.Jurisdiction,
+					submission.RegisteredAddress,
+					submission.Website,
+					submission.VerificationContactName,
+					submission.VerificationContactRole,
+					submission.VerificationContactEmail,
+					submission.AuthorityAttested,
+					submission.OperatorAvatarURL,
+					submission.SubmittedAt,
+				),
+			)
+			if submission.PrivateRecordHash != expectedPrivateHash {
+				return "", false, store.ErrInconsistentState
+			}
+			return protocol.Digest(protocol.OperatorClaimPayload(
+				submission.LegalName,
+				submission.RegistrationNumber,
+				submission.Jurisdiction,
+				submission.RegisteredAddress,
+				submission.Website,
+				submission.VerificationContactName,
+				submission.VerificationContactRole,
+				submission.VerificationContactEmail,
+				submission.AuthorityAttested,
+				submission.OperatorAvatarURL,
+			)), true, nil
+		}
+		if event.ClaimState != protocol.OperatorClaimStateClaimed ||
+			submission.ClaimActionID != "" {
+			return "", false, store.ErrInconsistentState
+		}
 		operatorName = event.OperatorName
 		operatorAvatarURL = event.OperatorAvatarURL
 	case protocol.OperatorActionIssueClientToken:
@@ -369,7 +457,7 @@ func operatorEventPayloadHash(event store.OperatorAuditEvent) string {
 		tokenTTLSeconds,
 		tokenID,
 		linkID,
-	))
+	)), false, nil
 }
 
 func operatorReceipt(

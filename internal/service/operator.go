@@ -24,9 +24,16 @@ const (
 )
 
 var (
-	operatorTokenIDPattern = regexp.MustCompile(`^opt_[0-9a-f]{32}$`)
-	operatorLinkIDPattern  = regexp.MustCompile(`^opl_[0-9a-f]{32}$`)
-	operatorGroupIDPattern = regexp.MustCompile(`^opg_[0-9a-f]{32}$`)
+	operatorTokenIDPattern    = regexp.MustCompile(`^opt_[0-9a-f]{32}$`)
+	operatorLinkIDPattern     = regexp.MustCompile(`^opl_[0-9a-f]{32}$`)
+	operatorGroupIDPattern    = regexp.MustCompile(`^opg_[0-9a-f]{32}$`)
+	operatorActionIDPattern   = regexp.MustCompile(`^opa_[0-9a-f]{32}$`)
+	operatorEmailLocalPattern = regexp.MustCompile(
+		`^[a-z0-9!#$%&'*+/=?^_` + "`" + `{|}~.-]+$`,
+	)
+	operatorEmailDomainLabelPattern = regexp.MustCompile(
+		`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`,
+	)
 )
 
 type validatedOperatorAction struct {
@@ -92,15 +99,7 @@ func (registry *Service) ApplyOperatorAction(
 	if err != nil {
 		return protocol.OperatorActionResponse{}, err
 	}
-	expectedPayloadHash := protocol.Digest(protocol.OperatorActionPayload(
-		request.Action,
-		request.OperatorName,
-		request.OperatorAvatarURL,
-		validated.ClientTokenHash,
-		validated.TokenTTLSeconds,
-		request.TokenID,
-		request.LinkID,
-	))
+	expectedPayloadHash := operatorActionRequestPayloadHash(request, validated)
 	if request.PayloadHash != expectedPayloadHash {
 		return protocol.OperatorActionResponse{}, requestError(
 			"invalid_payload_hash",
@@ -167,24 +166,33 @@ func (registry *Service) ApplyOperatorAction(
 	}
 	acceptedAtTime := registry.canonicalNow()
 	input := store.OperatorActionInput{
-		RegistryScope:       registry.registryScope,
-		DeploymentID:        request.DeploymentID,
-		Action:              request.Action,
-		RequestTimestamp:    request.Timestamp,
-		Nonce:               request.Nonce,
-		IdempotencyKey:      request.IdempotencyKey,
-		PayloadHash:         request.PayloadHash,
-		RequestHash:         protocol.Digest(requestMessage),
-		DeploymentSignature: signature,
-		OperatorName:        request.OperatorName,
-		OperatorAvatarURL:   request.OperatorAvatarURL,
-		ClientTokenHash:     validated.ClientTokenHash,
-		TokenTTLSeconds:     validated.TokenTTLSeconds,
-		TokenID:             request.TokenID,
-		LinkID:              request.LinkID,
-		CandidateActionID:   actionID,
-		AcceptedAt:          acceptedAtTime.Format(time.RFC3339),
-		RegistryKeyID:       registry.signingKey.KeyID(),
+		RegistryScope:            registry.registryScope,
+		DeploymentID:             request.DeploymentID,
+		Action:                   request.Action,
+		RequestTimestamp:         request.Timestamp,
+		Nonce:                    request.Nonce,
+		IdempotencyKey:           request.IdempotencyKey,
+		PayloadHash:              request.PayloadHash,
+		RequestHash:              protocol.Digest(requestMessage),
+		DeploymentSignature:      signature,
+		OperatorName:             request.OperatorName,
+		OperatorAvatarURL:        request.OperatorAvatarURL,
+		LegalName:                request.LegalName,
+		RegistrationNumber:       request.RegistrationNumber,
+		Jurisdiction:             request.Jurisdiction,
+		RegisteredAddress:        request.RegisteredAddress,
+		Website:                  request.Website,
+		VerificationContactName:  request.VerificationContactName,
+		VerificationContactRole:  request.VerificationContactRole,
+		VerificationContactEmail: request.VerificationContactEmail,
+		AuthorityAttested:        request.AuthorityAttested,
+		ClientTokenHash:          validated.ClientTokenHash,
+		TokenTTLSeconds:          validated.TokenTTLSeconds,
+		TokenID:                  request.TokenID,
+		LinkID:                   request.LinkID,
+		CandidateActionID:        actionID,
+		AcceptedAt:               acceptedAtTime.Format(time.RFC3339),
+		RegistryKeyID:            registry.signingKey.KeyID(),
 	}
 
 	issuedClientToken := ""
@@ -238,6 +246,35 @@ func (registry *Service) ApplyOperatorAction(
 	}, nil
 }
 
+func operatorActionRequestPayloadHash(
+	request protocol.OperatorActionRequest,
+	validated validatedOperatorAction,
+) string {
+	if request.Action == protocol.OperatorActionClaim {
+		return protocol.Digest(protocol.OperatorClaimPayload(
+			request.LegalName,
+			request.RegistrationNumber,
+			request.Jurisdiction,
+			request.RegisteredAddress,
+			request.Website,
+			request.VerificationContactName,
+			request.VerificationContactRole,
+			request.VerificationContactEmail,
+			request.AuthorityAttested,
+			request.OperatorAvatarURL,
+		))
+	}
+	return protocol.Digest(protocol.OperatorActionPayload(
+		request.Action,
+		request.OperatorName,
+		request.OperatorAvatarURL,
+		validated.ClientTokenHash,
+		validated.TokenTTLSeconds,
+		request.TokenID,
+		request.LinkID,
+	))
+}
+
 func validateOperatorActionRequest(
 	request protocol.OperatorActionRequest,
 ) (validatedOperatorAction, error) {
@@ -252,6 +289,15 @@ func validateOperatorActionRequest(
 	}
 	hasName := request.OperatorName != ""
 	hasAvatar := request.OperatorAvatarURL != ""
+	hasClaimVerification := request.LegalName != "" ||
+		request.RegistrationNumber != "" ||
+		request.Jurisdiction != "" ||
+		request.RegisteredAddress != "" ||
+		request.Website != "" ||
+		request.VerificationContactName != "" ||
+		request.VerificationContactRole != "" ||
+		request.VerificationContactEmail != "" ||
+		request.AuthorityAttested
 	hasToken := request.ClientToken != ""
 	hasTTL := request.TokenTTLSeconds != 0
 	hasTokenID := request.TokenID != ""
@@ -259,13 +305,65 @@ func validateOperatorActionRequest(
 
 	switch request.Action {
 	case protocol.OperatorActionClaim:
-		if err := validateCanonicalText(
-			"operator_name",
-			request.OperatorName,
-			1,
-			160,
+		if hasName {
+			return validated, requestError(
+				"invalid_request",
+				"operator_name is not accepted for structured claims; legal_name is the operator label",
+			)
+		}
+		if err := validateClaimText("legal_name", request.LegalName, 160); err != nil {
+			return validated, err
+		}
+		if err := validateClaimText(
+			"registration_number",
+			request.RegistrationNumber,
+			80,
 		); err != nil {
 			return validated, err
+		}
+		if err := validateClaimText("jurisdiction", request.Jurisdiction, 80); err != nil {
+			return validated, err
+		}
+		if err := validateClaimText(
+			"registered_address",
+			request.RegisteredAddress,
+			500,
+		); err != nil {
+			return validated, err
+		}
+		if request.Website != "" {
+			if err := validateOperatorHTTPSURL("website", request.Website); err != nil {
+				return validated, err
+			}
+		}
+		if err := validateClaimText(
+			"verification_contact_name",
+			request.VerificationContactName,
+			120,
+		); err != nil {
+			return validated, err
+		}
+		if err := validateClaimText(
+			"verification_contact_role",
+			request.VerificationContactRole,
+			120,
+		); err != nil {
+			return validated, err
+		}
+		if err := validateOperatorEmail(request.VerificationContactEmail); err != nil {
+			return validated, err
+		}
+		if !request.AuthorityAttested {
+			return validated, requestError(
+				"invalid_request",
+				"authority_attested must be true",
+			)
+		}
+		if !hasClaimVerification {
+			return validated, requestError(
+				"invalid_request",
+				"structured company verification fields are required",
+			)
 		}
 		if hasAvatar {
 			if err := validateOperatorAvatarURL(request.OperatorAvatarURL); err != nil {
@@ -278,11 +376,19 @@ func validateOperatorActionRequest(
 	case protocol.OperatorActionWithdrawClaim,
 		protocol.OperatorActionDeactivateDeployment,
 		protocol.OperatorActionReactivateDeployment:
-		if unexpected(hasName, hasAvatar, hasToken, hasTTL, hasTokenID, hasLinkID) {
+		if unexpected(
+			hasName,
+			hasAvatar,
+			hasClaimVerification,
+			hasToken,
+			hasTTL,
+			hasTokenID,
+			hasLinkID,
+		) {
 			return validated, unexpectedOperatorFields()
 		}
 	case protocol.OperatorActionIssueClientToken:
-		if unexpected(hasName, hasAvatar, hasToken, hasTokenID, hasLinkID) {
+		if unexpected(hasName, hasAvatar, hasClaimVerification, hasToken, hasTokenID, hasLinkID) {
 			return validated, unexpectedOperatorFields()
 		}
 		if request.TokenTTLSeconds < 60 || request.TokenTTLSeconds > 3600 {
@@ -293,7 +399,7 @@ func validateOperatorActionRequest(
 		}
 		validated.TokenTTLSeconds = request.TokenTTLSeconds
 	case protocol.OperatorActionRevokeClientToken:
-		if unexpected(hasName, hasAvatar, hasToken, hasTTL, hasLinkID) ||
+		if unexpected(hasName, hasAvatar, hasClaimVerification, hasToken, hasTTL, hasLinkID) ||
 			!operatorTokenIDPattern.MatchString(request.TokenID) {
 			return validated, requestError(
 				"invalid_request",
@@ -301,7 +407,7 @@ func validateOperatorActionRequest(
 			)
 		}
 	case protocol.OperatorActionRedeemClientToken:
-		if unexpected(hasName, hasAvatar, hasTTL, hasTokenID, hasLinkID) {
+		if unexpected(hasName, hasAvatar, hasClaimVerification, hasTTL, hasTokenID, hasLinkID) {
 			return validated, unexpectedOperatorFields()
 		}
 		if err := validateToken("client_token", request.ClientToken); err != nil {
@@ -309,7 +415,7 @@ func validateOperatorActionRequest(
 		}
 		validated.ClientTokenHash = protocol.Digest([]byte(request.ClientToken))
 	case protocol.OperatorActionRevokeGroupLink:
-		if unexpected(hasName, hasAvatar, hasToken, hasTTL, hasTokenID) ||
+		if unexpected(hasName, hasAvatar, hasClaimVerification, hasToken, hasTTL, hasTokenID) ||
 			!operatorLinkIDPattern.MatchString(request.LinkID) {
 			return validated, requestError(
 				"invalid_request",
@@ -325,6 +431,59 @@ func validateOperatorActionRequest(
 	return validated, nil
 }
 
+func validateClaimText(name, value string, maximum int) error {
+	if err := validateCanonicalText(name, value, 1, maximum); err != nil {
+		return err
+	}
+	if strings.TrimSpace(value) != value {
+		return requestError("invalid_request", name+" must not have surrounding whitespace")
+	}
+	return nil
+}
+
+func validateOperatorEmail(value string) error {
+	if err := validateClaimText("verification_contact_email", value, 254); err != nil {
+		return err
+	}
+	if value != strings.ToLower(value) || !strings.Contains(value, "@") {
+		return requestError(
+			"invalid_request",
+			"verification_contact_email must be a canonical lowercase email address",
+		)
+	}
+	local, domain, found := strings.Cut(value, "@")
+	if !found ||
+		strings.Contains(domain, "@") ||
+		len(local) > 64 ||
+		local == "" ||
+		domain == "" ||
+		strings.HasPrefix(local, ".") ||
+		strings.HasSuffix(local, ".") ||
+		strings.Contains(local, "..") ||
+		!operatorEmailLocalPattern.MatchString(local) {
+		return requestError(
+			"invalid_request",
+			"verification_contact_email must be a canonical lowercase email address",
+		)
+	}
+	labels := strings.Split(domain, ".")
+	if len(labels) < 2 {
+		return requestError(
+			"invalid_request",
+			"verification_contact_email must be a canonical lowercase email address",
+		)
+	}
+	for _, label := range labels {
+		if !operatorEmailDomainLabelPattern.MatchString(label) {
+			return requestError(
+				"invalid_request",
+				"verification_contact_email must be a canonical lowercase email address",
+			)
+		}
+	}
+	return nil
+}
+
 func unexpectedOperatorFields() error {
 	return requestError(
 		"invalid_request",
@@ -333,7 +492,11 @@ func unexpectedOperatorFields() error {
 }
 
 func validateOperatorAvatarURL(value string) error {
-	if err := validateCanonicalText("operator_avatar_url", value, 1, 2048); err != nil {
+	return validateOperatorHTTPSURL("operator_avatar_url", value)
+}
+
+func validateOperatorHTTPSURL(name, value string) error {
+	if err := validateClaimText(name, value, 2048); err != nil {
 		return err
 	}
 	parsed, err := url.Parse(value)
@@ -344,7 +507,7 @@ func validateOperatorAvatarURL(value string) error {
 		parsed.Fragment != "" {
 		return requestError(
 			"invalid_request",
-			"operator_avatar_url must be an absolute HTTPS URL without credentials or fragment",
+			name+" must be an absolute HTTPS URL without credentials or fragment",
 		)
 	}
 	return nil
