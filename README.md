@@ -9,8 +9,10 @@ provides:
 - a directly maintained leaderboard query row for every ledger entry, written
   in the same SQLite transaction;
 - signed registration and batch receipts plus completed-UTC-day checkpoints;
-- signed, append-only operator claim/grouping actions with expiring client
-  tokens;
+- signed structured company-verification claims, append-only administrative
+  review receipts, direct signed status, and expiring grouping tokens;
+- transactionally maintained, versioned operator-network rows used directly by
+  leaderboard queries;
 - signed, snapshot-bound cursor leaderboard reads;
 - a registry-signed, append-only operator announcement/update-manifest feed
   published only through a local CLI;
@@ -18,10 +20,11 @@ provides:
   checkpoint finalization.
 
 It does not yet implement global user deduplication, production MAU
-qualification, Firebase migration, or legal/buyer validation of operator
-claims. With protocol-v1 accepting only zero-count installation tests, a real
-registry's measured deployment weights remain zero until the production MAU
-ruleset is introduced.
+qualification, Firebase migration, beneficial-owner due diligence, or document
+upload/review. Company claims have an explicit local administrative approval
+boundary. With protocol-v1 accepting only zero-count installation tests, a
+real registry's measured deployment weights remain zero until the production
+MAU ruleset is introduced.
 
 The registration/ledger wire and signature format is
 [`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
@@ -223,6 +226,7 @@ follow the signing-key lifecycle rules below.
 | `GET` | `/v1/mau/batches/{batch_id}/receipt` | Stored signed receipt |
 | `GET` | `/v1/ledger/checkpoints/{YYYY-MM-DD}` | Completed UTC day checkpoint |
 | `POST` | `/v1/operator/actions` | Signed claim, client-token/group-link, or deployment-state action |
+| `GET` | `/v1/operator/claims/{deployment_id}` | Direct registry-signed company-verification status |
 | `GET` | `/v1/leaderboard?view=founder\|claimed\|unclaimed` | Signed snapshot-bound cursor page |
 | `GET` | `/v1/leaderboard/groups/{group_id}/deployments` | Cursor page of the deployments kept separate inside one virtual operator group |
 | `GET` | `/v1/announcements` | Registry-signed, snapshot-bound cursor feed of active operator notices and update manifests |
@@ -273,6 +277,55 @@ announcements, never an edit of a published row. Production permissions/backup
 guidance and exact application-development, restart-persistence, and optional
 demo-volume reset commands are in
 [`docs/announcements-v1.md`](docs/announcements-v1.md).
+
+## Company-verification review CLI
+
+Structured claims are accepted as `PENDING_REVIEW` and immediately retain or
+create their operator group and provisional leaderboard membership. The
+private registered address/contact is kept out of the public operator ledger,
+status, and leaderboard. It is stored in an access-limited append-only table
+linked to the public payload digest.
+
+The operational CLI requires the configured database, signing key, and
+registry identity to already exist. A missing or mistyped Compose volume fails
+without creating a directory, database, key, or identity.
+
+```bash
+docker compose exec -T registry \
+  /registry list-operator-claims \
+  --status PENDING_REVIEW \
+  --limit 50
+
+# WARNING: this prints the private address and verification contact.
+docker compose exec -T registry \
+  /registry show-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef
+
+docker compose exec -T registry \
+  /registry approve-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --reviewer-id network-review-team \
+  --review-reference case:2026-0042 \
+  --idempotency-key approve-example-2026-0042
+
+docker compose exec -T registry \
+  /registry leaderboard --view claimed --limit 20
+```
+
+Commands emit JSON. An exact approval retry exits `0` with `duplicate: true`;
+an idempotency conflict or a withdrawn/superseded claim target exits `1`.
+`reviewer-id` and `review-reference` are required registry audit fields. Local
+CLI access is the review authority; the registry signature binds what it
+recorded but is not a separate human signature. Cursors and
+`next_deployment_id` values are opaque and must be copied unchanged.
+
+The complete list/show/approve flow, JSON examples, signed status receipt,
+cursor examples, exit codes, privacy/backup handling, and stale-target
+behavior are in
+[`docs/operator-network-v1.md`](docs/operator-network-v1.md).
 
 ## Configuration
 
@@ -343,7 +396,9 @@ into the other scope.
 SQLite uses WAL, foreign keys, `synchronous=FULL`, one serialized connection,
 and append-only `UPDATE`/`DELETE` rejection triggers for identity,
 deployments, nonces, idempotency records, ledger entries, batches,
-leaderboard query rows, operator audit events, announcements, and checkpoints.
+leaderboard query rows, operator audit events, private claim submissions,
+claim reviews, versioned operator-network rows, announcements, and
+checkpoints.
 
 The accounting ledger is a linear SHA-256 hash chain, not a Merkle tree. Each
 entry commits to its canonical contents and the previous entry hash. Signed,
@@ -368,7 +423,9 @@ On every restart and health check, the registry validates:
 - ledger index/hash/timestamp monotonicity and the full checkpoint chain;
 - exact ledger/query-row cardinality and field equality;
 - the operator action hash chain, deployment signatures, replay/idempotency
-  records, and registry-signed action receipts.
+  records, registry-signed action receipts, private claim-record hashes,
+  signed review chain, direct claim status, and versioned operator-network
+  query rows;
 - the announcement hash chain, normalized nested-content hashes, publication
   idempotency hashes, registry signatures, and stored canonical JSON.
 
@@ -385,8 +442,11 @@ Deploy the service behind TLS, request-rate limits, connection limits, and
 per-source/per-deployment abuse controls; durable nonces intentionally grow to
 preserve replay protection.
 
-No raw email, Firebase UID, access token, profile, chat, location, payment
-detail, or other direct user identifier is accepted.
+No raw verification-contact email/address is placed in the public operator
+ledger or leaderboard. Those claim fields are accepted only into the protected
+private append-only submission table. Firebase UID, access token, chat,
+payment detail, and unrelated direct user identifiers are not accepted by the
+registry protocol.
 
 ## Development
 
@@ -403,7 +463,10 @@ cover registration, duplicates, replay and idempotency conflicts, invalid
 signatures, strict decoding, sovereign scope rejection, ledger/receipt
 verification, clock rollback safeguards, completed-day checkpoints,
 append-only triggers, key restart/loss/replacement guards, and fail-closed
-integrity behavior. Announcement tests additionally cover strict manifest
-validation, registry/package signature formats, expiry/filtering,
+integrity behavior. Operator tests additionally cover structured validation,
+private/public separation, review idempotency and stale targets, direct
+status, CLI preflight, and review/status tampering. Announcement tests
+additionally cover strict manifest validation, registry/package signature
+formats, expiry/filtering,
 snapshot-bound cursor traversal and tampering, append-only publication,
 live-volume CLI publication, and restart persistence.

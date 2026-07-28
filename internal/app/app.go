@@ -2,8 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/fssrepository/myscoutee-registry/internal/config"
@@ -27,11 +30,58 @@ type Runtime struct {
 }
 
 func Bootstrap(ctx context.Context, cfg config.Config, options Options) (*Runtime, error) {
+	return bootstrap(ctx, cfg, options, false)
+}
+
+// BootstrapExisting is the only bootstrap path used by operational CLI
+// commands. It refuses to create a database, directory, signing key, or
+// registry identity when a path is missing or points at pristine state.
+func BootstrapExisting(
+	ctx context.Context,
+	cfg config.Config,
+	options Options,
+) (*Runtime, error) {
+	absoluteKeyPath, err := filepath.Abs(cfg.SigningKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve registry signing key path: %w", err)
+	}
+	keyInfo, err := os.Lstat(absoluteKeyPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf(
+				"registry signing key does not exist: %s",
+				absoluteKeyPath,
+			)
+		}
+		return nil, fmt.Errorf("inspect registry signing key: %w", err)
+	}
+	if keyInfo.Mode()&os.ModeSymlink != 0 || !keyInfo.Mode().IsRegular() {
+		return nil, fmt.Errorf(
+			"registry signing key must be an existing regular non-symlink file: %s",
+			absoluteKeyPath,
+		)
+	}
+	cfg.GenerateSigningKey = false
+	return bootstrap(ctx, cfg, options, true)
+}
+
+func bootstrap(
+	ctx context.Context,
+	cfg config.Config,
+	options Options,
+	requireExisting bool,
+) (*Runtime, error) {
 	registryScope := cfg.RegistryScope
 	if !protocol.IsRegistryScope(registryScope) {
 		return nil, fmt.Errorf("REGISTRY_SCOPE is required and must contain a valid explicit registry scope")
 	}
-	registryStore, err := sqlite.Open(cfg.DatabasePath)
+	var registryStore *sqlite.Store
+	var err error
+	if requireExisting {
+		registryStore, err = sqlite.OpenExisting(cfg.DatabasePath)
+	} else {
+		registryStore, err = sqlite.Open(cfg.DatabasePath)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +104,11 @@ func Bootstrap(ctx context.Context, cfg config.Config, options Options) (*Runtim
 		return closeOnError(fmt.Errorf(
 			"%w: durable records exist without a registry identity",
 			store.ErrInconsistentState,
+		))
+	}
+	if requireExisting && persistedIdentity == nil {
+		return closeOnError(fmt.Errorf(
+			"registry database has no initialized identity; run the explicit initialize command",
 		))
 	}
 

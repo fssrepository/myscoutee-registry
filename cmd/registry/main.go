@@ -308,7 +308,7 @@ func withRegistryService(
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	runtime, err := app.Bootstrap(ctx, cfg, app.Options{})
+	runtime, err := app.BootstrapExisting(ctx, cfg, app.Options{})
 	if err != nil {
 		return fmt.Errorf("open local registry: %w", err)
 	}

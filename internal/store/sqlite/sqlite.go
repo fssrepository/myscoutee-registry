@@ -62,6 +62,70 @@ func Open(path string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+// OpenExisting refuses to create or initialize a registry database. It checks
+// for an existing initialized identity using a read-only connection before the
+// ordinary migration/open path is allowed to make any changes.
+func OpenExisting(path string) (*Store, error) {
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve SQLite database path: %w", err)
+	}
+	info, err := os.Lstat(absolutePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("registry database does not exist: %s", absolutePath)
+		}
+		return nil, fmt.Errorf("inspect registry database: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("registry database must be an existing regular non-symlink file: %s", absolutePath)
+	}
+
+	dsnURL := url.URL{Scheme: "file", Path: absolutePath}
+	query := dsnURL.Query()
+	query.Add("mode", "ro")
+	dsnURL.RawQuery = query.Encode()
+	preflight, err := sql.Open("sqlite", dsnURL.String())
+	if err != nil {
+		return nil, fmt.Errorf("inspect existing SQLite database: %w", err)
+	}
+	defer preflight.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var identityTableCount int
+	if err := preflight.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM sqlite_master
+		WHERE type = 'table' AND name = 'registry_identity'`).Scan(
+		&identityTableCount,
+	); err != nil {
+		return nil, fmt.Errorf("inspect initialized registry identity: %w", err)
+	}
+	if identityTableCount != 1 {
+		return nil, fmt.Errorf(
+			"registry database is not initialized with exactly one identity: %s",
+			absolutePath,
+		)
+	}
+	var identityCount int
+	if err := preflight.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM registry_identity`,
+	).Scan(&identityCount); err != nil {
+		return nil, fmt.Errorf("inspect initialized registry identity: %w", err)
+	}
+	if identityCount != 1 {
+		return nil, fmt.Errorf(
+			"registry database is not initialized with exactly one identity: %s",
+			absolutePath,
+		)
+	}
+	if err := preflight.Close(); err != nil {
+		return nil, fmt.Errorf("close registry database preflight: %w", err)
+	}
+	return Open(absolutePath)
+}
+
 func (sqliteStore *Store) Close() error {
 	return sqliteStore.db.Close()
 }
@@ -84,6 +148,7 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM checkpoints) +
 			(SELECT COUNT(*) FROM operator_audit_events) +
 			(SELECT COUNT(*) FROM operator_action_nonces) +
+			(SELECT COUNT(*) FROM operator_network_state_rows) +
 			(SELECT COUNT(*) FROM announcements)`).Scan(&recordCount); err != nil {
 		return false, fmt.Errorf("inspect registry persistent state: %w", err)
 	}

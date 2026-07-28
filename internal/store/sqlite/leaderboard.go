@@ -12,124 +12,74 @@ const leaderboardStateCTE = `
 	bounds(audit_bound, ledger_bound, from_period, through_period) AS (
 		VALUES (?, ?, ?, ?)
 	),
-	claim_ranked AS (
-		SELECT
-			subject_deployment_id AS deployment_id,
-			claim_state,
-			group_id,
-			operator_name,
-			operator_avatar_url,
-			audit_index,
-			ROW_NUMBER() OVER (
-				PARTITION BY subject_deployment_id
-				ORDER BY audit_index DESC
-			) AS rank
-		FROM operator_audit_events
-		WHERE action_type IN ('claim', 'withdraw-claim')
-		  AND audit_index <= (SELECT audit_bound FROM bounds)
-	),
-	claims AS (
+	state_ranked AS (
 		SELECT
 			deployment_id,
+			claimed,
+			active,
 			claim_state,
-			group_id,
+			claim_group_id,
+			effective_group_id,
 			operator_name,
 			operator_avatar_url,
-			audit_index
-		FROM claim_ranked
-		WHERE rank = 1
-	),
-	activity_ranked AS (
-		SELECT
-			subject_deployment_id AS deployment_id,
-			action_type,
+			profile_claim_state,
+			link_id,
+			related_deployment_id,
+			profile_claim_audit_index,
+			audit_index,
 			ROW_NUMBER() OVER (
-				PARTITION BY subject_deployment_id
+				PARTITION BY deployment_id
 				ORDER BY audit_index DESC
 			) AS rank
-		FROM operator_audit_events
-		WHERE action_type IN ('deactivate-deployment', 'reactivate-deployment')
-		  AND audit_index <= (SELECT audit_bound FROM bounds)
+		FROM operator_network_state_rows
+		WHERE audit_index <= (SELECT audit_bound FROM bounds)
 	),
-	activity AS (
-		SELECT deployment_id, action_type
-		FROM activity_ranked
-		WHERE rank = 1
-	),
-	link_ranked AS (
+	states AS (
 		SELECT
-			redeem.subject_deployment_id AS deployment_id,
-			redeem.related_deployment_id,
-			redeem.group_id,
-			redeem.link_id,
-			ROW_NUMBER() OVER (
-				PARTITION BY redeem.subject_deployment_id
-				ORDER BY redeem.audit_index DESC
-			) AS rank
-		FROM operator_audit_events redeem
-			JOIN claims claim
-			  ON claim.deployment_id = redeem.subject_deployment_id
-			 AND claim.claim_state IN ('claimed', 'pending-review')
-		 AND redeem.audit_index > claim.audit_index
-		WHERE redeem.action_type = 'redeem-client-token'
-		  AND redeem.audit_index <= (SELECT audit_bound FROM bounds)
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM operator_audit_events revoked
-			WHERE revoked.action_type = 'revoke-group-link'
-			  AND revoked.link_id = redeem.link_id
-			  AND revoked.audit_index > redeem.audit_index
-			  AND revoked.audit_index <= (SELECT audit_bound FROM bounds)
-		  )
-	),
-	links AS (
-		SELECT deployment_id, related_deployment_id, group_id, link_id
-		FROM link_ranked
+			deployment_id,
+			claimed,
+			active,
+			claim_state,
+			claim_group_id,
+			effective_group_id,
+			operator_name,
+			operator_avatar_url,
+			profile_claim_state,
+			link_id,
+			related_deployment_id,
+			profile_claim_audit_index,
+			audit_index
+		FROM state_ranked
 		WHERE rank = 1
 	),
 	memberships AS (
 		SELECT
 			deployment.deployment_id,
-				CASE
-					WHEN claim.claim_state IN ('claimed', 'pending-review') THEN 1
-					ELSE 0
-				END AS claimed,
-				COALESCE(claim.claim_state, '') AS claim_state,
-			CASE
-				WHEN activity.action_type = 'deactivate-deployment' THEN 0
-				ELSE 1
-			END AS active,
-				CASE
-					WHEN claim.claim_state IN ('claimed', 'pending-review')
-						THEN COALESCE(link.group_id, claim.group_id)
-				ELSE ''
-			END AS group_id,
-			COALESCE(link.link_id, '') AS link_id
+			COALESCE(state.claimed, 0) AS claimed,
+			COALESCE(state.claim_state, '') AS claim_state,
+			COALESCE(state.active, 1) AS active,
+			COALESCE(state.effective_group_id, '') AS group_id,
+			COALESCE(state.link_id, '') AS link_id
 		FROM deployments deployment
-		LEFT JOIN claims claim
-		  ON claim.deployment_id = deployment.deployment_id
-		LEFT JOIN activity
-		  ON activity.deployment_id = deployment.deployment_id
-		LEFT JOIN links link
-		  ON link.deployment_id = deployment.deployment_id
+		LEFT JOIN states state
+		  ON state.deployment_id = deployment.deployment_id
 	),
 	group_profile_ranked AS (
 		SELECT
-				group_id,
-				operator_name,
-				operator_avatar_url,
-				claim_state,
+			claim_group_id AS group_id,
+			operator_name,
+			operator_avatar_url,
+			profile_claim_state AS claim_state,
 			ROW_NUMBER() OVER (
-				PARTITION BY group_id
-				ORDER BY audit_index DESC
+				PARTITION BY claim_group_id
+				ORDER BY profile_claim_audit_index DESC, audit_index DESC
 			) AS rank
-		FROM operator_audit_events
-			WHERE action_type = 'claim'
-			  AND claim_state IN ('claimed', 'pending-review')
-		  AND audit_index <= (SELECT audit_bound FROM bounds)
+		FROM states
+		WHERE claim_group_id <> ''
+		  AND profile_claim_state IN ('claimed', 'pending-review')
 	),
 	group_profiles AS (
-			SELECT group_id, operator_name, operator_avatar_url, claim_state
+		SELECT group_id, operator_name, operator_avatar_url, claim_state
 		FROM group_profile_ranked
 		WHERE rank = 1
 	),

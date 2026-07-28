@@ -628,11 +628,11 @@ func requestErrorStatus(code string) int {
 	switch code {
 	case "invalid_signature":
 		return http.StatusUnauthorized
-		case "deployment_not_found",
-			"receipt_not_found",
-			"checkpoint_not_found",
-			"operator_reference_not_found",
-			"operator_claim_not_found":
+	case "deployment_not_found",
+		"receipt_not_found",
+		"checkpoint_not_found",
+		"operator_reference_not_found",
+		"operator_claim_not_found":
 		return http.StatusNotFound
 	case "idempotency_conflict",
 		"replay_conflict",

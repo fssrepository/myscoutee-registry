@@ -38,6 +38,9 @@ func (sqliteStore *Store) VerifyOperatorNetwork(
 	if err := sqliteStore.verifyOperatorActionNonces(ctx, actions, registryScope); err != nil {
 		return err
 	}
+	if err := sqliteStore.verifyOperatorNetworkStateRows(ctx, actions); err != nil {
+		return err
+	}
 	if err := sqliteStore.verifyOperatorClaimReviews(
 		ctx,
 		actions,

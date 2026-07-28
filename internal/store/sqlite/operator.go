@@ -159,6 +159,9 @@ func (sqliteStore *Store) AppendOperatorAction(
 	if err := insertOperatorAuditEventTx(ctx, tx, event); err != nil {
 		return store.OperatorAuditEvent{}, false, err
 	}
+	if err := insertOperatorNetworkStateTx(ctx, tx, event); err != nil {
+		return store.OperatorAuditEvent{}, false, err
+	}
 	if err := writeOperatorClaimStateTx(ctx, tx, input, event); err != nil {
 		return store.OperatorAuditEvent{}, false, err
 	}
@@ -448,23 +451,11 @@ func operatorDeploymentActiveTx(
 	tx *sql.Tx,
 	deploymentID string,
 ) (bool, error) {
-	var action string
-	err := tx.QueryRowContext(ctx, `
-		SELECT action_type
-		FROM operator_audit_events
-		WHERE subject_deployment_id = ?
-		  AND action_type IN ('deactivate-deployment', 'reactivate-deployment')
-		ORDER BY audit_index DESC
-		LIMIT 1`,
-		deploymentID,
-	).Scan(&action)
-	if errors.Is(err, sql.ErrNoRows) {
-		return true, nil
-	}
+	state, err := operatorNetworkStateAtTx(ctx, tx, deploymentID, 0)
 	if err != nil {
 		return false, fmt.Errorf("read deployment activity state: %w", err)
 	}
-	return action == protocol.OperatorActionReactivateDeployment, nil
+	return state.Active, nil
 }
 
 func operatorClaimTx(
@@ -473,40 +464,23 @@ func operatorClaimTx(
 	deploymentID string,
 	throughAuditIndex int64,
 ) (operatorClaimState, error) {
-	query := `
-		SELECT
-			audit_index,
-			claim_state,
-			group_id,
-			operator_name,
-			operator_avatar_url
-		FROM operator_audit_events
-		WHERE subject_deployment_id = ?
-		  AND action_type IN ('claim', 'withdraw-claim')`
-	arguments := []any{deploymentID}
-	if throughAuditIndex > 0 {
-		query += " AND audit_index <= ?"
-		arguments = append(arguments, throughAuditIndex)
-	}
-	query += " ORDER BY audit_index DESC LIMIT 1"
-
-	var state operatorClaimState
-	err := tx.QueryRowContext(ctx, query, arguments...).Scan(
-		&state.AuditIndex,
-		&state.ClaimState,
-		&state.GroupID,
-		&state.OperatorName,
-		&state.OperatorAvatarURL,
+	networkState, err := operatorNetworkStateAtTx(
+		ctx,
+		tx,
+		deploymentID,
+		throughAuditIndex,
 	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return operatorClaimState{}, nil
-	}
 	if err != nil {
 		return operatorClaimState{}, fmt.Errorf("read operator claim state: %w", err)
 	}
-	state.Claimed = state.ClaimState == protocol.OperatorClaimStateClaimed ||
-		state.ClaimState == protocol.OperatorClaimStatePendingReview
-	return state, nil
+	return operatorClaimState{
+		AuditIndex:        networkState.ClaimStateAuditIndex,
+		Claimed:           networkState.Claimed,
+		ClaimState:        networkState.ClaimState,
+		GroupID:           networkState.ClaimGroupID,
+		OperatorName:      networkState.OperatorName,
+		OperatorAvatarURL: networkState.OperatorAvatarURL,
+	}, nil
 }
 
 func operatorMembershipTx(
@@ -515,47 +489,31 @@ func operatorMembershipTx(
 	deploymentID string,
 	throughAuditIndex int64,
 ) (operatorMembership, error) {
-	claim, err := operatorClaimTx(ctx, tx, deploymentID, throughAuditIndex)
-	if err != nil || !claim.Claimed {
-		return operatorMembership{operatorClaimState: claim}, err
-	}
-	query := `
-		SELECT r.group_id, r.link_id, r.related_deployment_id
-		FROM operator_audit_events r
-		WHERE r.action_type = 'redeem-client-token'
-		  AND r.subject_deployment_id = ?
-		  AND r.audit_index > ?
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM operator_audit_events x
-			WHERE x.action_type = 'revoke-group-link'
-			  AND x.link_id = r.link_id
-			  AND x.audit_index > r.audit_index`
-	arguments := []any{deploymentID, claim.AuditIndex}
-	if throughAuditIndex > 0 {
-		query += " AND x.audit_index <= ?"
-		arguments = append(arguments, throughAuditIndex)
-	}
-	query += ")"
-	if throughAuditIndex > 0 {
-		query += " AND r.audit_index <= ?"
-		arguments = append(arguments, throughAuditIndex)
-	}
-	query += " ORDER BY r.audit_index DESC LIMIT 1"
-
-	membership := operatorMembership{operatorClaimState: claim}
-	err = tx.QueryRowContext(ctx, query, arguments...).Scan(
-		&membership.GroupID,
-		&membership.LinkID,
-		&membership.RelatedDeploymentID,
+	state, err := operatorNetworkStateAtTx(
+		ctx,
+		tx,
+		deploymentID,
+		throughAuditIndex,
 	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return membership, nil
-	}
 	if err != nil {
 		return operatorMembership{}, fmt.Errorf("read operator group membership: %w", err)
 	}
-	return membership, nil
+	groupID := state.ClaimGroupID
+	if state.Claimed {
+		groupID = state.EffectiveGroupID
+	}
+	return operatorMembership{
+		operatorClaimState: operatorClaimState{
+			AuditIndex:        state.ClaimStateAuditIndex,
+			Claimed:           state.Claimed,
+			ClaimState:        state.ClaimState,
+			GroupID:           groupID,
+			OperatorName:      state.OperatorName,
+			OperatorAvatarURL: state.OperatorAvatarURL,
+		},
+		LinkID:              state.LinkID,
+		RelatedDeploymentID: state.RelatedDeploymentID,
+	}, nil
 }
 
 func requireDeploymentTx(ctx context.Context, tx *sql.Tx, deploymentID string) error {

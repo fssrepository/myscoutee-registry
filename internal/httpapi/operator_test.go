@@ -5,6 +5,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +20,7 @@ import (
 	"github.com/fssrepository/myscoutee-registry/internal/config"
 	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
+	"github.com/fssrepository/myscoutee-registry/internal/service"
 	_ "modernc.org/sqlite"
 )
 
@@ -564,7 +567,14 @@ func TestOperatorAuditTamperingFailsClosed(t *testing.T) {
 		trigger    string
 		statement  string
 		wantDetail string
+		approve    bool
 	}{
+		{
+			name:       "private claim submission",
+			trigger:    "operator_claim_verification_no_update",
+			statement:  "UPDATE operator_claim_verification_submissions SET registered_address = 'Tampered address'",
+			wantDetail: "private payload",
+		},
 		{
 			name:       "audit hash",
 			trigger:    "operator_audit_events_no_update",
@@ -583,6 +593,18 @@ func TestOperatorAuditTamperingFailsClosed(t *testing.T) {
 			statement:  "UPDATE operator_action_nonces SET deployment_signature = zeroblob(64)",
 			wantDetail: "request proof verification failed",
 		},
+		{
+			name:       "signed review receipt",
+			trigger:    "operator_claim_reviews_no_update",
+			statement:  "UPDATE operator_claim_reviews SET signature = zeroblob(64)",
+			wantDetail: "signature verification failed",
+			approve:    true,
+		},
+		{
+			name:       "direct claim status",
+			statement:  "UPDATE operator_claim_status SET legal_name = 'Tampered legal name'",
+			wantDetail: "direct operator claim status",
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -592,7 +614,23 @@ func TestOperatorAuditTamperingFailsClosed(t *testing.T) {
 			draft.Nonce = "nonce_operator_tamper_claim"
 			draft.IdempotencyKey = "operator_tamper_claim"
 			request := fixture.operatorAction(t, deployment, draft)
-			fixture.acceptOperatorAction(t, request, http.StatusCreated)
+			claim := fixture.acceptOperatorAction(t, request, http.StatusCreated)
+			if testCase.approve {
+				if _, err := fixture.runtime.Service.ApproveOperatorClaim(
+					context.Background(),
+					service.OperatorClaimApproval{
+						DeploymentID:    deployment.id,
+						ClaimActionID:   claim.Receipt.ActionID,
+						GroupID:         claim.Receipt.GroupID,
+						LegalName:       draft.LegalName,
+						ReviewerID:      "tamper-reviewer",
+						ReviewReference: "case:tamper-review",
+						IdempotencyKey:  "approve_tamper_review_01",
+					},
+				); err != nil {
+					t.Fatalf("approve claim before tamper: %v", err)
+				}
+			}
 
 			tamperDatabase, err := sql.Open("sqlite", fixture.cfg.DatabasePath)
 			if err != nil {
@@ -602,8 +640,10 @@ func TestOperatorAuditTamperingFailsClosed(t *testing.T) {
 			if _, err := tamperDatabase.Exec("PRAGMA busy_timeout = 5000"); err != nil {
 				t.Fatalf("set tamper-test busy timeout: %v", err)
 			}
-			if _, err := tamperDatabase.Exec("DROP TRIGGER " + testCase.trigger); err != nil {
-				t.Fatalf("drop append-only trigger for corruption simulation: %v", err)
+			if testCase.trigger != "" {
+				if _, err := tamperDatabase.Exec("DROP TRIGGER " + testCase.trigger); err != nil {
+					t.Fatalf("drop append-only trigger for corruption simulation: %v", err)
+				}
 			}
 			if _, err := tamperDatabase.Exec(testCase.statement); err != nil {
 				t.Fatalf("simulate operator audit corruption: %v", err)
@@ -646,6 +686,188 @@ func TestOperatorAuditTamperingFailsClosed(t *testing.T) {
 				"registry_integrity_unavailable",
 			)
 		})
+	}
+}
+
+func TestStructuredOperatorClaimValidationStatusApprovalAndPrivacy(t *testing.T) {
+	fixture := newOperatorAPIFixture(t)
+	deployment := fixture.registerDeployment(t, "structured-claim")
+
+	invalidCases := []struct {
+		name   string
+		mutate func(*protocol.OperatorActionRequest)
+	}{
+		{
+			name: "uppercase email",
+			mutate: func(request *protocol.OperatorActionRequest) {
+				request.VerificationContactEmail = "Review@example.test"
+			},
+		},
+		{
+			name: "http website",
+			mutate: func(request *protocol.OperatorActionRequest) {
+				request.Website = "http://operator.example.test"
+			},
+		},
+		{
+			name: "false authority attestation",
+			mutate: func(request *protocol.OperatorActionRequest) {
+				request.AuthorityAttested = false
+			},
+		},
+	}
+	for index, testCase := range invalidCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			draft := operatorClaimRequest("Structured Cooperative")
+			draft.Nonce = fmt.Sprintf("nonce_invalid_structured_claim_%02d", index)
+			draft.IdempotencyKey = fmt.Sprintf("invalid_structured_claim_%02d", index)
+			testCase.mutate(&draft)
+			request := fixture.operatorAction(t, deployment, draft)
+			status, body := jsonRequest(
+				t,
+				http.MethodPost,
+				fixture.server.URL+protocol.OperatorActionPath,
+				request,
+			)
+			assertAPIError(t, status, body, http.StatusBadRequest, "invalid_request")
+		})
+	}
+
+	draft := operatorClaimRequest("Structured Cooperative")
+	draft.Nonce = "nonce_structured_claim_valid"
+	draft.IdempotencyKey = "structured_claim_valid"
+	request := fixture.operatorAction(t, deployment, draft)
+	claim := fixture.acceptOperatorAction(t, request, http.StatusCreated)
+
+	status, body := rawRequest(
+		t,
+		http.MethodGet,
+		fixture.server.URL+protocol.OperatorClaimStatusPathPrefix+deployment.id,
+		nil,
+		false,
+	)
+	if status != http.StatusOK {
+		t.Fatalf("claim status = %d, body = %s", status, body)
+	}
+	for _, privateValue := range []string{
+		draft.RegisteredAddress,
+		draft.VerificationContactName,
+		draft.VerificationContactEmail,
+	} {
+		if strings.Contains(string(body), privateValue) {
+			t.Fatalf("public claim status exposed private value %q: %s", privateValue, body)
+		}
+	}
+	var pending protocol.OperatorClaimStatusResponse
+	decodeResponse(t, body, &pending)
+	if pending.Status.VerificationStatus != protocol.OperatorVerificationStatusPendingReview ||
+		pending.Status.ClaimActionID != claim.Receipt.ActionID ||
+		pending.Status.GroupID != claim.Receipt.GroupID ||
+		pending.Status.LegalName != draft.LegalName {
+		t.Fatalf("unexpected pending status: %+v", pending)
+	}
+	assertOperatorClaimStatusSignature(t, fixture, pending.Status)
+
+	review, err := fixture.runtime.Service.ApproveOperatorClaim(
+		context.Background(),
+		service.OperatorClaimApproval{
+			DeploymentID:    deployment.id,
+			ClaimActionID:   claim.Receipt.ActionID,
+			GroupID:         claim.Receipt.GroupID,
+			LegalName:       draft.LegalName,
+			ReviewerID:      "network-review-team",
+			ReviewReference: "case:2026-0001",
+			IdempotencyKey:  "approve_structured_claim_01",
+		},
+	)
+	if err != nil {
+		t.Fatalf("approve structured claim: %v", err)
+	}
+	if review.Duplicate ||
+		review.Receipt.Decision != protocol.OperatorClaimReviewApproved ||
+		review.Receipt.ReviewerID != "network-review-team" ||
+		review.Receipt.ReviewReference != "case:2026-0001" {
+		t.Fatalf("unexpected review receipt: %+v", review)
+	}
+	duplicate, err := fixture.runtime.Service.ApproveOperatorClaim(
+		context.Background(),
+		service.OperatorClaimApproval{
+			DeploymentID:    deployment.id,
+			ClaimActionID:   claim.Receipt.ActionID,
+			GroupID:         claim.Receipt.GroupID,
+			LegalName:       draft.LegalName,
+			ReviewerID:      "network-review-team",
+			ReviewReference: "case:2026-0001",
+			IdempotencyKey:  "approve_structured_claim_01",
+		},
+	)
+	if err != nil || !duplicate.Duplicate ||
+		duplicate.Receipt.ReviewID != review.Receipt.ReviewID {
+		t.Fatalf("idempotent review = %+v, error = %v", duplicate, err)
+	}
+
+	status, body = rawRequest(
+		t,
+		http.MethodGet,
+		fixture.server.URL+protocol.OperatorClaimStatusPathPrefix+deployment.id,
+		nil,
+		false,
+	)
+	if status != http.StatusOK {
+		t.Fatalf("approved claim status = %d, body = %s", status, body)
+	}
+	var approved protocol.OperatorClaimStatusResponse
+	decodeResponse(t, body, &approved)
+	if approved.Status.VerificationStatus != protocol.OperatorVerificationStatusApproved ||
+		approved.Status.ReviewID != review.Receipt.ReviewID ||
+		approved.Status.ApprovedAt == "" {
+		t.Fatalf("unexpected approved status: %+v", approved)
+	}
+	assertOperatorClaimStatusSignature(t, fixture, approved.Status)
+
+	page := fixture.leaderboard(t, "view=claimed&through_period=2026-06&limit=10")
+	encodedPage, err := json.Marshal(page)
+	if err != nil {
+		t.Fatalf("encode leaderboard privacy check: %v", err)
+	}
+	for _, privateValue := range []string{
+		draft.RegisteredAddress,
+		draft.VerificationContactName,
+		draft.VerificationContactEmail,
+	} {
+		if strings.Contains(string(encodedPage), privateValue) {
+			t.Fatalf("leaderboard exposed private value %q: %s", privateValue, encodedPage)
+		}
+	}
+	if len(page.Items) != 1 || page.Items[0].Label != draft.LegalName {
+		t.Fatalf("legal name is not the provisional leaderboard label: %+v", page)
+	}
+
+	stale := operatorClaimRequest("Structured Cooperative Updated")
+	stale.Nonce = "nonce_structured_claim_updated"
+	stale.IdempotencyKey = "structured_claim_updated"
+	updated := fixture.acceptOperatorAction(
+		t,
+		fixture.operatorAction(t, deployment, stale),
+		http.StatusCreated,
+	)
+	if updated.Receipt.GroupID != claim.Receipt.GroupID {
+		t.Fatalf("resubmission did not retain group: old=%+v new=%+v", claim, updated)
+	}
+	_, err = fixture.runtime.Service.ApproveOperatorClaim(
+		context.Background(),
+		service.OperatorClaimApproval{
+			DeploymentID:    deployment.id,
+			ClaimActionID:   claim.Receipt.ActionID,
+			GroupID:         claim.Receipt.GroupID,
+			LegalName:       draft.LegalName,
+			ReviewerID:      "network-review-team",
+			ReviewReference: "case:2026-stale",
+			IdempotencyKey:  "approve_structured_stale",
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "stale") {
+		t.Fatalf("stale claim approval error = %v", err)
 	}
 }
 
@@ -922,6 +1144,25 @@ func assertIssuedClientToken(
 	}
 	if !expiresAt.After(fixture.now) {
 		t.Fatalf("client token expiry %s is not after issue time", receipt.TokenExpiresAt)
+	}
+}
+
+func assertOperatorClaimStatusSignature(
+	t *testing.T,
+	fixture *operatorAPIFixture,
+	status protocol.OperatorClaimStatusReceipt,
+) {
+	t.Helper()
+	signature, err := protocol.ParseSignature(status.Signature)
+	if err != nil {
+		t.Fatalf("parse operator claim status signature: %v", err)
+	}
+	if !protocol.Verify(
+		fixture.runtime.SigningKey.PublicKey(),
+		protocol.OperatorClaimStatusReceiptMessage(status),
+		signature,
+	) {
+		t.Fatalf("operator claim status signature verification failed: %+v", status)
 	}
 }
 

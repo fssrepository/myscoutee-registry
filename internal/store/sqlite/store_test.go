@@ -36,7 +36,38 @@ func TestSchemaEnablesWALAndAppendOnlyTriggers(t *testing.T) {
 		"checkpoints_no_update", "checkpoints_no_delete",
 		"operator_audit_events_no_update", "operator_audit_events_no_delete",
 		"operator_action_nonces_no_update", "operator_action_nonces_no_delete",
+		"operator_network_state_rows_no_update", "operator_network_state_rows_no_delete",
+		"operator_claim_verification_no_update", "operator_claim_verification_no_delete",
+		"operator_claim_reviews_no_update", "operator_claim_reviews_no_delete",
 		"announcements_no_update", "announcements_no_delete",
+	}
+
+	rows, err := registryStore.db.Query("PRAGMA table_info(operator_audit_events)")
+	if err != nil {
+		t.Fatalf("read public operator audit columns: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var columnIndex int
+		var name, columnType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err := rows.Scan(
+			&columnIndex,
+			&name,
+			&columnType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			t.Fatalf("scan public operator audit column: %v", err)
+		}
+		switch name {
+		case "registered_address",
+			"verification_contact_name",
+			"verification_contact_email":
+			t.Fatalf("private verification field %q must not be a public audit column", name)
+		}
 	}
 	for _, name := range expectedTriggers {
 		var count int
