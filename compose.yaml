@@ -2,7 +2,7 @@ services:
   registry:
     build:
       context: .
-    image: myscoutee-registry:local
+    image: ${LOCAL_REGISTRY_IMAGE:-myscoutee-registry:1.0.0-dev}
     restart: unless-stopped
     ports:
       - "${REGISTRY_BIND_ADDRESS:-127.0.0.1}:${REGISTRY_PORT:-8081}:8080"

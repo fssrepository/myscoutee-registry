@@ -326,7 +326,7 @@ The code targets Go 1.25 and uses the CGo-free `modernc.org/sqlite` driver.
 ```bash
 go test ./...
 go build ./cmd/registry
-docker build -t myscoutee-registry:local .
+docker build -t myscoutee-registry:1.0.0-dev .
 ```
 
 Tests use real temporary SQLite databases and real HTTP/Ed25519 flows. They

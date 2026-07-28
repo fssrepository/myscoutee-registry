@@ -2,7 +2,7 @@ services:
   registry:
     build:
       context: .
-    image: myscoutee-registry:production
+    image: ${REGISTRY_PRODUCTION_IMAGE:-myscoutee-registry:1.0.0-prod}
     restart: unless-stopped
     environment:
       REGISTRY_LISTEN_ADDR: ":8080"
