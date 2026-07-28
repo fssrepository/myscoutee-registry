@@ -135,6 +135,24 @@ func TestSignedRevenueBatchesCorrectionsReceiptsAndGlobalPool(t *testing.T) {
 		summary.CurrencyBatchCount != 2 {
 		t.Fatalf("unexpected global revenue summary: %+v", summary)
 	}
+	deploymentSummary, err := runtime.Service.RevenueSummary(
+		context.Background(),
+		period,
+		"EUR",
+		deployments[0].id,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("query deployment revenue summary: %v", err)
+	}
+	if deploymentSummary.CommissionBasisMinor != 19 ||
+		deploymentSummary.ReportedEstimatedCommissionMinor != 0 ||
+		deploymentSummary.NetworkCommissionPoolMinor != 1 {
+		t.Fatalf(
+			"deployment breakdown did not retain the global network pool: %+v",
+			deploymentSummary,
+		)
+	}
 
 	first := signedRevenueBatch(
 		t,
@@ -269,6 +287,34 @@ func TestSignedRevenueBatchesCorrectionsReceiptsAndGlobalPool(t *testing.T) {
 		emptySummary.NetworkCommissionPoolMinor != 0 {
 		t.Fatalf("explicit zero-revenue day was not preserved: %+v", emptySummary)
 	}
+
+	nullCurrencies := signedRevenueBatch(
+		t,
+		deployments[1].privateKey,
+		deployments[1].id,
+		"2026-07-28T14:00:04Z",
+		"nonce_revenue_null_00001",
+		"revenue_null_batch_00001",
+		"2026-07-25",
+		1,
+		"",
+		[]protocol.RevenueCurrency{},
+	)
+	nullCurrencies.Currencies = nil
+	resignRevenueBatch(deployments[1].privateKey, &nullCurrencies)
+	status, body = jsonRequest(
+		t,
+		http.MethodPost,
+		server.URL+protocol.RevenueBatchPath,
+		nullCurrencies,
+	)
+	assertAPIError(
+		t,
+		status,
+		body,
+		http.StatusBadRequest,
+		"invalid_revenue_batch",
+	)
 }
 
 func revenueCurrency(

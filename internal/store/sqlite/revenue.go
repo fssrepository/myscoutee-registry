@@ -688,8 +688,31 @@ func (sqliteStore *Store) RevenueSummary(
 	summary.GroupID = query.GroupID
 	summary.RulesetVersion = protocol.RevenueRulesetVersion
 	summary.CommissionRateBasisPoints = protocol.RevenueCommissionBasisPoints
+	var networkCommissionBasisMinor int64
+	if err := sqliteStore.db.QueryRowContext(
+		ctx,
+		`
+		SELECT COALESCE(SUM(row.commission_basis_minor), 0)
+		FROM revenue_query_rows row
+		WHERE row.period = ?
+		  AND row.currency_code = ?
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM revenue_batches newer
+			WHERE newer.deployment_id = row.deployment_id
+			  AND newer.period = row.period
+			  AND newer.revision > row.revision
+		  )`,
+		query.Period,
+		query.CurrencyCode,
+	).Scan(&networkCommissionBasisMinor); err != nil {
+		return protocol.RevenueSummary{}, fmt.Errorf(
+			"query network revenue commission basis: %w",
+			err,
+		)
+	}
 	summary.NetworkCommissionPoolMinor = protocol.RevenueCommissionMinor(
-		summary.CommissionBasisMinor,
+		networkCommissionBasisMinor,
 	)
 
 	activeArguments := []any{query.Period}

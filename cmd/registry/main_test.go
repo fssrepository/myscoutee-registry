@@ -41,6 +41,16 @@ func TestPublishAnnouncementCLIHelpDoesNotRequireConfiguration(t *testing.T) {
 	}
 }
 
+func TestRevenueCLIHelpDoesNotRequireConfiguration(t *testing.T) {
+	var output bytes.Buffer
+	if err := runRevenue([]string{"--help"}, &output); err != nil {
+		t.Fatalf("revenue help failed: %v", err)
+	}
+	if !strings.Contains(output.String(), "network_commission_pool_minor") {
+		t.Fatalf("revenue help omitted pool semantics: %s", output.String())
+	}
+}
+
 func TestPublishAnnouncementCLIUsesStrictFileAndLiveSQLiteVolume(t *testing.T) {
 	directory := t.TempDir()
 	t.Setenv("REGISTRY_SCOPE", "example:cli-announcements")
@@ -383,6 +393,18 @@ func TestOperatorOperationalCLIFailsClosedWithoutInitializedRegistry(t *testing.
 			name: "leaderboard",
 			run: func() error {
 				return runLeaderboard(nil, io.Discard)
+			},
+		},
+		{
+			name: "revenue",
+			run: func() error {
+				return runRevenue(
+					[]string{
+						"--period", "2026-07-27",
+						"--currency", "EUR",
+					},
+					io.Discard,
+				)
 			},
 		},
 	}

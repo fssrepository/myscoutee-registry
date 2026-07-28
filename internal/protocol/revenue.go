@@ -182,10 +182,11 @@ func ISO4217FractionDigits(code string) (int64, bool) {
 	return fractionDigits, ok
 }
 
-// Active ISO-4217 monetary and fund codes supported by revenue protocol v1.
-// Precious-metal, test, accounting-unit, no-currency, and withdrawn codes are
-// intentionally excluded because deployment revenue must be denominated in a
-// settlement currency with a deterministic minor-unit exponent.
+// Pinned ISO-4217 monetary and fund codes supported by revenue protocol v1.
+// Precious-metal, test, accounting-unit, and no-currency codes are excluded
+// because deployment revenue must use a settlement currency with a
+// deterministic minor-unit exponent. Changing this table requires a new
+// protocol ruleset rather than a silent runtime data update.
 var iso4217FractionDigits = map[string]int64{
 	"AED": 2, "AFN": 2, "ALL": 2, "AMD": 2, "ANG": 2, "AOA": 2,
 	"ARS": 2, "AUD": 2, "AWG": 2, "AZN": 2,

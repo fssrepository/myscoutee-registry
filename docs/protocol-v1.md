@@ -423,7 +423,9 @@ The request is:
 Currencies must be strictly sorted and unique by `currency_code`. The registry
 uses a deterministic supported ISO-4217 code/exponent table and rejects unknown
 codes or mismatched `fraction_digits`. It never converts or aggregates between
-currencies. An empty array is valid and records an explicit zero-revenue day.
+currencies. `currencies` must be a JSON array; an empty array is valid and
+records an explicit zero-revenue day, while an omitted or `null` field is
+rejected.
 At most 32 currencies are accepted. Every minor-unit value is bounded at
 `9000000000000000` and `payment_count` at `1000000000000`; the registry also
 rejects a write that would overflow the active per-day/currency aggregate.
@@ -519,7 +521,8 @@ The local registry-administrator CLI can query one currency at a time:
 ```
 
 There is intentionally no unauthenticated public revenue query endpoint.
-`network_commission_pool_minor` is calculated once from the selected aggregate:
+`network_commission_pool_minor` is calculated once from the registry-wide
+active aggregate for the requested UTC day and currency:
 
 ```text
 floor(SUM(active commission_basis_minor) * 500 / 10000)
@@ -527,8 +530,14 @@ floor(SUM(active commission_basis_minor) * 500 / 10000)
 
 It is not the sum of already-rounded deployment estimates. The CLI reports the
 currency and minor-unit exponent with the total; the registry does not perform
-foreign-exchange conversion. This is an auditable technical pool calculation,
-not a legal settlement or payout decision.
+foreign-exchange conversion. With `--deployment-id` or `--group-id`, captured,
+refunded, net, basis, payment-count, batch-count, and
+`reported_estimated_commission_minor` fields describe only the selected
+breakdown, while `network_commission_pool_minor` deliberately remains the
+registry-wide active pool for that UTC day and currency. The registry does not
+derive a share-weighted allocation because protocol v1 has no production
+weight snapshot. This is an auditable technical pool calculation, not a legal
+settlement or payout decision.
 
 ## Daily checkpoint
 

@@ -243,6 +243,12 @@ func validateRevenueRequest(request protocol.RevenueBatchRequest) error {
 			"commission_rate_basis_points must be 500",
 		)
 	}
+	if request.Currencies == nil {
+		return requestError(
+			"invalid_revenue_batch",
+			"currencies must be a JSON array; use [] for an explicit zero-revenue day",
+		)
+	}
 	if len(request.Currencies) > protocol.MaximumRevenueCurrencyRows {
 		return requestError(
 			"invalid_revenue_batch",

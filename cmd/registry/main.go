@@ -93,7 +93,7 @@ func runRevenue(args []string, stdout io.Writer) error {
 		)
 		fmt.Fprintln(
 			stdout,
-			"network_commission_pool_minor is floor(overall active commission basis × 500 / 10000) for the selected scope.",
+			"network_commission_pool_minor is the registry-wide period/currency floor(overall active commission basis × 500 / 10000), even for a filtered breakdown.",
 		)
 		flags.PrintDefaults()
 	}
