@@ -24,6 +24,13 @@ type verifiedBatch struct {
 	requestSignature []byte
 }
 
+type verifiedRevenueBatch struct {
+	record           store.RevenueBatchRecord
+	requestTimestamp string
+	requestNonce     string
+	requestSignature []byte
+}
+
 type persistedIdempotency struct {
 	signer         string
 	idempotencyKey string
@@ -70,10 +77,31 @@ func (sqliteStore *Store) VerifyRecords(
 	if err != nil {
 		return err
 	}
-	if err := sqliteStore.verifyIdempotencyRecords(ctx, deployments, batches); err != nil {
+	revenueBatches, err := sqliteStore.verifyRevenueBatches(
+		ctx,
+		deployments,
+		registryPublicKey,
+		registryKeyID,
+		registryScope,
+	)
+	if err != nil {
 		return err
 	}
-	if err := sqliteStore.verifyNonceRecords(ctx, deployments, batches, registryScope); err != nil {
+	if err := sqliteStore.verifyIdempotencyRecords(
+		ctx,
+		deployments,
+		batches,
+		revenueBatches,
+	); err != nil {
+		return err
+	}
+	if err := sqliteStore.verifyNonceRecords(
+		ctx,
+		deployments,
+		batches,
+		revenueBatches,
+		registryScope,
+	); err != nil {
 		return err
 	}
 	return nil
@@ -296,7 +324,11 @@ func (sqliteStore *Store) verifyBatches(
 	}
 
 	var ledgerCount int
-	if err := sqliteStore.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ledger_entries").Scan(&ledgerCount); err != nil {
+	if err := sqliteStore.db.QueryRowContext(
+		ctx,
+		"SELECT COUNT(*) FROM ledger_entries WHERE entry_type = ?",
+		protocol.InstallationEntryType,
+	).Scan(&ledgerCount); err != nil {
 		return nil, inconsistent("count ledger entries for batch verification", err)
 	}
 	if ledgerCount != len(verified) {
@@ -391,6 +423,7 @@ func (sqliteStore *Store) verifyIdempotencyRecords(
 	ctx context.Context,
 	deployments map[string]verifiedDeployment,
 	batches map[string]verifiedBatch,
+	revenueBatches map[string]verifiedRevenueBatch,
 ) error {
 	rows, err := sqliteStore.db.QueryContext(ctx, `
 		SELECT signer, idempotency_key, payload_hash, result_type, result_id
@@ -438,14 +471,22 @@ func (sqliteStore *Store) verifyIdempotencyRecords(
 				}
 				foundInitial["deployment\x00"+record.resultID] = true
 			}
-		case "batch":
-			batch, ok := batches[record.resultID]
-			if !ok ||
-				batch.record.DeploymentID != record.signer ||
-				batch.record.IdempotencyKey != record.idempotencyKey ||
-				batch.record.PayloadHash != record.payloadHash {
-				return inconsistentMessage("idempotency record %q has an invalid batch result", record.idempotencyKey)
-			}
+			case "batch":
+				if batch, ok := batches[record.resultID]; ok {
+					if batch.record.DeploymentID != record.signer ||
+						batch.record.IdempotencyKey != record.idempotencyKey ||
+						batch.record.PayloadHash != record.payloadHash {
+						return inconsistentMessage("idempotency record %q has an invalid batch result", record.idempotencyKey)
+					}
+				} else if batch, ok := revenueBatches[record.resultID]; ok {
+					if batch.record.DeploymentID != record.signer ||
+						batch.record.IdempotencyKey != record.idempotencyKey ||
+						batch.record.PayloadHash != record.payloadHash {
+						return inconsistentMessage("idempotency record %q has an invalid revenue batch result", record.idempotencyKey)
+					}
+				} else {
+					return inconsistentMessage("idempotency record %q has an invalid batch result", record.idempotencyKey)
+				}
 			foundInitial["batch\x00"+record.resultID] = true
 		default:
 			return inconsistentMessage("idempotency record %q has an invalid result type", record.idempotencyKey)
@@ -461,6 +502,14 @@ func (sqliteStore *Store) verifyIdempotencyRecords(
 			return inconsistentMessage("batch %s is missing its idempotency record", batchID)
 		}
 	}
+	for batchID := range revenueBatches {
+		if !foundInitial["batch\x00"+batchID] {
+			return inconsistentMessage(
+				"revenue batch %s is missing its idempotency record",
+				batchID,
+			)
+		}
+	}
 	return nil
 }
 
@@ -468,6 +517,7 @@ func (sqliteStore *Store) verifyNonceRecords(
 	ctx context.Context,
 	deployments map[string]verifiedDeployment,
 	batches map[string]verifiedBatch,
+	revenueBatches map[string]verifiedRevenueBatch,
 	registryScope string,
 ) error {
 	idempotencyRows, err := sqliteStore.db.QueryContext(ctx, `
@@ -571,17 +621,25 @@ func (sqliteStore *Store) verifyNonceRecords(
 			}
 			publicKey = deployment.publicKey
 			path = protocol.RegistrationPath
-		case "batch":
-			batch, ok := batches[proof.resultID]
-			if !ok || batch.record.DeploymentID != proof.signer {
-				return inconsistentMessage("nonce %q has an invalid batch result", proof.nonce)
-			}
-			deployment, ok := deployments[proof.signer]
+			case "batch":
+				path = protocol.BatchPath
+				if batch, ok := batches[proof.resultID]; ok {
+					if batch.record.DeploymentID != proof.signer {
+						return inconsistentMessage("nonce %q has an invalid batch result", proof.nonce)
+					}
+				} else if batch, ok := revenueBatches[proof.resultID]; ok {
+					if batch.record.DeploymentID != proof.signer {
+						return inconsistentMessage("nonce %q has an invalid revenue batch result", proof.nonce)
+					}
+					path = protocol.RevenueBatchPath
+				} else {
+					return inconsistentMessage("nonce %q has an invalid batch result", proof.nonce)
+				}
+				deployment, ok := deployments[proof.signer]
 			if !ok {
 				return inconsistentMessage("nonce %q has an unknown deployment signer", proof.nonce)
 			}
-			publicKey = deployment.publicKey
-			path = protocol.BatchPath
+				publicKey = deployment.publicKey
 		default:
 			return inconsistentMessage("nonce %q has an invalid result type", proof.nonce)
 		}
@@ -642,6 +700,26 @@ func (sqliteStore *Store) verifyNonceRecords(
 		))
 		if nonces[record.DeploymentID+"\x00"+batch.requestNonce] != expectedHash {
 			return inconsistentMessage("batch %s is missing its initial nonce proof", record.BatchID)
+		}
+	}
+	for _, batch := range revenueBatches {
+		record := batch.record
+		expectedHash := protocol.Digest(protocol.CanonicalRequest(
+			"POST",
+			protocol.RevenueBatchPath,
+			protocol.Version,
+			registryScope,
+			record.DeploymentID,
+			batch.requestTimestamp,
+			batch.requestNonce,
+			record.IdempotencyKey,
+			record.PayloadHash,
+		))
+		if nonces[record.DeploymentID+"\x00"+batch.requestNonce] != expectedHash {
+			return inconsistentMessage(
+				"revenue batch %s is missing its initial nonce proof",
+				record.BatchID,
+			)
 		}
 	}
 	return nil

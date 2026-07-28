@@ -21,6 +21,7 @@ import (
 const (
 	receiptPathPrefix          = "/v1/mau/batches/"
 	receiptPathSuffix          = "/receipt"
+	revenueReceiptPathPrefix   = "/v1/revenue/batches/"
 	checkpointPathPrefix       = "/v1/ledger/checkpoints/"
 	leaderboardGroupPathPrefix = "/v1/leaderboard/groups/"
 	leaderboardGroupPathSuffix = "/deployments"
@@ -116,6 +117,10 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		if requireMethod(response, request, http.MethodPost) {
 			api.submitBatch(response, request)
 		}
+	case request.URL.Path == protocol.RevenueBatchPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.submitRevenueBatch(response, request)
+		}
 	case request.URL.Path == protocol.OperatorActionPath:
 		if requireMethod(response, request, http.MethodPost) {
 			api.operatorAction(response, request)
@@ -141,6 +146,11 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		strings.HasSuffix(request.URL.Path, receiptPathSuffix):
 		if requireMethod(response, request, http.MethodGet) {
 			api.receipt(response, request)
+		}
+	case strings.HasPrefix(request.URL.Path, revenueReceiptPathPrefix) &&
+		strings.HasSuffix(request.URL.Path, receiptPathSuffix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.revenueReceipt(response, request)
 		}
 	case strings.HasPrefix(request.URL.Path, checkpointPathPrefix):
 		if requireMethod(response, request, http.MethodGet) {
@@ -436,6 +446,27 @@ func (api *API) submitBatch(response http.ResponseWriter, request *http.Request)
 	writeJSON(response, status, result)
 }
 
+func (api *API) submitRevenueBatch(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var batch protocol.RevenueBatchRequest
+	if err := api.decodeJSON(response, request, &batch); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.SubmitRevenueBatch(request.Context(), batch)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
 func (api *API) receipt(response http.ResponseWriter, request *http.Request) {
 	batchID := strings.TrimSuffix(
 		strings.TrimPrefix(request.URL.Path, receiptPathPrefix),
@@ -446,6 +477,26 @@ func (api *API) receipt(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 	result, err := api.service.Receipt(request.Context(), batchID)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) revenueReceipt(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	batchID := strings.TrimSuffix(
+		strings.TrimPrefix(request.URL.Path, revenueReceiptPathPrefix),
+		receiptPathSuffix,
+	)
+	if batchID == "" || strings.Contains(batchID, "/") {
+		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
+		return
+	}
+	result, err := api.service.RevenueReceipt(request.Context(), batchID)
 	if err != nil {
 		api.writeServiceError(response, err)
 		return
@@ -630,6 +681,7 @@ func requestErrorStatus(code string) int {
 		return http.StatusUnauthorized
 	case "deployment_not_found",
 		"receipt_not_found",
+		"revenue_receipt_not_found",
 		"checkpoint_not_found",
 		"operator_reference_not_found",
 		"operator_claim_not_found":
@@ -643,6 +695,9 @@ func requestErrorStatus(code string) int {
 		"client_token_revoked",
 		"deployment_inactive",
 		"operator_action_conflict":
+		return http.StatusConflict
+	case "revenue_revision_conflict",
+		"revenue_aggregate_overflow":
 		return http.StatusConflict
 	case "registry_clock_before_checkpoint",
 		"registry_clock_before_ledger_head",

@@ -100,9 +100,10 @@ func (sqliteStore *Store) VerifyLedger(ctx context.Context) error {
 
 func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 	rows, err := sqliteStore.db.QueryContext(ctx, `
-		SELECT
-			l.ledger_index,
-			l.deployment_id,
+			SELECT
+				l.ledger_index,
+				l.entry_type,
+				l.deployment_id,
 			l.period,
 			l.ruleset_version,
 			l.qualified_mau_count,
@@ -126,7 +127,8 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 
 	for rows.Next() {
 		var (
-			ledgerIndex       int64
+				ledgerIndex       int64
+				entryType        string
 			deploymentID      string
 			period            string
 			rulesetVersion    string
@@ -145,7 +147,8 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			rowSourceEntryHash   sql.NullString
 		)
 		if err := rows.Scan(
-			&ledgerIndex,
+				&ledgerIndex,
+				&entryType,
 			&deploymentID,
 			&period,
 			&rulesetVersion,
@@ -165,7 +168,25 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			rows.Close()
 			return fmt.Errorf("scan ledger weight row: %w", err)
 		}
-		if !rowLedgerIndex.Valid {
+			if entryType == protocol.RevenueEntryType {
+				if rowLedgerIndex.Valid {
+					rows.Close()
+					return fmt.Errorf(
+						"revenue ledger entry %d unexpectedly has a weight row",
+						ledgerIndex,
+					)
+				}
+				continue
+			}
+			if entryType != protocol.InstallationEntryType {
+				rows.Close()
+				return fmt.Errorf(
+					"ledger entry %d has unsupported type %q",
+					ledgerIndex,
+					entryType,
+				)
+			}
+			if !rowLedgerIndex.Valid {
 			rows.Close()
 			return fmt.Errorf("ledger entry %d has no matching ledger weight row", ledgerIndex)
 		}
@@ -223,7 +244,8 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 		SELECT w.ledger_index
 		FROM ledger_weight_rows w
 		LEFT JOIN ledger_entries l ON l.ledger_index = w.ledger_index
-		WHERE l.ledger_index IS NULL
+			WHERE l.ledger_index IS NULL
+			   OR l.entry_type <> 'INSTALLATION_TEST_BATCH_ACCEPTED'
 		ORDER BY w.ledger_index
 		LIMIT 1`).Scan(&extraLedgerIndex)
 	if errors.Is(err, sql.ErrNoRows) {

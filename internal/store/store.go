@@ -27,6 +27,8 @@ var (
 	ErrDeploymentInactive           = errors.New("deployment is inactive")
 	ErrAnnouncementConflict         = errors.New("announcement publication ID was already used with different contents")
 	ErrAnnouncementClockBeforeHead  = errors.New("accepted_at is before the current announcement head")
+	ErrRevenueRevisionConflict      = errors.New("revenue revision does not extend the current active batch")
+	ErrRevenueAggregateOverflow     = errors.New("revenue aggregate exceeds the supported signed integer range")
 )
 
 type RegistryIdentity struct {
@@ -118,6 +120,60 @@ type CheckpointRecord struct {
 type BatchReceiptSigner func(entry protocol.LedgerEntry, checkpointDate string) ([]byte, error)
 type CheckpointSigner func(checkpoint protocol.Checkpoint) ([]byte, error)
 
+type RevenueBatchInput struct {
+	RegistryScope             string
+	Signer                    string
+	Nonce                     string
+	IdempotencyKey            string
+	PayloadHash               string
+	RequestHash               string
+	DeploymentID              string
+	RequestTimestamp          string
+	DeploymentSignature       []byte
+	CandidateBatchID          string
+	Kind                      string
+	Period                    string
+	Revision                  int64
+	SupersedesBatchID         string
+	RulesetVersion            string
+	CommissionRateBasisPoints int64
+	Currencies                []protocol.RevenueCurrency
+	AcceptedAt                string
+	CheckpointDate            string
+}
+
+type RevenueBatchRecord struct {
+	BatchID                  string
+	DeploymentID             string
+	IdempotencyKey           string
+	Kind                     string
+	Period                   string
+	Revision                 int64
+	SupersedesBatchID        string
+	RulesetVersion           string
+	CommissionRateBasisPoints int64
+	CurrencyCount            int64
+	Currencies               []protocol.RevenueCurrency
+	PayloadHash              string
+	AcceptedAt               string
+	LedgerEntry              protocol.LedgerEntry
+	ReceiptSignature         []byte
+}
+
+type RevenueReceiptSigner func(
+	entry protocol.LedgerEntry,
+	input RevenueBatchInput,
+	currencyCount int64,
+	checkpointDate string,
+) ([]byte, error)
+
+type RevenueQuery struct {
+	Period       string
+	CurrencyCode string
+	FractionDigits int64
+	DeploymentID string
+}
+
 type Store interface {
 	Close() error
 	Ping(context.Context) error
@@ -130,6 +186,9 @@ type Store interface {
 
 	AcceptInstallationBatch(context.Context, BatchInput, BatchReceiptSigner) (BatchRecord, bool, error)
 	BatchReceipt(context.Context, string) (BatchRecord, error)
+	AcceptRevenueBatch(context.Context, RevenueBatchInput, RevenueReceiptSigner) (RevenueBatchRecord, bool, error)
+	RevenueBatchReceipt(context.Context, string) (RevenueBatchRecord, error)
+	RevenueSummary(context.Context, RevenueQuery) (protocol.RevenueSummary, error)
 
 	LedgerHead(context.Context) (LedgerHead, error)
 	VerifyLedger(context.Context) error
