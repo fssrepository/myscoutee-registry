@@ -331,10 +331,8 @@ func validateOperatorActionRequest(
 		); err != nil {
 			return validated, err
 		}
-		if request.Website != "" {
-			if err := validateOperatorHTTPSURL("website", request.Website); err != nil {
-				return validated, err
-			}
+		if err := validateOperatorHTTPSURL("website", request.Website); err != nil {
+			return validated, err
 		}
 		if err := validateClaimText(
 			"verification_contact_name",
@@ -553,6 +551,8 @@ func mapOperatorStoreError(err error) error {
 		return requestError("client_token_expired", "the operator client token has expired")
 	case errors.Is(err, store.ErrClientTokenRevoked):
 		return requestError("client_token_revoked", "the operator client token was revoked")
+	case errors.Is(err, store.ErrClientTokenUsed):
+		return requestError("client_token_used", "the operator client token was already used")
 	case errors.Is(err, store.ErrDeploymentInactive):
 		return requestError("deployment_inactive", "the deployment is inactive")
 	case errors.Is(err, store.ErrOperatorActionConflict):

@@ -131,7 +131,8 @@ func (sqliteStore *Store) verifiedOperatorClaimReviewRows(
 			review.RegistryKeyID != registryKeyID ||
 			!actionExists ||
 			!submissionExists ||
-			action.event.Action != protocol.OperatorActionClaim ||
+			(action.event.Action != protocol.OperatorActionClaim &&
+				action.event.Action != protocol.OperatorActionRedeemClientToken) ||
 			action.event.ClaimState != protocol.OperatorClaimStatePendingReview ||
 			review.DeploymentID != submission.DeploymentID ||
 			review.GroupID != submission.GroupID ||
@@ -211,7 +212,8 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 	expected := make(map[string]store.OperatorClaimStatus)
 	for _, event := range ordered {
 		switch event.Action {
-		case protocol.OperatorActionClaim:
+		case protocol.OperatorActionClaim,
+			protocol.OperatorActionRedeemClientToken:
 			submission, structured := submissions[event.ActionID]
 			if !structured {
 				continue

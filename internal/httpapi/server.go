@@ -693,6 +693,7 @@ func requestErrorStatus(code string) int {
 		"operator_claim_required",
 		"client_token_expired",
 		"client_token_revoked",
+		"client_token_used",
 		"deployment_inactive",
 		"operator_action_conflict":
 		return http.StatusConflict

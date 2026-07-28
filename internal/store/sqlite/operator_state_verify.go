@@ -57,9 +57,25 @@ func (sqliteStore *Store) verifyOperatorNetworkStateRows(
 			state.LinkID = ""
 			state.RelatedDeploymentID = ""
 		case protocol.OperatorActionRedeemClientToken:
-			state.EffectiveGroupID = event.GroupID
-			state.LinkID = event.LinkID
-			state.RelatedDeploymentID = event.RelatedDeploymentID
+			if !state.Claimed &&
+				event.ClaimState == protocol.OperatorClaimStatePendingReview &&
+				event.OperatorName != "" &&
+				event.LinkID == "" {
+				state.Claimed = true
+				state.ClaimState = event.ClaimState
+				state.ClaimStateAuditIndex = event.AuditIndex
+				state.ProfileClaimAuditIndex = event.AuditIndex
+				state.ClaimGroupID = event.GroupID
+				state.EffectiveGroupID = event.GroupID
+				state.OperatorName = event.OperatorName
+				state.OperatorAvatarURL = event.OperatorAvatarURL
+				state.ProfileClaimState = event.ClaimState
+				state.RelatedDeploymentID = ""
+			} else {
+				state.EffectiveGroupID = event.GroupID
+				state.LinkID = event.LinkID
+				state.RelatedDeploymentID = event.RelatedDeploymentID
+			}
 		case protocol.OperatorActionRevokeGroupLink:
 			if state.Claimed {
 				state.EffectiveGroupID = state.ClaimGroupID
