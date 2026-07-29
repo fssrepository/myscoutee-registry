@@ -891,6 +891,218 @@ func TestStructuredOperatorClaimValidationStatusApprovalAndPrivacy(t *testing.T)
 	}
 }
 
+func TestDeactivateDeploymentWithdrawsCurrentClaimAndMembership(t *testing.T) {
+	t.Run("pending claim", func(t *testing.T) {
+		fixture := newOperatorAPIFixture(t)
+		deployment := fixture.registerDeployment(t, "deactivate-pending")
+
+		claimDraft := operatorClaimRequest("Pending Deactivation Cooperative")
+		claimDraft.Nonce = "nonce_deactivate_pending_claim"
+		claimDraft.IdempotencyKey = "deactivate_pending_claim"
+		claim := fixture.acceptOperatorAction(
+			t,
+			fixture.operatorAction(t, deployment, claimDraft),
+			http.StatusCreated,
+		)
+		deactivated := fixture.acceptOperatorAction(
+			t,
+			fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
+				Nonce:          "nonce_deactivate_pending_deployment",
+				IdempotencyKey: "deactivate_pending_deployment",
+				Action:         protocol.OperatorActionDeactivateDeployment,
+			}),
+			http.StatusCreated,
+		)
+		if deactivated.Receipt.ClaimState != protocol.OperatorClaimStateWithdrawn ||
+			deactivated.Receipt.GroupID != claim.Receipt.GroupID ||
+			deactivated.Receipt.LinkID != "" {
+			t.Fatalf(
+				"deactivation did not audit the pending-claim withdrawal: %+v",
+				deactivated,
+			)
+		}
+
+		statusCode, body := rawRequest(
+			t,
+			http.MethodGet,
+			fixture.server.URL+protocol.OperatorClaimStatusPathPrefix+deployment.id,
+			nil,
+			false,
+		)
+		if statusCode != http.StatusOK {
+			t.Fatalf("withdrawn claim status = %d, body = %s", statusCode, body)
+		}
+		var withdrawn protocol.OperatorClaimStatusResponse
+		decodeResponse(t, body, &withdrawn)
+		if withdrawn.Status.VerificationStatus !=
+			protocol.OperatorVerificationStatusWithdrawn ||
+			withdrawn.Status.ClaimActionID != claim.Receipt.ActionID {
+			t.Fatalf("unexpected deactivated pending-claim status: %+v", withdrawn)
+		}
+		assertOperatorClaimStatusSignature(t, fixture, withdrawn.Status)
+
+		if claimed := fixture.leaderboard(
+			t,
+			"view=claimed&through_period=2026-06&limit=10",
+		); len(claimed.Items) != 0 {
+			t.Fatalf("deactivated deployment remained claimed: %+v", claimed)
+		}
+		if unclaimed := fixture.leaderboard(
+			t,
+			"view=unclaimed&through_period=2026-06&limit=10",
+		); len(unclaimed.Items) != 0 {
+			t.Fatalf("deactivated deployment remained visible: %+v", unclaimed)
+		}
+
+		fixture.acceptOperatorAction(
+			t,
+			fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
+				Nonce:          "nonce_reactivate_withdrawn_deployment",
+				IdempotencyKey: "reactivate_withdrawn_deployment",
+				Action:         protocol.OperatorActionReactivateDeployment,
+			}),
+			http.StatusCreated,
+		)
+		unclaimed := fixture.leaderboard(
+			t,
+			"view=unclaimed&through_period=2026-06&limit=10",
+		)
+		if len(unclaimed.Items) != 1 ||
+			unclaimed.Items[0].RowID != deployment.id {
+			t.Fatalf("reactivation resurrected the withdrawn claim: %+v", unclaimed)
+		}
+		if err := fixture.runtime.Service.VerifyState(context.Background()); err != nil {
+			t.Fatalf("verify pending-claim deactivation state: %v", err)
+		}
+	})
+
+	t.Run("approved linked claim", func(t *testing.T) {
+		fixture := newOperatorAPIFixture(t)
+		issuer := fixture.registerDeployment(t, "deactivate-link-issuer")
+		deployment := fixture.registerDeployment(t, "deactivate-link-target")
+
+		claimAndApprove := func(
+			deployment operatorDeployment,
+			name string,
+			suffix string,
+		) (protocol.OperatorActionRequest, protocol.OperatorActionResponse, string) {
+			t.Helper()
+			draft := operatorClaimRequest(name)
+			draft.Nonce = "nonce_" + suffix + "_claim"
+			draft.IdempotencyKey = suffix + "_claim"
+			claim := fixture.acceptOperatorAction(
+				t,
+				fixture.operatorAction(t, deployment, draft),
+				http.StatusCreated,
+			)
+			review, err := fixture.runtime.Service.ApproveOperatorClaim(
+				context.Background(),
+				service.OperatorClaimApproval{
+					DeploymentID:    deployment.id,
+					ClaimActionID:   claim.Receipt.ActionID,
+					GroupID:         claim.Receipt.GroupID,
+					LegalName:       draft.LegalName,
+					ReviewerID:      "network-review-team",
+					ReviewReference: "case:" + suffix,
+					IdempotencyKey:  "approve_" + suffix,
+				},
+			)
+			if err != nil {
+				t.Fatalf("approve %s claim: %v", suffix, err)
+			}
+			return draft, claim, review.Receipt.ReviewID
+		}
+
+		_, issuerClaim, _ := claimAndApprove(
+			issuer,
+			"Link Issuer Cooperative",
+			"deactivate_link_issuer",
+		)
+		_, deploymentClaim, deploymentReviewID := claimAndApprove(
+			deployment,
+			"Link Target Cooperative",
+			"deactivate_link_target",
+		)
+		issued := fixture.acceptOperatorAction(
+			t,
+			fixture.operatorAction(t, issuer, protocol.OperatorActionRequest{
+				Nonce:           "nonce_deactivate_link_issue",
+				IdempotencyKey:  "deactivate_link_issue",
+				Action:          protocol.OperatorActionIssueClientToken,
+				TokenTTLSeconds: 300,
+			}),
+			http.StatusCreated,
+		)
+		redeemed := fixture.acceptOperatorAction(
+			t,
+			fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
+				Nonce:          "nonce_deactivate_link_redeem",
+				IdempotencyKey: "deactivate_link_redeem",
+				Action:         protocol.OperatorActionRedeemClientToken,
+				ClientToken:    issued.Receipt.ClientToken,
+			}),
+			http.StatusCreated,
+		)
+		if redeemed.Receipt.LinkID == "" ||
+			redeemed.Receipt.GroupID != issuerClaim.Receipt.GroupID {
+			t.Fatalf("expected an active cross-group link: %+v", redeemed)
+		}
+
+		deactivated := fixture.acceptOperatorAction(
+			t,
+			fixture.operatorAction(t, deployment, protocol.OperatorActionRequest{
+				Nonce:          "nonce_deactivate_linked_deployment",
+				IdempotencyKey: "deactivate_linked_deployment",
+				Action:         protocol.OperatorActionDeactivateDeployment,
+			}),
+			http.StatusCreated,
+		)
+		if deactivated.Receipt.ClaimState != protocol.OperatorClaimStateWithdrawn ||
+			deactivated.Receipt.GroupID != issuerClaim.Receipt.GroupID ||
+			deactivated.Receipt.LinkID != redeemed.Receipt.LinkID ||
+			deactivated.Receipt.RelatedDeploymentID != issuer.id {
+			t.Fatalf(
+				"deactivation did not audit the effective membership withdrawal: %+v",
+				deactivated,
+			)
+		}
+
+		statusCode, body := rawRequest(
+			t,
+			http.MethodGet,
+			fixture.server.URL+protocol.OperatorClaimStatusPathPrefix+deployment.id,
+			nil,
+			false,
+		)
+		if statusCode != http.StatusOK {
+			t.Fatalf("withdrawn approved claim status = %d, body = %s", statusCode, body)
+		}
+		var withdrawn protocol.OperatorClaimStatusResponse
+		decodeResponse(t, body, &withdrawn)
+		if withdrawn.Status.VerificationStatus !=
+			protocol.OperatorVerificationStatusWithdrawn ||
+			withdrawn.Status.ClaimActionID != deploymentClaim.Receipt.ActionID ||
+			withdrawn.Status.ReviewID != deploymentReviewID ||
+			withdrawn.Status.ApprovedAt == "" {
+			t.Fatalf("approved review history was not retained: %+v", withdrawn)
+		}
+		assertOperatorClaimStatusSignature(t, fixture, withdrawn.Status)
+
+		claimed := fixture.leaderboard(
+			t,
+			"view=claimed&through_period=2026-06&limit=10",
+		)
+		if len(claimed.Items) != 1 ||
+			claimed.Items[0].GroupID != issuerClaim.Receipt.GroupID ||
+			claimed.Items[0].DeploymentCount != 1 {
+			t.Fatalf("deactivated linked member remained aggregated: %+v", claimed)
+		}
+		if err := fixture.runtime.Service.VerifyState(context.Background()); err != nil {
+			t.Fatalf("verify approved linked-claim deactivation state: %v", err)
+		}
+	})
+}
+
 func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T) {
 	fixture := newOperatorAPIFixture(t)
 	issuer := fixture.registerDeployment(t, "token-issuer")

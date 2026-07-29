@@ -85,12 +85,15 @@ func (sqliteStore *Store) verifyOperatorClaimReviews(
 }
 
 type verifiedOperatorDeploymentState struct {
-	Active           bool
-	Claimed          bool
-	ClaimActionID    string
-	ClaimGroupID     string
-	EffectiveGroupID string
-	LinkID           string
+	Active              bool
+	Claimed             bool
+	ClaimActionID       string
+	ClaimGroupID        string
+	EffectiveGroupID    string
+	OperatorName        string
+	OperatorAvatarURL   string
+	LinkID              string
+	RelatedDeploymentID string
 }
 
 type verifiedOperatorTokenState struct {
@@ -127,11 +130,15 @@ func verifyOperatorActionSemantics(
 			state.ClaimActionID = event.ActionID
 			state.ClaimGroupID = event.GroupID
 			state.EffectiveGroupID = event.GroupID
+			state.OperatorName = event.OperatorName
+			state.OperatorAvatarURL = event.OperatorAvatarURL
 			state.LinkID = ""
+			state.RelatedDeploymentID = ""
 		case protocol.OperatorActionWithdrawClaim:
 			state.Claimed = false
 			state.EffectiveGroupID = ""
 			state.LinkID = ""
+			state.RelatedDeploymentID = ""
 		case protocol.OperatorActionIssueClientToken:
 			source, approved, legacy := verifiedApprovedOperatorSource(
 				state,
@@ -246,7 +253,10 @@ func verifyOperatorActionSemantics(
 				state.ClaimActionID = event.ActionID
 				state.ClaimGroupID = event.GroupID
 				state.EffectiveGroupID = event.GroupID
+				state.OperatorName = event.OperatorName
+				state.OperatorAvatarURL = event.OperatorAvatarURL
 				state.LinkID = ""
+				state.RelatedDeploymentID = ""
 			} else {
 				if !state.Claimed ||
 					event.LinkID == "" ||
@@ -259,15 +269,56 @@ func verifyOperatorActionSemantics(
 				}
 				state.EffectiveGroupID = event.GroupID
 				state.LinkID = event.LinkID
+				state.RelatedDeploymentID = event.RelatedDeploymentID
 			}
 			token.Redeemed = true
 			tokens[event.TokenID] = token
 		case protocol.OperatorActionRevokeGroupLink:
 			state.EffectiveGroupID = state.ClaimGroupID
 			state.LinkID = ""
+			state.RelatedDeploymentID = ""
 		case protocol.OperatorActionDeactivateDeployment:
+			if !state.Active {
+				return inconsistentMessage(
+					"operator deployment deactivation %s does not extend an active deployment",
+					event.ActionID,
+				)
+			}
+			if event.ClaimState == protocol.OperatorClaimStateWithdrawn {
+				if !state.Claimed ||
+					event.GroupID != state.EffectiveGroupID ||
+					event.OperatorName != state.OperatorName ||
+					event.OperatorAvatarURL != state.OperatorAvatarURL ||
+					event.LinkID != state.LinkID ||
+					event.RelatedDeploymentID != state.RelatedDeploymentID {
+					return inconsistentMessage(
+						"operator deployment deactivation %s does not withdraw its current membership",
+						event.ActionID,
+					)
+				}
+			} else if event.ClaimState != "" ||
+				event.GroupID != "" ||
+				event.LinkID != "" ||
+				event.RelatedDeploymentID != "" {
+				return inconsistentMessage(
+					"operator deployment deactivation %s has inconsistent withdrawal fields",
+					event.ActionID,
+				)
+			}
+			if state.Claimed {
+				state.Claimed = false
+				state.EffectiveGroupID = ""
+				state.LinkID = ""
+				state.RelatedDeploymentID = ""
+			}
 			state.Active = false
 		case protocol.OperatorActionReactivateDeployment:
+			if state.Active {
+				return inconsistentMessage(
+					"operator deployment reactivation %s does not extend an inactive deployment",
+					event.ActionID,
+				)
+			}
 			state.Active = true
 		}
 		deployments[event.SubjectDeploymentID] = state
@@ -476,6 +527,14 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 		case protocol.OperatorActionWithdrawClaim:
 			status, exists := expected[event.SubjectDeploymentID]
 			if exists {
+				status.VerificationState = protocol.OperatorClaimStateWithdrawn
+				status.UpdatedAt = event.AcceptedAt
+				expected[event.SubjectDeploymentID] = status
+			}
+		case protocol.OperatorActionDeactivateDeployment:
+			status, exists := expected[event.SubjectDeploymentID]
+			if exists &&
+				status.VerificationState != protocol.OperatorClaimStateWithdrawn {
 				status.VerificationState = protocol.OperatorClaimStateWithdrawn
 				status.UpdatedAt = event.AcceptedAt
 				expected[event.SubjectDeploymentID] = status

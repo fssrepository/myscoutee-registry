@@ -3,8 +3,6 @@ package sqlite
 import (
 	"context"
 	"sort"
-
-	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 )
 
 func (sqliteStore *Store) verifyOperatorNetworkStateRows(
@@ -31,64 +29,7 @@ func (sqliteStore *Store) verifyOperatorNetworkStateRows(
 			}
 		}
 
-		state.AuditIndex = event.AuditIndex
-		state.ActionID = event.ActionID
-		state.DeploymentID = event.SubjectDeploymentID
-		state.SourceAuditHash = event.AuditHash
-		state.AcceptedAt = event.AcceptedAt
-		switch event.Action {
-		case protocol.OperatorActionClaim:
-			state.Claimed = true
-			state.ClaimState = event.ClaimState
-			state.ClaimStateAuditIndex = event.AuditIndex
-			state.ProfileClaimAuditIndex = event.AuditIndex
-			state.ClaimGroupID = event.GroupID
-			state.EffectiveGroupID = event.GroupID
-			state.OperatorName = event.OperatorName
-			state.OperatorAvatarURL = event.OperatorAvatarURL
-			state.ProfileClaimState = event.ClaimState
-			state.LinkID = ""
-			state.RelatedDeploymentID = ""
-		case protocol.OperatorActionWithdrawClaim:
-			state.Claimed = false
-			state.ClaimState = protocol.OperatorClaimStateWithdrawn
-			state.ClaimStateAuditIndex = event.AuditIndex
-			state.EffectiveGroupID = ""
-			state.LinkID = ""
-			state.RelatedDeploymentID = ""
-		case protocol.OperatorActionRedeemClientToken:
-			if !state.Claimed &&
-				event.ClaimState == protocol.OperatorClaimStatePendingReview &&
-				event.OperatorName != "" &&
-				event.LinkID == "" {
-				state.Claimed = true
-				state.ClaimState = event.ClaimState
-				state.ClaimStateAuditIndex = event.AuditIndex
-				state.ProfileClaimAuditIndex = event.AuditIndex
-				state.ClaimGroupID = event.GroupID
-				state.EffectiveGroupID = event.GroupID
-				state.OperatorName = event.OperatorName
-				state.OperatorAvatarURL = event.OperatorAvatarURL
-				state.ProfileClaimState = event.ClaimState
-				state.RelatedDeploymentID = ""
-			} else {
-				state.EffectiveGroupID = event.GroupID
-				state.LinkID = event.LinkID
-				state.RelatedDeploymentID = event.RelatedDeploymentID
-			}
-		case protocol.OperatorActionRevokeGroupLink:
-			if state.Claimed {
-				state.EffectiveGroupID = state.ClaimGroupID
-			} else {
-				state.EffectiveGroupID = ""
-			}
-			state.LinkID = ""
-			state.RelatedDeploymentID = ""
-		case protocol.OperatorActionDeactivateDeployment:
-			state.Active = false
-		case protocol.OperatorActionReactivateDeployment:
-			state.Active = true
-		}
+		applyOperatorNetworkEvent(&state, event)
 		current[event.SubjectDeploymentID] = state
 		expected = append(expected, state)
 	}

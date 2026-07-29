@@ -147,9 +147,10 @@ Pending response example:
 ```
 
 The mutable current-status row is written in the same transaction as claim,
-withdrawal, or approval. Reads query that row directly. Integrity verification
-independently reconstructs the expected value from signed append-only sources
-and rejects a mismatch; it does not serve or repair reconstructed state.
+withdrawal, deployment deactivation, or approval. Reads query that row
+directly. Integrity verification independently reconstructs the expected value
+from signed append-only sources and rejects a mismatch; it does not serve or
+repair reconstructed state.
 
 Approval changes this status receipt only. The provisional group membership
 already exists, so approval does not append an operator-network action, change
@@ -200,6 +201,16 @@ The copied claim appears in the existing list/show/approve CLI flow and must
 be approved independently. In both cases each deployment's identity,
 accounting rows, MAU receipts, and ledger ownership remain separately
 auditable.
+
+Deactivating a deployment also withdraws that deployment's current pending or
+approved claim and clears its current group link in the same transaction. The
+signed deactivation receipt carries `claim_state: "withdrawn"` plus the
+pre-deactivation effective `group_id` and, when present, `link_id` and related
+deployment. The directly queried claim status becomes `WITHDRAWN`, and the
+inactive deployment is absent from both claimed and unclaimed leaderboard
+views. Its immutable company submission, review, operator audit, and prior
+network-state rows remain available for audit. Reactivation makes the
+deployment active again but does not resurrect the withdrawn claim or link.
 
 Each accepted mutation atomically appends the deployment-signed nonce proof,
 hash-linked operator audit event, and the versioned network-state row used by

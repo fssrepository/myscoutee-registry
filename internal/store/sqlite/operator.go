@@ -341,6 +341,23 @@ func deriveOperatorActionTx(
 		if !active {
 			return store.ErrOperatorActionConflict
 		}
+		if claim.Claimed {
+			membership, err := operatorMembershipTx(
+				ctx,
+				tx,
+				input.DeploymentID,
+				0,
+			)
+			if err != nil {
+				return err
+			}
+			event.ClaimState = protocol.OperatorClaimStateWithdrawn
+			event.GroupID = membership.GroupID
+			event.OperatorName = membership.OperatorName
+			event.OperatorAvatarURL = membership.OperatorAvatarURL
+			event.LinkID = membership.LinkID
+			event.RelatedDeploymentID = membership.RelatedDeploymentID
+		}
 	case protocol.OperatorActionReactivateDeployment:
 		if active {
 			return store.ErrOperatorActionConflict
@@ -833,7 +850,11 @@ func writeOperatorClaimStateTx(
 			return store.ErrInconsistentState
 		}
 		return writePendingOperatorClaimTx(ctx, tx, event, source)
-	case protocol.OperatorActionWithdrawClaim:
+	case protocol.OperatorActionWithdrawClaim,
+		protocol.OperatorActionDeactivateDeployment:
+		if event.ClaimState != protocol.OperatorClaimStateWithdrawn {
+			return nil
+		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE operator_claim_status
 			SET verification_state = ?,

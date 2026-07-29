@@ -184,12 +184,7 @@ func applyOperatorNetworkEvent(
 		state.LinkID = ""
 		state.RelatedDeploymentID = ""
 	case protocol.OperatorActionWithdrawClaim:
-		state.Claimed = false
-		state.ClaimState = protocol.OperatorClaimStateWithdrawn
-		state.ClaimStateAuditIndex = event.AuditIndex
-		state.EffectiveGroupID = ""
-		state.LinkID = ""
-		state.RelatedDeploymentID = ""
+		withdrawOperatorNetworkState(state, event)
 	case protocol.OperatorActionRedeemClientToken:
 		if !state.Claimed &&
 			event.ClaimState == protocol.OperatorClaimStatePendingReview &&
@@ -220,9 +215,24 @@ func applyOperatorNetworkEvent(
 		state.RelatedDeploymentID = ""
 	case protocol.OperatorActionDeactivateDeployment:
 		state.Active = false
+		if state.Claimed {
+			withdrawOperatorNetworkState(state, event)
+		}
 	case protocol.OperatorActionReactivateDeployment:
 		state.Active = true
 	}
+}
+
+func withdrawOperatorNetworkState(
+	state *operatorNetworkStateRow,
+	event store.OperatorAuditEvent,
+) {
+	state.Claimed = false
+	state.ClaimState = protocol.OperatorClaimStateWithdrawn
+	state.ClaimStateAuditIndex = event.AuditIndex
+	state.EffectiveGroupID = ""
+	state.LinkID = ""
+	state.RelatedDeploymentID = ""
 }
 
 func scanOperatorNetworkState(scanner rowScanner) (operatorNetworkStateRow, error) {
