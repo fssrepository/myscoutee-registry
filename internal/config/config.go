@@ -16,6 +16,8 @@ type Config struct {
 	DatabasePath        string
 	SigningKeyPath      string
 	GenerateSigningKey  bool
+	GlobalIdentityVOPRFKeyRingPath string
+	GenerateGlobalIdentityVOPRFKey bool
 	DemoSeedEnabled     bool
 	TimestampSkew       time.Duration
 	MaxRequestBodyBytes int64
@@ -32,6 +34,12 @@ func Load() (Config, error) {
 		DatabasePath:        envOrDefault("REGISTRY_DATABASE_PATH", "/data/registry.db"),
 		SigningKeyPath:      envOrDefault("REGISTRY_SIGNING_KEY_PATH", "/data/registry-signing-key.pem"),
 		GenerateSigningKey:  true,
+		GlobalIdentityVOPRFKeyRingPath:
+			envOrDefault(
+				"REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH",
+				"/data/registry-global-identity-voprf-keyring.json",
+			),
+		GenerateGlobalIdentityVOPRFKey: true,
 		DemoSeedEnabled:     false,
 		TimestampSkew:       5 * time.Minute,
 		MaxRequestBodyBytes: 64 * 1024,
@@ -44,6 +52,12 @@ func Load() (Config, error) {
 
 	var err error
 	if cfg.GenerateSigningKey, err = envBool("REGISTRY_GENERATE_SIGNING_KEY", cfg.GenerateSigningKey); err != nil {
+		return Config{}, err
+	}
+	if cfg.GenerateGlobalIdentityVOPRFKey, err = envBool(
+		"REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY",
+		cfg.GenerateGlobalIdentityVOPRFKey,
+	); err != nil {
 		return Config{}, err
 	}
 	if cfg.DemoSeedEnabled, err = envBool("REGISTRY_DEMO_SEED", cfg.DemoSeedEnabled); err != nil {
@@ -79,6 +93,11 @@ func Load() (Config, error) {
 	}
 	if strings.TrimSpace(cfg.SigningKeyPath) == "" {
 		return Config{}, fmt.Errorf("REGISTRY_SIGNING_KEY_PATH must not be empty")
+	}
+	if strings.TrimSpace(cfg.GlobalIdentityVOPRFKeyRingPath) == "" {
+		return Config{}, fmt.Errorf(
+			"REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH must not be empty",
+		)
 	}
 	if cfg.TimestampSkew <= 0 {
 		return Config{}, fmt.Errorf("REGISTRY_TIMESTAMP_SKEW must be positive")

@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build e2e && !windows
 
 package e2e_test
 
@@ -7,7 +7,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +18,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -73,7 +74,7 @@ type httpResult struct {
 	body   []byte
 }
 
-func TestStandaloneRegistryBlackBox(t *testing.T) {
+func TestStandaloneRegistryProcessE2E(t *testing.T) {
 	repositoryRoot := registryRepositoryRoot(t)
 	binary := buildRegistryBinary(t, repositoryRoot)
 
@@ -250,7 +251,13 @@ func testSignedRegistrationAndReceiptPersistence(t *testing.T, binary string) {
 		acceptedRegistration.DeploymentID == "" {
 		t.Fatalf("unexpected registration response: %+v", acceptedRegistration)
 	}
-	verifyRegistrationReceipt(t, registryPublicKey, acceptedRegistration)
+	verifyRegistrationReceipt(
+		t,
+		registryPublicKey,
+		identity,
+		registration,
+		acceptedRegistration,
+	)
 
 	registrationRetry := requestJSON(
 		t,
@@ -296,7 +303,13 @@ func testSignedRegistrationAndReceiptPersistence(t *testing.T, binary string) {
 		acceptedBatch.BatchID == "" {
 		t.Fatalf("unexpected installation-test response: %+v", acceptedBatch)
 	}
-	verifyInstallationReceipt(t, registryPublicKey, batch, acceptedBatch)
+	verifyInstallationReceipt(
+		t,
+		registryPublicKey,
+		identity,
+		batch,
+		acceptedBatch,
+	)
 
 	batchRetry := signedInstallationBatch(
 		t,
@@ -413,6 +426,20 @@ func testScopeAndSigningKeyBinding(t *testing.T, binary string) {
 	}
 	if _, err := os.Stat(files.keyPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("non-pristine database silently regenerated a missing key: %v", err)
+	}
+	writeReplacementSigningKey(t, files.keyPath)
+	replacementKeyOutput := runRegistryExpectFailure(t, binary, files)
+	if !strings.Contains(
+		replacementKeyOutput,
+		"configured registry signing key does not match persisted registry identity",
+	) {
+		t.Fatalf(
+			"replacement key failed for an unexpected reason:\n%s",
+			replacementKeyOutput,
+		)
+	}
+	if err := os.Remove(files.keyPath); err != nil {
+		t.Fatalf("remove replacement registry signing key: %v", err)
 	}
 	if err := os.Rename(backupKeyPath, files.keyPath); err != nil {
 		t.Fatalf("restore registry signing key: %v", err)
@@ -533,11 +560,21 @@ func testAnnouncementCLIAndHTTPPersistence(t *testing.T, binary string) {
 
 func registryRepositoryRoot(t *testing.T) string {
 	t.Helper()
-	_, sourceFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("resolve E2E source location")
+	current, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("resolve E2E working directory: %v", err)
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(sourceFile), ".."))
+	for {
+		goModPath := filepath.Join(current, "go.mod")
+		if info, statErr := os.Stat(goModPath); statErr == nil && !info.IsDir() {
+			return current
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			t.Fatalf("find registry repository root from %s", current)
+		}
+		current = parent
+	}
 }
 
 func buildRegistryBinary(t *testing.T, repositoryRoot string) string {
@@ -618,7 +655,7 @@ func startRegistry(t *testing.T, binary string, files registryFiles) *registryPr
 		if address, found := acceptingAddress(process.logs()); found {
 			process.address = address
 			process.baseURL = "http://" + address
-			client := &http.Client{Timeout: 250 * time.Millisecond}
+			client := &http.Client{Timeout: time.Second}
 			response, requestErr := client.Get(process.baseURL + "/healthz")
 			if requestErr == nil {
 				_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
@@ -757,6 +794,28 @@ func runRegistryExpectFailure(t *testing.T, binary string, files registryFiles) 
 		t.Fatalf("registry unexpectedly started with invalid identity binding:\n%s", output)
 	}
 	return string(output)
+}
+
+func writeReplacementSigningKey(t *testing.T, path string) {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate replacement registry signing key: %v", err)
+	}
+	pkcs8, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatalf("marshal replacement registry signing key: %v", err)
+	}
+	contents := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: pkcs8,
+	})
+	if len(contents) == 0 {
+		t.Fatal("encode replacement registry signing key")
+	}
+	if err := os.WriteFile(path, contents, 0o600); err != nil {
+		t.Fatalf("write replacement registry signing key: %v", err)
+	}
 }
 
 func requestJSON(t *testing.T, method, endpoint string, value any) httpResult {
@@ -1011,9 +1070,25 @@ func verifyRegistryIdentity(
 func verifyRegistrationReceipt(
 	t *testing.T,
 	registryPublicKey ed25519.PublicKey,
+	identity protocol.RegistryIdentity,
+	request protocol.RegistrationRequest,
 	response protocol.RegistrationResponse,
 ) {
 	t.Helper()
+	_, deploymentPublicKeyDER, err := protocol.ParsePublicKey(request.PublicKey)
+	if err != nil {
+		t.Fatalf("parse registered deployment public key: %v", err)
+	}
+	if response.RegistryScope != identity.RegistryScope ||
+		response.RegistryKeyID != identity.RegistryKeyID ||
+		response.RegistryPublicKey != identity.RegistryPublicKey ||
+		response.PublicKeyFingerprint !=
+			protocol.PublicKeyFingerprint(deploymentPublicKeyDER) {
+		t.Fatalf(
+			"registration receipt identity metadata is inconsistent: %+v",
+			response,
+		)
+	}
 	signature, err := protocol.ParseSignature(response.ReceiptSignature)
 	if err != nil {
 		t.Fatalf("parse registration receipt signature: %v", err)
@@ -1037,14 +1112,24 @@ func verifyRegistrationReceipt(
 func verifyInstallationReceipt(
 	t *testing.T,
 	registryPublicKey ed25519.PublicKey,
+	identity protocol.RegistryIdentity,
 	request protocol.BatchRequest,
 	response protocol.BatchResponse,
 ) {
 	t.Helper()
 	receipt := response.Receipt
+	if response.RegistryScope != identity.RegistryScope ||
+		receipt.RegistryScope != identity.RegistryScope ||
+		receipt.RegistryKeyID != identity.RegistryKeyID ||
+		receipt.RegistryPublicKey != identity.RegistryPublicKey {
+		t.Fatalf(
+			"installation receipt identity metadata is inconsistent: %+v",
+			receipt,
+		)
+	}
 	entry := protocol.LedgerEntry{
 		ProtocolVersion:   response.ProtocolVersion,
-		RegistryScope:     response.RegistryScope,
+		RegistryScope:     receipt.RegistryScope,
 		LedgerIndex:       receipt.LedgerIndex,
 		EntryType:         protocol.InstallationEntryType,
 		DeploymentID:      response.DeploymentID,
@@ -1061,7 +1146,10 @@ func verifyInstallationReceipt(
 		receipt.PreviousEntryHash != protocol.ZeroHash ||
 		receipt.BatchHash != request.PayloadHash ||
 		receipt.Kind != protocol.InstallationTestKind ||
+		receipt.Period != request.Period ||
+		receipt.RulesetVersion != request.RulesetVersion ||
 		receipt.QualifiedMAUCount != 0 ||
+		receipt.CommitmentHash != "" ||
 		receipt.EntryHash != protocol.Digest(protocol.LedgerEntryMessage(entry)) {
 		t.Fatalf("installation receipt does not describe a valid first ledger entry: %+v", receipt)
 	}
@@ -1073,7 +1161,7 @@ func verifyInstallationReceipt(
 		registryPublicKey,
 		protocol.MAUReceiptMessage(
 			response.ProtocolVersion,
-			response.RegistryScope,
+			receipt.RegistryScope,
 			response.BatchID,
 			response.DeploymentID,
 			receipt.LedgerIndex,

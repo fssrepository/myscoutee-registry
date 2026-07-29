@@ -233,6 +233,12 @@ func demoDomainRecordCount(ctx context.Context, tx *sql.Tx) (int64, error) {
 			(SELECT COUNT(*) FROM mau_batches) +
 			(SELECT COUNT(*) FROM revenue_batches) +
 			(SELECT COUNT(*) FROM revenue_query_rows) +
+			(SELECT COUNT(*) FROM settlements) +
+			(SELECT COUNT(*) FROM settlement_revenue_sources) +
+			(SELECT COUNT(*) FROM settlement_ttm_months) +
+			(SELECT COUNT(*) FROM settlement_weight_sources) +
+			(SELECT COUNT(*) FROM settlement_beneficiary_deployments) +
+			(SELECT COUNT(*) FROM settlement_allocations) +
 			(SELECT COUNT(*) FROM checkpoints) +
 			(SELECT COUNT(*) FROM operator_audit_events) +
 			(SELECT COUNT(*) FROM operator_action_nonces) +
@@ -244,7 +250,12 @@ func demoDomainRecordCount(ctx context.Context, tx *sql.Tx) (int64, error) {
 			(SELECT COUNT(*) FROM operator_claim_eligibility_current) +
 			(SELECT COUNT(*) FROM announcements) +
 			(SELECT COUNT(*) FROM registry_case_events) +
-			(SELECT COUNT(*) FROM registry_cases)`).Scan(&count); err != nil {
+			(SELECT COUNT(*) FROM registry_cases) +
+			(SELECT COUNT(*) FROM exit_reviews) +
+			(SELECT COUNT(*) FROM exit_review_deployments) +
+			(SELECT COUNT(*) FROM exit_review_settlement_boundaries) +
+			(SELECT COUNT(*) FROM exit_review_events) +
+			(SELECT COUNT(*) FROM exit_review_state_rows)`).Scan(&count); err != nil {
 		return 0, fmt.Errorf("inspect demo seed target database: %w", err)
 	}
 	return count, nil

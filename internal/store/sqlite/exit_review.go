@@ -315,6 +315,13 @@ func (sqliteStore *Store) AppendExitReviewEvent(
 		RegistryScope:          input.RegistryScope,
 		RegistryKeyID:          input.RegistryKeyID,
 	}
+	expectedPayloadHash := protocol.Digest(
+		protocol.ExitReviewEventPayloadMessage(exitReviewProtocolEvent(event)),
+	)
+	if input.PayloadHash != expectedPayloadHash {
+		return store.ExitReviewEvent{}, store.ExitReview{}, false,
+			store.ErrInconsistentState
+	}
 	event.EventHash = protocol.Digest(
 		protocol.ExitReviewEventHashMessage(exitReviewProtocolEvent(event)),
 	)
@@ -411,6 +418,9 @@ func (sqliteStore *Store) ExitReviews(
 	}
 	if err := rows.Err(); err != nil {
 		return store.ExitReviewPage{}, fmt.Errorf("iterate exit review query rows: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return store.ExitReviewPage{}, fmt.Errorf("close exit review query rows: %w", err)
 	}
 	page := store.ExitReviewPage{Items: make([]store.ExitReview, 0, query.Limit)}
 	if len(states) > query.Limit {
@@ -582,11 +592,13 @@ func exitReviewMembersAtBoundaryTx(
 		SELECT
 			deployment_id,
 			claim_action_id,
-			claim_state
+			claim_state,
+			eligibility_state,
+			eligible
 		FROM memberships
 		WHERE group_id = ?
 		  AND active = 1
-		  AND eligible = 1
+		  AND claimed = 1
 		ORDER BY deployment_id`,
 		auditIndex,
 		int64(0),
@@ -604,6 +616,8 @@ func exitReviewMembersAtBoundaryTx(
 		deploymentID string
 		claimActionID string
 		claimState string
+		eligibilityState string
+		eligible bool
 	}
 	raw := make([]membership, 0)
 	targetFound := false
@@ -613,17 +627,23 @@ func exitReviewMembersAtBoundaryTx(
 			&member.deploymentID,
 			&member.claimActionID,
 			&member.claimState,
+			&member.eligibilityState,
+			&member.eligible,
 		); err != nil {
 			return nil, "", fmt.Errorf("scan exit review membership boundary: %w", err)
 		}
 		if member.deploymentID == input.TargetDeploymentID &&
-			member.claimActionID == input.ClaimActionID {
+			member.claimActionID == input.ClaimActionID &&
+			member.eligible {
 			targetFound = true
 		}
 		raw = append(raw, member)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, "", fmt.Errorf("iterate exit review membership boundary: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, "", fmt.Errorf("close exit review membership boundary: %w", err)
 	}
 	if !targetFound || len(raw) == 0 {
 		return nil, "", store.ErrExitReviewClaimBoundary
@@ -634,6 +654,8 @@ func exitReviewMembersAtBoundaryTx(
 			MemberOrder:    int64(index),
 			DeploymentID:  rawMember.deploymentID,
 			ClaimActionID: rawMember.claimActionID,
+			ClaimState: rawMember.claimState,
+			EligibilityState: rawMember.eligibilityState,
 			ReviewHash:    protocol.OperatorClaimReviewZeroHash,
 			EligibilityHash: protocol.OperatorClaimEligibilityZeroHash,
 		}
@@ -871,13 +893,16 @@ func insertExitReviewRecordTx(
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO exit_review_deployments (
 				review_id, member_order, deployment_id, claim_action_id,
+				claim_state, eligibility_state,
 				claim_audit_index, claim_audit_hash, review_index,
 				review_hash, eligibility_index, eligibility_hash
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			record.ReviewID,
 			member.MemberOrder,
 			member.DeploymentID,
 			member.ClaimActionID,
+			member.ClaimState,
+			member.EligibilityState,
 			member.ClaimAuditIndex,
 			member.ClaimAuditHash,
 			member.ReviewIndex,
@@ -1009,7 +1034,9 @@ func exitReviewByIDQuery(
 	if err != nil {
 		return store.ExitReview{}, err
 	}
-	return exitReviewFromState(record, state), nil
+	result := exitReviewFromState(record, state)
+	result.Events, err = exitReviewEventsByReviewQuery(ctx, queryer, reviewID)
+	return result, err
 }
 
 func exitReviewRecordByID(
@@ -1190,7 +1217,8 @@ func exitReviewMembersQuery(
 ) ([]store.ExitReviewDeployment, error) {
 	rows, err := queryer.QueryContext(ctx, `
 		SELECT
-			member_order, deployment_id, claim_action_id, claim_audit_index,
+			member_order, deployment_id, claim_action_id, claim_state,
+			eligibility_state, claim_audit_index,
 			claim_audit_hash, review_index, review_hash, eligibility_index,
 			eligibility_hash
 		FROM exit_review_deployments
@@ -1209,6 +1237,8 @@ func exitReviewMembersQuery(
 			&item.MemberOrder,
 			&item.DeploymentID,
 			&item.ClaimActionID,
+			&item.ClaimState,
+			&item.EligibilityState,
 			&item.ClaimAuditIndex,
 			&item.ClaimAuditHash,
 			&item.ReviewIndex,
@@ -1264,6 +1294,36 @@ func exitReviewSettlementBoundariesQuery(
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate exit settlement boundaries: %w", err)
+	}
+	return items, nil
+}
+
+func exitReviewEventsByReviewQuery(
+	ctx context.Context,
+	queryer exitReviewQueryer,
+	reviewID string,
+) ([]store.ExitReviewEvent, error) {
+	rows, err := queryer.QueryContext(
+		ctx,
+		exitReviewEventSelect+`
+		WHERE review_id = ?
+		ORDER BY event_index`,
+		reviewID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("read exit review event history: %w", err)
+	}
+	defer rows.Close()
+	items := make([]store.ExitReviewEvent, 0)
+	for rows.Next() {
+		item, scanErr := scanExitReviewEvent(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate exit review event history: %w", err)
 	}
 	return items, nil
 }
@@ -1357,6 +1417,8 @@ func exitReviewProtocolMembers(
 			MemberOrder:       item.MemberOrder,
 			DeploymentID:     item.DeploymentID,
 			ClaimActionID:    item.ClaimActionID,
+			ClaimState:       item.ClaimState,
+			EligibilityState: item.EligibilityState,
 			ClaimAuditIndex:  item.ClaimAuditIndex,
 			ClaimAuditHash:   item.ClaimAuditHash,
 			ReviewIndex:      item.ReviewIndex,

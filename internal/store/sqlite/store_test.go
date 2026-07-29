@@ -50,6 +50,11 @@ func TestSchemaEnablesWALAndAppendOnlyTriggers(t *testing.T) {
 		"operator_claim_eligibility_events_no_update", "operator_claim_eligibility_events_no_delete",
 		"announcements_no_update", "announcements_no_delete",
 		"registry_case_events_no_update", "registry_case_events_no_delete",
+		"exit_reviews_no_update", "exit_reviews_no_delete",
+		"exit_review_deployments_no_update", "exit_review_deployments_no_delete",
+		"exit_review_settlement_boundaries_no_update", "exit_review_settlement_boundaries_no_delete",
+		"exit_review_events_no_update", "exit_review_events_no_delete",
+		"exit_review_state_rows_no_update", "exit_review_state_rows_no_delete",
 	}
 
 	rows, err := registryStore.db.Query("PRAGMA table_info(operator_audit_events)")

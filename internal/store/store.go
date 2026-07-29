@@ -40,6 +40,10 @@ var (
 	ErrRevenueRevisionConflict      = errors.New("revenue revision does not extend the current active batch")
 	ErrQualifiedMAURevisionConflict = errors.New("QMAU revision does not extend the current active snapshot")
 	ErrRevenueAggregateOverflow     = errors.New("revenue aggregate exceeds the supported signed integer range")
+	ErrGlobalIdentityRateLimited     = errors.New("global identity evaluation rate limit exceeded")
+	ErrGlobalIdentityKeyMismatch     = errors.New("global identity VOPRF key metadata mismatch")
+	ErrGlobalIdentityLinkConflict    = errors.New("global identity link conflicts with current state")
+	ErrGlobalIdentityPresenceConflict = errors.New("global identity presence revision conflicts with current state")
 )
 
 type RegistryIdentity struct {
@@ -248,4 +252,5 @@ type Store interface {
 	RegistryCaseStore
 	SettlementStore
 	ExitReviewStore
+	GlobalIdentityStore
 }

@@ -6,8 +6,9 @@ active-user (QMAU) snapshots/corrections, aggregate daily revenue
 snapshots/corrections, signed receipts, daily checkpoints, and RFC 9162-style
 Merkle proofs. The registry-owned monthly allocation and private signed
 deployment-history extension is specified in
-[`settlements-v1.md`](settlements-v1.md). It does not define global-human
-deduplication.
+[`settlements-v1.md`](settlements-v1.md). Privacy-preserving optional
+cross-deployment identity linking and globally deduplicated QMAU are specified
+in [`global-identity-v1.md`](global-identity-v1.md).
 
 ## Encoding rules
 
