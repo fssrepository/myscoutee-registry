@@ -81,6 +81,14 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 	); err != nil {
 		return err
 	}
+	if err := sqliteStore.verifyClaimEligibilityBoundary(
+		ctx,
+		registryPublicKey,
+		registryKeyID,
+		registryScope,
+	); err != nil {
+		return err
+	}
 	if err := sqliteStore.verifyAnnouncementBoundary(
 		ctx,
 		registryPublicKey,
@@ -95,7 +103,7 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 	ctx context.Context,
 ) error {
-	const expectedTriggers = 38
+	const expectedTriggers = 40
 	var triggerCount int
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -128,6 +136,8 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'operator_claim_verification_no_delete',
 			'operator_claim_reviews_no_update',
 			'operator_claim_reviews_no_delete',
+			'operator_claim_eligibility_events_no_update',
+			'operator_claim_eligibility_events_no_delete',
 			'operator_network_state_rows_no_update',
 			'operator_network_state_rows_no_delete',
 			'revenue_batches_no_update',
@@ -774,6 +784,124 @@ func (sqliteStore *Store) verifyClaimReviewBoundary(
 		statusReviewIndex != head.ReviewIndex ||
 		statusReviewHash != head.ReviewHash {
 		return inconsistentMessage("operational claim-review status boundary is invalid")
+	}
+	return nil
+}
+
+func (sqliteStore *Store) verifyClaimEligibilityBoundary(
+	ctx context.Context,
+	registryPublicKey ed25519.PublicKey,
+	registryKeyID string,
+	registryScope string,
+) error {
+	rows, err := sqliteStore.db.QueryContext(
+		ctx,
+		operatorClaimEligibilitySelect+`
+		ORDER BY eligibility_index DESC
+		LIMIT 2`,
+	)
+	if err != nil {
+		return inconsistent(
+			"read operational claim-eligibility boundary",
+			err,
+		)
+	}
+	defer rows.Close()
+	decisions := make([]store.OperatorClaimEligibility, 0, 2)
+	for rows.Next() {
+		decision, err := scanOperatorClaimEligibility(rows)
+		if err != nil {
+			return err
+		}
+		decisions = append(decisions, decision)
+	}
+	if err := rows.Err(); err != nil {
+		return inconsistent(
+			"iterate operational claim-eligibility boundary",
+			err,
+		)
+	}
+	if len(decisions) == 0 {
+		return nil
+	}
+	head := decisions[0]
+	validDecision := (head.Decision ==
+		protocol.OperatorClaimEligibilitySuspend &&
+		protocol.IsOperatorClaimEligibilityReasonCode(
+			head.ReasonCode,
+		)) ||
+		(head.Decision ==
+			protocol.OperatorClaimEligibilityReinstate &&
+			head.ReasonCode == "")
+	if head.EligibilityIndex < 1 ||
+		!validHexID(head.EligibilityID, "ope_", 32) ||
+		head.RegistryKeyID != registryKeyID ||
+		!validDecision ||
+		!validPersistedTimestamp(head.DecidedAt) {
+		return inconsistentMessage(
+			"operational claim-eligibility head has invalid metadata",
+		)
+	}
+	if len(decisions) == 1 {
+		if head.PreviousEligibilityHash !=
+			protocol.OperatorClaimEligibilityZeroHash {
+			return inconsistentMessage(
+				"operational claim-eligibility genesis link is invalid",
+			)
+		}
+	} else if decisions[1].EligibilityIndex != head.EligibilityIndex-1 ||
+		decisions[1].EligibilityHash != head.PreviousEligibilityHash {
+		return inconsistentMessage(
+			"operational claim-eligibility head does not extend its predecessor",
+		)
+	}
+	receipt := operatorClaimEligibilityReceipt(head, registryScope)
+	if head.EligibilityHash != protocol.Digest(
+		protocol.OperatorClaimEligibilityHashMessage(receipt),
+	) || !ed25519.Verify(
+		registryPublicKey,
+		protocol.OperatorClaimEligibilityReceiptMessage(receipt),
+		head.Signature,
+	) {
+		return inconsistentMessage(
+			"operational claim-eligibility registry proof is invalid",
+		)
+	}
+
+	var currentClaimActionID string
+	if err := sqliteStore.db.QueryRowContext(ctx, `
+		SELECT claim_action_id
+		FROM operator_claim_status
+		WHERE deployment_id = ?`,
+		head.DeploymentID,
+	).Scan(&currentClaimActionID); err != nil {
+		return inconsistent(
+			"read operational claim-eligibility status boundary",
+			err,
+		)
+	}
+	if currentClaimActionID != head.ClaimActionID {
+		return nil
+	}
+	var eligibilityID, eligibilityHash string
+	var eligibilityIndex int64
+	if err := sqliteStore.db.QueryRowContext(ctx, `
+		SELECT eligibility_id, eligibility_index, eligibility_hash
+		FROM operator_claim_eligibility_current
+		WHERE deployment_id = ? AND claim_action_id = ?`,
+		head.DeploymentID,
+		head.ClaimActionID,
+	).Scan(
+		&eligibilityID,
+		&eligibilityIndex,
+		&eligibilityHash,
+	); err != nil ||
+		eligibilityID != head.EligibilityID ||
+		eligibilityIndex != head.EligibilityIndex ||
+		eligibilityHash != head.EligibilityHash {
+		return inconsistentMessage(
+			"operational claim-eligibility current-state boundary is invalid",
+		)
 	}
 	return nil
 }

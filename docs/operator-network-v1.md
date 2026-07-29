@@ -19,6 +19,9 @@ identity or a transfer of ledger ownership.
   the registry container and its existing database/signing key. `reviewer_id`
   identifies that local audit actor; it is not a separate reviewer signature
   or remote authentication protocol.
+- Eligibility suspension/reinstatement is a second, independent local
+  administrative rail. It never rewrites company verification, measured
+  QMAU, deployment identity, or immutable accounting history.
 - Registry integrity verification fails closed. It verifies append-only
   sources and directly maintained query state, but never rebuilds or repairs
   query state while serving a request.
@@ -116,13 +119,20 @@ GET /v1/operator/claims/{deployment_id}
 ```
 
 The receipt binds the deployment, exact claim action/audit index/hash, group,
-legal name, `verification_status`, submission time, review boundary, registry
-scope, and registry key. Status is one of:
+legal name, `verification_status`, submission time, review boundary, current
+eligibility boundary, registry scope, and registry key. Verification status is
+one of:
 
 - `PENDING_REVIEW`
 - `APPROVED`
 - `REJECTED`
 - `WITHDRAWN`
+
+`eligibility_status` is independently one of `active`, `suspended`, or
+`inactive`. Pending/rejected/withdrawn generations are `inactive`; an approved
+generation begins `active`. Suspension changes only an approved active
+generation to `suspended`, and reinstatement changes only that exact suspended
+generation back to `active`.
 
 Pending response example:
 
@@ -140,6 +150,8 @@ Pending response example:
     "verification_status": "PENDING_REVIEW",
     "submitted_at": "2026-07-28T12:00:00Z",
     "review_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "eligibility_status": "inactive",
+    "eligibility_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     "registry_scope": "example:region-a",
     "registry_key_id": "rkey_0123456789abcdef0123456789abcdef",
     "signature": "BASE64_ED25519_SIGNATURE"
@@ -147,9 +159,10 @@ Pending response example:
 }
 ```
 
-The mutable current-status row is written in the same transaction as claim,
-withdrawal, deployment deactivation, approval, or rejection. Reads query that row
-directly. Integrity verification independently reconstructs the expected value
+The mutable current-status and current-eligibility rows are written in the same
+transaction as claim, withdrawal, deployment deactivation, approval,
+rejection, suspension, or reinstatement. Reads query those rows directly.
+Integrity verification independently reconstructs the expected value
 from signed append-only sources and rejects a mismatch; it does not serve or
 repair reconstructed state.
 
@@ -157,9 +170,9 @@ Approval or rejection changes the current status receipt and appends one
 immutable, hash-linked review record for the exact pending claim. The provisional
 group membership already exists, so a review decision does not append an
 operator-network action. A fresh leaderboard
-snapshot captures the review-chain head as a third internal boundary alongside
-the audit and ledger heads; an existing signed cursor remains pinned to its
-earlier review boundary.
+snapshot captures the review and eligibility chain heads alongside the audit
+and ledger heads; an existing signed cursor remains pinned to those exact
+boundaries.
 
 Leaderboard presentation selects an active, currently claimed group profile
 and derives the decision only from an immutable review of that exact claim
@@ -170,6 +183,54 @@ A pending or rejected profile remains visible with its measured weight, but it
 has zero eligible sort/allocation weight and zero share. Approval makes that
 exact claim boundary eligible without changing its immutable measured ledger
 rows.
+
+## Claim eligibility suspension CLI
+
+Copy the exact current identifiers from the access-controlled
+`show-operator-claim` command. Suspend only an approved, active generation:
+
+```bash
+docker compose exec -T registry \
+  /registry suspend-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --actor-id network-eligibility-team \
+  --decision-reference case:2026-eligibility-0042 \
+  --reason-code policy-hold \
+  --idempotency-key suspend-example-2026-0042
+```
+
+Reinstate only that exact suspended generation:
+
+```bash
+docker compose exec -T registry \
+  /registry reinstate-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --actor-id network-eligibility-team \
+  --decision-reference case:2026-eligibility-0042-clear \
+  --idempotency-key reinstate-example-2026-0042
+```
+
+Both commands append a registry-signed, hash-linked receipt and update the
+direct current eligibility row in the same transaction. The exact command is
+idempotent. A stale generation, pending/rejected/withdrawn claim, duplicate
+transition, or mismatched identity fails closed and appends nothing.
+`actor-id`, `decision-reference`, and `reason-code` are bounded non-personal
+audit identifiers. Never put names, email addresses, free-form notes, or
+evidence bodies in them.
+
+Suspension keeps the approved deployment in its claimed group and keeps its
+measured six-month QMAU visible. Its eligible weight, sort/allocation weight,
+and share become zero. In a mixed group only active deployments contribute
+eligible weight; the group returns `eligibility_status:
+"partially-suspended"`. Withdrawal or deployment deactivation changes current
+eligibility to `inactive` and cannot be undone by reinstatement. A later claim
+is a new generation requiring a new review.
 
 ## Other signed operator actions
 
@@ -218,7 +279,8 @@ accounting rows, MAU receipts, and ledger ownership remain separately
 auditable.
 
 Deactivating a deployment also withdraws that deployment's current pending or
-approved claim and clears its current group link in the same transaction. The
+approved claim, changes current eligibility to `inactive`, and clears its
+current group link in the same transaction. The
 signed deactivation receipt carries `claim_state: "withdrawn"` plus the
 pre-deactivation effective `group_id` and, when present, `link_id` and related
 deployment. The directly queried claim status becomes `WITHDRAWN`, and the
@@ -489,9 +551,22 @@ docker compose exec -T registry \
 
 Never parse, edit, or combine a cursor with another view/group/period. It is a
 registry-signed opaque value bound to the first page's immutable ledger,
-operator-audit, and claim-review boundaries. To retain public DTO compatibility,
-the review index/hash remain internal to the cursor and are committed by
-`snapshot_id`. CLI output is the same protocol JSON shape as HTTP.
+operator-audit, claim-review, and claim-eligibility boundaries. Cursor v2
+includes `through_eligibility_index` and `eligibility_head_hash`. Old cursor
+versions fail closed; request a new first page instead. The signed snapshot v2
+also exposes `through_review_index`, `review_head_hash`,
+`through_eligibility_index`, and `eligibility_head_hash`, so even a one-page
+response with no next cursor independently binds all four source boundaries.
+CLI output is the same protocol JSON shape as HTTP.
+
+The leaderboard snapshot-hash canonical message and claim-status receipt
+canonical message are v2 because they now bind eligibility. The outer
+leaderboard snapshot receipt remains v1 and signs the v2 snapshot hash. Java
+clients/verifiers must be upgraded with the Go registry: verify
+`through_eligibility_index`, `eligibility_head_hash`, and each row/deployment
+`eligibility_status`; also verify the now-explicit review index/hash and the
+exact v2 snapshot-hash field order. A v1 verifier must reject, not silently
+accept or reinterpret, the v2 snapshot hash or claim-status receipt.
 
 Leaderboard SQL reads weights from immutable `ledger_weight_rows`,
 membership/profile state from the versioned direct network-state table, and
@@ -516,3 +591,6 @@ eligibility, not the immutable measured ledger rows. Protocol v1 accepts
 deployment-signed `monthly-qmau` snapshots and immutable linear corrections
 under `qmau-v1`; measured weight is their latest-revision arithmetic mean over
 the fixed six-month window, with missing months contributing zero.
+Suspended approved claims follow the same visibility rule: measured weight is
+reported, but eligible weight and share are zero at a snapshot whose
+eligibility boundary includes the suspension.

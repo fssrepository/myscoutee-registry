@@ -76,11 +76,24 @@ func (sqliteStore *Store) verifyOperatorClaimReviews(
 	if err := verifyOperatorActionSemantics(actions, submissions, reviews); err != nil {
 		return err
 	}
+	eligibilities, err := sqliteStore.verifiedOperatorClaimEligibilityRows(
+		ctx,
+		actions,
+		submissions,
+		reviews,
+		ed25519.PublicKey(registryPublicKey),
+		registryKeyID,
+		registryScope,
+	)
+	if err != nil {
+		return err
+	}
 	return sqliteStore.verifyOperatorClaimStatusRows(
 		ctx,
 		actions,
 		submissions,
 		reviews,
+		eligibilities,
 	)
 }
 
@@ -500,6 +513,7 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 	actions map[string]verifiedOperatorAction,
 	submissions map[string]store.OperatorClaimSubmission,
 	reviews map[string]store.OperatorClaimReview,
+	eligibilities map[string]store.OperatorClaimEligibility,
 ) error {
 	ordered := make([]store.OperatorAuditEvent, 0, len(actions))
 	for _, action := range actions {
@@ -568,6 +582,28 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 			expected[deploymentID] = status
 		}
 	}
+	for deploymentID, status := range expected {
+		status.EligibilityState = protocol.OperatorEligibilityInactive
+		status.EligibilityHash =
+			protocol.OperatorClaimEligibilityZeroHash
+		if status.VerificationState ==
+			protocol.OperatorClaimStateApproved {
+			status.EligibilityState = protocol.OperatorEligibilityActive
+		}
+		if eligibility, exists := eligibilities[status.ClaimActionID]; exists {
+			status.EligibilityID = eligibility.EligibilityID
+			status.EligibilityIndex = eligibility.EligibilityIndex
+			status.EligibilityHash = eligibility.EligibilityHash
+			if status.VerificationState ==
+				protocol.OperatorClaimStateApproved &&
+				eligibility.Decision ==
+					protocol.OperatorClaimEligibilitySuspend {
+				status.EligibilityState =
+					protocol.OperatorEligibilitySuspended
+			}
+		}
+		expected[deploymentID] = status
+	}
 
 	rows, err := sqliteStore.db.QueryContext(
 		ctx,
@@ -602,5 +638,9 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 			len(expected),
 		)
 	}
-	return nil
+	return sqliteStore.verifyOperatorClaimEligibilityCurrentRows(
+		ctx,
+		expected,
+		eligibilities,
+	)
 }

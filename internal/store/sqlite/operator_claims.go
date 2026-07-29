@@ -26,7 +26,31 @@ const operatorClaimStatusSelect = `
 		review_hash,
 		approved_at,
 		updated_at,
-		private_record_hash
+		private_record_hash,
+		COALESCE((
+			SELECT eligibility_state
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), 'inactive'),
+		COALESCE((
+			SELECT eligibility_id
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), ''),
+		COALESCE((
+			SELECT eligibility_index
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), 0),
+		COALESCE((
+			SELECT eligibility_hash
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), '` + protocol.OperatorClaimEligibilityZeroHash + `')
 	FROM operator_claim_status`
 
 func (sqliteStore *Store) OperatorClaimStatus(
@@ -288,6 +312,43 @@ func (sqliteStore *Store) DecideOperatorClaim(
 	if err != nil || affected != 1 {
 		return store.OperatorClaimReview{}, false, store.ErrOperatorClaimStale
 	}
+	eligibilityState := protocol.OperatorEligibilityActive
+	approvedReviewIndex := review.ReviewIndex
+	approvedReviewHash := review.ReviewHash
+	if review.Decision == protocol.OperatorClaimReviewRejected {
+		eligibilityState = protocol.OperatorEligibilityInactive
+		approvedReviewIndex = 0
+		approvedReviewHash = protocol.OperatorClaimReviewZeroHash
+	}
+	result, err = tx.ExecContext(ctx, `
+		UPDATE operator_claim_eligibility_current
+		SET eligibility_state = ?,
+		    approved_review_index = ?,
+		    approved_review_hash = ?,
+		    eligibility_id = '',
+		    eligibility_index = 0,
+		    eligibility_hash = ?,
+		    updated_at = ?
+		WHERE deployment_id = ?
+		  AND claim_action_id = ?`,
+		eligibilityState,
+		approvedReviewIndex,
+		approvedReviewHash,
+		protocol.OperatorClaimEligibilityZeroHash,
+		review.ReviewedAt,
+		review.DeploymentID,
+		review.ClaimActionID,
+	)
+	if err != nil {
+		return store.OperatorClaimReview{}, false, fmt.Errorf(
+			"update decided operator claim eligibility: %w",
+			err,
+		)
+	}
+	affected, err = result.RowsAffected()
+	if err != nil || affected != 1 {
+		return store.OperatorClaimReview{}, false, store.ErrOperatorClaimStale
+	}
 	if err := tx.Commit(); err != nil {
 		return store.OperatorClaimReview{}, false, fmt.Errorf("commit operator claim review: %w", err)
 	}
@@ -378,6 +439,10 @@ func scanOperatorClaimStatus(scanner rowScanner) (store.OperatorClaimStatus, err
 		&status.ApprovedAt,
 		&status.UpdatedAt,
 		&status.PrivateRecordHash,
+		&status.EligibilityState,
+		&status.EligibilityID,
+		&status.EligibilityIndex,
+		&status.EligibilityHash,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return store.OperatorClaimStatus{}, store.ErrNotFound

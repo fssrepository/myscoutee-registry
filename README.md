@@ -20,6 +20,9 @@ provides:
 - signed structured company-verification claims, append-only administrative
   review receipts, direct signed status, and short-lived single-use client
   codes for reviewed company-data reuse or virtual grouping;
+- append-only, registry-signed claim eligibility suspension/reinstatement with
+  a transactionally maintained current row and snapshot-pinned leaderboard
+  exclusion that preserves visible measured weight;
 - transactionally maintained, versioned operator-network rows used directly by
   leaderboard queries;
 - signed, snapshot-bound cursor leaderboard reads;
@@ -361,6 +364,17 @@ docker compose exec -T registry \
   --idempotency-key approve-example-2026-0042
 
 docker compose exec -T registry \
+  /registry suspend-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --actor-id network-eligibility-team \
+  --decision-reference case:2026-eligibility-0042 \
+  --reason-code policy-hold \
+  --idempotency-key suspend-example-2026-0042
+
+docker compose exec -T registry \
   /registry leaderboard --view claimed --limit 20
 
 docker compose exec -T registry \
@@ -520,7 +534,8 @@ SQLite uses WAL, foreign keys, `synchronous=FULL`, one serialized connection,
 and append-only `UPDATE`/`DELETE` rejection triggers for identity,
 deployments, nonces, idempotency records, ledger entries, batches,
 leaderboard query rows, operator audit events, private claim submissions,
-claim reviews, versioned operator-network rows, announcements, registry case
+claim reviews, claim eligibility decisions, versioned operator-network rows,
+announcements, registry case
 events, and checkpoints.
 
 The authoritative accounting ledger remains a linear SHA-256 hash chain: each
@@ -577,8 +592,8 @@ On every restart and health check, the registry validates:
 - exact ledger/query-row cardinality and field equality;
 - the operator action hash chain, deployment signatures, replay/idempotency
   records, registry-signed action receipts, private claim-record hashes,
-  signed review chain, direct claim status, and versioned operator-network
-  query rows;
+  signed review and eligibility chains, direct claim status/current
+  eligibility, and versioned operator-network query rows;
 - the announcement hash chain, normalized nested-content hashes, publication
   idempotency hashes, registry signatures, and stored canonical JSON.
 

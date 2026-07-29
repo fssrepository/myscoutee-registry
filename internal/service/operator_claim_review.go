@@ -369,6 +369,10 @@ func (registry *Service) operatorClaimStatusReceipt(
 		ReviewIndex:        status.ReviewIndex,
 		ReviewHash:         status.ReviewHash,
 		ApprovedAt:         status.ApprovedAt,
+		EligibilityStatus:  status.EligibilityState,
+		EligibilityID:      status.EligibilityID,
+		EligibilityIndex:   status.EligibilityIndex,
+		EligibilityHash:    status.EligibilityHash,
 		RegistryScope:      registry.registryScope,
 		RegistryKeyID:      registry.signingKey.KeyID(),
 	}
@@ -387,6 +391,7 @@ func operatorClaimListItem(
 		SubmittedAt:        status.SubmittedAt,
 		ApprovedAt:         status.ApprovedAt,
 		ReviewID:           status.ReviewID,
+		EligibilityStatus:  status.EligibilityState,
 	}
 }
 

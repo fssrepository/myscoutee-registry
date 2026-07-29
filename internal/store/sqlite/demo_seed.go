@@ -13,25 +13,27 @@ const (
 )
 
 type DemoSeedExpectedState struct {
-	Deployments          int64
-	UsedNonces           int64
-	IdempotencyRecords   int64
-	LedgerEntries        int64
-	MerkleNodes          int64
-	LedgerWeightRows     int64
-	MAUBatches           int64
-	RevenueBatches       int64
-	RevenueQueryRows     int64
-	Checkpoints          int64
-	OperatorAuditEvents  int64
-	OperatorActionNonces int64
-	OperatorNetworkRows  int64
-	ClaimSubmissions     int64
-	ClaimReviews         int64
-	ClaimStatuses        int64
-	Announcements        int64
-	RegistryCaseEvents   int64
-	RegistryCases        int64
+	Deployments            int64
+	UsedNonces             int64
+	IdempotencyRecords     int64
+	LedgerEntries          int64
+	MerkleNodes            int64
+	LedgerWeightRows       int64
+	MAUBatches             int64
+	RevenueBatches         int64
+	RevenueQueryRows       int64
+	Checkpoints            int64
+	OperatorAuditEvents    int64
+	OperatorActionNonces   int64
+	OperatorNetworkRows    int64
+	ClaimSubmissions       int64
+	ClaimReviews           int64
+	ClaimStatuses          int64
+	ClaimEligibilityEvents  int64
+	ClaimEligibilityCurrent int64
+	Announcements          int64
+	RegistryCaseEvents     int64
+	RegistryCases          int64
 }
 
 type demoSeedMarker struct {
@@ -238,6 +240,8 @@ func demoDomainRecordCount(ctx context.Context, tx *sql.Tx) (int64, error) {
 			(SELECT COUNT(*) FROM operator_claim_verification_submissions) +
 			(SELECT COUNT(*) FROM operator_claim_reviews) +
 			(SELECT COUNT(*) FROM operator_claim_status) +
+			(SELECT COUNT(*) FROM operator_claim_eligibility_events) +
+			(SELECT COUNT(*) FROM operator_claim_eligibility_current) +
 			(SELECT COUNT(*) FROM announcements) +
 			(SELECT COUNT(*) FROM registry_case_events) +
 			(SELECT COUNT(*) FROM registry_cases)`).Scan(&count); err != nil {
@@ -269,6 +273,8 @@ func readDemoSeedExpectedState(
 			(SELECT COUNT(*) FROM operator_claim_verification_submissions),
 			(SELECT COUNT(*) FROM operator_claim_reviews),
 			(SELECT COUNT(*) FROM operator_claim_status),
+			(SELECT COUNT(*) FROM operator_claim_eligibility_events),
+			(SELECT COUNT(*) FROM operator_claim_eligibility_current),
 			(SELECT COUNT(*) FROM announcements),
 			(SELECT COUNT(*) FROM registry_case_events),
 			(SELECT COUNT(*) FROM registry_cases)`).Scan(
@@ -288,6 +294,8 @@ func readDemoSeedExpectedState(
 		&state.ClaimSubmissions,
 		&state.ClaimReviews,
 		&state.ClaimStatuses,
+		&state.ClaimEligibilityEvents,
+		&state.ClaimEligibilityCurrent,
 		&state.Announcements,
 		&state.RegistryCaseEvents,
 		&state.RegistryCases,

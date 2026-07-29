@@ -13,10 +13,11 @@ const leaderboardStateCTE = `
 		audit_bound,
 		ledger_bound,
 		review_bound,
+		eligibility_bound,
 		from_period,
 		through_period
 	) AS (
-		VALUES (?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?)
 	),
 	state_ranked AS (
 		SELECT
@@ -75,7 +76,8 @@ const leaderboardStateCTE = `
 			END AS claim_state,
 			COALESCE(state.active, 1) AS active,
 			COALESCE(state.effective_group_id, '') AS group_id,
-			COALESCE(state.link_id, '') AS link_id
+			COALESCE(state.link_id, '') AS link_id,
+			COALESCE(claim.action_id, '') AS claim_action_id
 		FROM deployments deployment
 		LEFT JOIN states state
 		  ON state.deployment_id = deployment.deployment_id
@@ -85,15 +87,48 @@ const leaderboardStateCTE = `
 		  ON review.claim_action_id = claim.action_id
 		 AND review.review_index <= (SELECT review_bound FROM bounds)
 	),
+	eligibility_ranked AS (
+		SELECT
+			claim_action_id,
+			decision,
+			ROW_NUMBER() OVER (
+				PARTITION BY claim_action_id
+				ORDER BY eligibility_index DESC
+			) AS rank
+		FROM operator_claim_eligibility_events
+		WHERE eligibility_index <=
+			(SELECT eligibility_bound FROM bounds)
+	),
+	eligibility_decisions AS (
+		SELECT claim_action_id, decision
+		FROM eligibility_ranked
+		WHERE rank = 1
+	),
 	memberships AS (
 		SELECT
 			membership_state.*,
 			CASE
-				WHEN membership_state.claim_state IN ('claimed', 'approved')
+				WHEN membership_state.claim_state = 'claimed'
+					THEN 'active'
+				WHEN membership_state.claim_state = 'approved'
+				 AND eligibility.decision = 'suspend'
+					THEN 'suspended'
+				WHEN membership_state.claim_state = 'approved'
+					THEN 'active'
+				ELSE 'inactive'
+			END AS eligibility_state,
+			CASE
+				WHEN membership_state.claim_state = 'claimed'
+					THEN 1
+				WHEN membership_state.claim_state = 'approved'
+				 AND COALESCE(eligibility.decision, '') <> 'suspend'
 					THEN 1
 				ELSE 0
 			END AS eligible
 		FROM membership_states membership_state
+		LEFT JOIN eligibility_decisions eligibility
+		  ON eligibility.claim_action_id =
+			membership_state.claim_action_id
 	),
 	group_profile_ranked AS (
 		SELECT
@@ -182,13 +217,22 @@ func (sqliteStore *Store) LeaderboardBoundary(
 	if err != nil {
 		return store.LeaderboardBoundary{}, err
 	}
+	eligibilityHead, err := operatorClaimEligibilityHeadQuery(
+		ctx,
+		sqliteStore.db,
+	)
+	if err != nil {
+		return store.LeaderboardBoundary{}, err
+	}
 	return store.LeaderboardBoundary{
-		LedgerIndex: ledgerHead.LedgerIndex,
-		AuditIndex:  auditHead.AuditIndex,
-		ReviewIndex: reviewHead.ReviewIndex,
-		LedgerHash:  ledgerHead.EntryHash,
-		AuditHash:   auditHead.AuditHash,
-		ReviewHash:  reviewHead.ReviewHash,
+		LedgerIndex:      ledgerHead.LedgerIndex,
+		AuditIndex:       auditHead.AuditIndex,
+		ReviewIndex:      reviewHead.ReviewIndex,
+		EligibilityIndex: eligibilityHead.EligibilityIndex,
+		LedgerHash:       ledgerHead.EntryHash,
+		AuditHash:        auditHead.AuditHash,
+		ReviewHash:       reviewHead.ReviewHash,
+		EligibilityHash:  eligibilityHead.EligibilityHash,
 	}, nil
 }
 
@@ -199,6 +243,26 @@ func (sqliteStore *Store) LeaderboardTotals(
 	throughLedgerIndex int64,
 	throughAuditIndex int64,
 	throughReviewIndex int64,
+) (store.LeaderboardTotals, error) {
+	return sqliteStore.LeaderboardTotalsAtEligibility(
+		ctx,
+		fromPeriod,
+		throughPeriod,
+		throughLedgerIndex,
+		throughAuditIndex,
+		throughReviewIndex,
+		0,
+	)
+}
+
+func (sqliteStore *Store) LeaderboardTotalsAtEligibility(
+	ctx context.Context,
+	fromPeriod string,
+	throughPeriod string,
+	throughLedgerIndex int64,
+	throughAuditIndex int64,
+	throughReviewIndex int64,
+	throughEligibilityIndex int64,
 ) (store.LeaderboardTotals, error) {
 	var totals store.LeaderboardTotals
 	err := sqliteStore.db.QueryRowContext(
@@ -217,6 +281,7 @@ func (sqliteStore *Store) LeaderboardTotals(
 		throughAuditIndex,
 		throughLedgerIndex,
 		throughReviewIndex,
+		throughEligibilityIndex,
 		fromPeriod,
 		throughPeriod,
 	).Scan(&totals.MeasuredWeight, &totals.ClaimedWeight)
@@ -256,7 +321,31 @@ func (sqliteStore *Store) LeaderboardRows(
 						) = 'pending-review'
 							THEN 0
 						ELSE COALESCE(SUM(membership.eligible_weight), 0)
-					END AS sort_weight
+					END AS sort_weight,
+					CASE
+						WHEN SUM(
+							CASE
+								WHEN membership.eligibility_state =
+									'suspended'
+									THEN 1
+								ELSE 0
+							END
+						) = 0
+						 AND SUM(membership.eligible) = 0
+							THEN 'inactive'
+						WHEN SUM(
+							CASE
+								WHEN membership.eligibility_state =
+									'suspended'
+									THEN 1
+								ELSE 0
+							END
+						) = 0
+							THEN 'active'
+						WHEN SUM(membership.eligible) > 0
+							THEN 'partially-suspended'
+						ELSE 'suspended'
+					END AS eligibility_state
 				FROM weighted_memberships membership
 				LEFT JOIN group_profiles profile
 				  ON profile.group_id = membership.group_id
@@ -278,7 +367,8 @@ func (sqliteStore *Store) LeaderboardRows(
 				claim_state,
 				deployment_count,
 				weight,
-				sort_weight
+				sort_weight,
+				eligibility_state
 			FROM claimed_rows
 			WHERE (
 				? = 0
@@ -301,7 +391,8 @@ func (sqliteStore *Store) LeaderboardRows(
 				'unclaimed',
 				1,
 				membership.measured_weight,
-				membership.measured_weight
+				membership.measured_weight,
+				'inactive'
 			FROM weighted_memberships membership
 			WHERE membership.active = 1
 			  AND membership.claimed = 0
@@ -329,6 +420,7 @@ func (sqliteStore *Store) LeaderboardRows(
 		query.ThroughAuditIndex,
 		query.ThroughLedgerIndex,
 		query.ThroughReviewIndex,
+		query.ThroughEligibilityIndex,
 		query.FromPeriod,
 		query.ThroughPeriod,
 		hasAfter,
@@ -355,6 +447,7 @@ func (sqliteStore *Store) LeaderboardRows(
 			&record.DeploymentCount,
 			&record.Weight,
 			&record.SortWeight,
+			&record.EligibilityState,
 		); err != nil {
 			return nil, fmt.Errorf("scan leaderboard row: %w", err)
 		}
@@ -381,6 +474,7 @@ func (sqliteStore *Store) LeaderboardDeployments(
 			membership.deployment_id,
 			membership.group_id,
 			membership.claim_state,
+			membership.eligibility_state,
 			CASE
 				WHEN membership.link_id = '' THEN 'owner'
 				ELSE 'linked'
@@ -404,6 +498,7 @@ func (sqliteStore *Store) LeaderboardDeployments(
 		query.ThroughAuditIndex,
 		query.ThroughLedgerIndex,
 		query.ThroughReviewIndex,
+		query.ThroughEligibilityIndex,
 		query.FromPeriod,
 		query.ThroughPeriod,
 		query.GroupID,
@@ -425,6 +520,7 @@ func (sqliteStore *Store) LeaderboardDeployments(
 			&record.DeploymentID,
 			&record.GroupID,
 			&record.ClaimState,
+			&record.EligibilityState,
 			&record.MembershipState,
 			&record.Weight,
 			&record.SortWeight,

@@ -42,22 +42,24 @@ type validatedOperatorAction struct {
 }
 
 type leaderboardCursor struct {
-	Version            int    `json:"version"`
-	Kind               string `json:"kind"`
-	View               string `json:"view"`
-	GroupID            string `json:"group_id,omitempty"`
-	SnapshotID         string `json:"snapshot_id"`
-	FromPeriod         string `json:"from_period"`
-	ThroughPeriod      string `json:"through_period"`
-	ThroughLedgerIndex int64  `json:"through_ledger_index"`
-	ThroughAuditIndex  int64  `json:"through_audit_index"`
-	ThroughReviewIndex int64  `json:"through_review_index"`
-	LedgerHeadHash     string `json:"ledger_head_hash"`
-	AuditHeadHash      string `json:"audit_head_hash"`
-	ReviewHeadHash     string `json:"review_head_hash"`
-	CreatedAt          string `json:"created_at"`
-	AfterWeight        int64  `json:"after_weight"`
-	AfterID            string `json:"after_id"`
+	Version                   int    `json:"version"`
+	Kind                      string `json:"kind"`
+	View                      string `json:"view"`
+	GroupID                   string `json:"group_id,omitempty"`
+	SnapshotID                string `json:"snapshot_id"`
+	FromPeriod                string `json:"from_period"`
+	ThroughPeriod             string `json:"through_period"`
+	ThroughLedgerIndex        int64  `json:"through_ledger_index"`
+	ThroughAuditIndex         int64  `json:"through_audit_index"`
+	ThroughReviewIndex        int64  `json:"through_review_index"`
+	ThroughEligibilityIndex   int64  `json:"through_eligibility_index"`
+	LedgerHeadHash            string `json:"ledger_head_hash"`
+	AuditHeadHash             string `json:"audit_head_hash"`
+	ReviewHeadHash            string `json:"review_head_hash"`
+	EligibilityHeadHash       string `json:"eligibility_head_hash"`
+	CreatedAt                 string `json:"created_at"`
+	AfterWeight               int64  `json:"after_weight"`
+	AfterID                   string `json:"after_id"`
 }
 
 func (registry *Service) ApplyOperatorAction(
@@ -605,13 +607,14 @@ func (registry *Service) Leaderboard(
 	if err != nil {
 		return protocol.LeaderboardPageDto{}, err
 	}
-	totals, err := registry.store.LeaderboardTotals(
+	totals, err := registry.store.LeaderboardTotalsAtEligibility(
 		ctx,
 		state.FromPeriod,
 		state.ThroughPeriod,
 		state.ThroughLedgerIndex,
 		state.ThroughAuditIndex,
 		state.ThroughReviewIndex,
+		state.ThroughEligibilityIndex,
 	)
 	if err != nil {
 		return protocol.LeaderboardPageDto{}, err
@@ -622,27 +625,29 @@ func (registry *Service) Leaderboard(
 	if view == "founder" {
 		if !hasCursor {
 			records = append(records, store.LeaderboardRecord{
-				RowID:           "founder",
-				View:            "founder",
-				Label:           "Founder",
-				ClaimState:      "founder",
-				DeploymentCount: 0,
-				Weight:          protocol.FounderContributionUnits * operatorWeightMonths,
-				SortWeight:      protocol.FounderContributionUnits * operatorWeightMonths,
+				RowID:            "founder",
+				View:             "founder",
+				Label:            "Founder",
+				ClaimState:       "founder",
+				EligibilityState: protocol.OperatorEligibilityActive,
+				DeploymentCount:  0,
+				Weight:           protocol.FounderContributionUnits * operatorWeightMonths,
+				SortWeight:       protocol.FounderContributionUnits * operatorWeightMonths,
 			})
 		}
 	} else {
 		records, err = registry.store.LeaderboardRows(ctx, store.LeaderboardQuery{
-			View:               view,
-			FromPeriod:         state.FromPeriod,
-			ThroughPeriod:      state.ThroughPeriod,
-			ThroughLedgerIndex: state.ThroughLedgerIndex,
-			ThroughAuditIndex:  state.ThroughAuditIndex,
-			ThroughReviewIndex: state.ThroughReviewIndex,
-			Limit:              pageLimit + 1,
-			AfterWeight:        state.AfterWeight,
-			AfterID:            state.AfterID,
-			HasAfter:           hasCursor,
+			View:                    view,
+			FromPeriod:              state.FromPeriod,
+			ThroughPeriod:           state.ThroughPeriod,
+			ThroughLedgerIndex:      state.ThroughLedgerIndex,
+			ThroughAuditIndex:       state.ThroughAuditIndex,
+			ThroughReviewIndex:      state.ThroughReviewIndex,
+			ThroughEligibilityIndex: state.ThroughEligibilityIndex,
+			Limit:                   pageLimit + 1,
+			AfterWeight:             state.AfterWeight,
+			AfterID:                 state.AfterID,
+			HasAfter:                hasCursor,
 		})
 		if err != nil {
 			return protocol.LeaderboardPageDto{}, err
@@ -670,6 +675,7 @@ func (registry *Service) Leaderboard(
 			Label:             record.Label,
 			AvatarURL:         record.AvatarURL,
 			ClaimState:        record.ClaimState,
+			EligibilityStatus: record.EligibilityState,
 			DeploymentCount:   record.DeploymentCount,
 			WeightNumerator:   weight.Num().String(),
 			WeightDenominator: weight.Denom().String(),
@@ -730,13 +736,14 @@ func (registry *Service) LeaderboardDeployments(
 	if err != nil {
 		return protocol.LeaderboardDeploymentPageDto{}, err
 	}
-	totals, err := registry.store.LeaderboardTotals(
+	totals, err := registry.store.LeaderboardTotalsAtEligibility(
 		ctx,
 		state.FromPeriod,
 		state.ThroughPeriod,
 		state.ThroughLedgerIndex,
 		state.ThroughAuditIndex,
 		state.ThroughReviewIndex,
+		state.ThroughEligibilityIndex,
 	)
 	if err != nil {
 		return protocol.LeaderboardDeploymentPageDto{}, err
@@ -745,16 +752,17 @@ func (registry *Service) LeaderboardDeployments(
 	records, err := registry.store.LeaderboardDeployments(
 		ctx,
 		store.LeaderboardDeploymentQuery{
-			GroupID:            groupID,
-			FromPeriod:         state.FromPeriod,
-			ThroughPeriod:      state.ThroughPeriod,
-			ThroughLedgerIndex: state.ThroughLedgerIndex,
-			ThroughAuditIndex:  state.ThroughAuditIndex,
-			ThroughReviewIndex: state.ThroughReviewIndex,
-			Limit:              pageLimit + 1,
-			AfterWeight:        state.AfterWeight,
-			AfterID:            state.AfterID,
-			HasAfter:           hasCursor,
+			GroupID:                 groupID,
+			FromPeriod:              state.FromPeriod,
+			ThroughPeriod:           state.ThroughPeriod,
+			ThroughLedgerIndex:      state.ThroughLedgerIndex,
+			ThroughAuditIndex:       state.ThroughAuditIndex,
+			ThroughReviewIndex:      state.ThroughReviewIndex,
+			ThroughEligibilityIndex: state.ThroughEligibilityIndex,
+			Limit:                   pageLimit + 1,
+			AfterWeight:             state.AfterWeight,
+			AfterID:                 state.AfterID,
+			HasAfter:                hasCursor,
 		},
 	)
 	if err != nil {
@@ -778,6 +786,7 @@ func (registry *Service) LeaderboardDeployments(
 			DeploymentID:      record.DeploymentID,
 			GroupID:           record.GroupID,
 			ClaimState:        record.ClaimState,
+			EligibilityStatus: record.EligibilityState,
 			MembershipState:   record.MembershipState,
 			WeightNumerator:   weight.Num().String(),
 			WeightDenominator: weight.Denom().String(),
@@ -860,9 +869,11 @@ func (registry *Service) leaderboardState(
 		strconv.FormatInt(boundary.LedgerIndex, 10),
 		strconv.FormatInt(boundary.AuditIndex, 10),
 		strconv.FormatInt(boundary.ReviewIndex, 10),
+		strconv.FormatInt(boundary.EligibilityIndex, 10),
 		boundary.LedgerHash,
 		boundary.AuditHash,
 		boundary.ReviewHash,
+		boundary.EligibilityHash,
 		createdAt,
 	}, "\x00")
 	snapshotDigest := strings.TrimPrefix(
@@ -870,20 +881,22 @@ func (registry *Service) leaderboardState(
 		"sha256:",
 	)
 	return leaderboardCursor{
-		Version:            1,
-		Kind:               kind,
-		View:               view,
-		GroupID:            groupID,
-		SnapshotID:         "snap_" + snapshotDigest[:32],
-		FromPeriod:         fromPeriod,
-		ThroughPeriod:      throughPeriod,
-		ThroughLedgerIndex: boundary.LedgerIndex,
-		ThroughAuditIndex:  boundary.AuditIndex,
-		ThroughReviewIndex: boundary.ReviewIndex,
-		LedgerHeadHash:     boundary.LedgerHash,
-		AuditHeadHash:      boundary.AuditHash,
-		ReviewHeadHash:     boundary.ReviewHash,
-		CreatedAt:          createdAt,
+		Version:                 2,
+		Kind:                    kind,
+		View:                    view,
+		GroupID:                 groupID,
+		SnapshotID:              "snap_" + snapshotDigest[:32],
+		FromPeriod:              fromPeriod,
+		ThroughPeriod:           throughPeriod,
+		ThroughLedgerIndex:      boundary.LedgerIndex,
+		ThroughAuditIndex:       boundary.AuditIndex,
+		ThroughReviewIndex:      boundary.ReviewIndex,
+		ThroughEligibilityIndex: boundary.EligibilityIndex,
+		LedgerHeadHash:           boundary.LedgerHash,
+		AuditHeadHash:            boundary.AuditHash,
+		ReviewHeadHash:           boundary.ReviewHash,
+		EligibilityHeadHash:      boundary.EligibilityHash,
+		CreatedAt:                createdAt,
 	}, false, nil
 }
 
@@ -901,8 +914,12 @@ func (registry *Service) leaderboardSnapshot(
 		ThroughPeriod:             state.ThroughPeriod,
 		ThroughLedgerIndex:        state.ThroughLedgerIndex,
 		ThroughAuditIndex:         state.ThroughAuditIndex,
+		ThroughReviewIndex:        state.ThroughReviewIndex,
+		ThroughEligibilityIndex:   state.ThroughEligibilityIndex,
 		LedgerHeadHash:            state.LedgerHeadHash,
 		AuditHeadHash:             state.AuditHeadHash,
+		ReviewHeadHash:            state.ReviewHeadHash,
+		EligibilityHeadHash:       state.EligibilityHeadHash,
 		FounderUnitsNumerator:     strconv.FormatInt(protocol.FounderContributionUnits, 10),
 		FounderUnitsDenominator:   "1",
 		FounderShareNumerator:     founderShare.Num().String(),
@@ -1018,16 +1035,18 @@ func (registry *Service) decodeLeaderboardCursor(
 	decoder := json.NewDecoder(strings.NewReader(string(payload)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cursor); err != nil ||
-		cursor.Version != 1 ||
+		cursor.Version != 2 ||
 		cursor.SnapshotID == "" ||
 		!periodPattern.MatchString(cursor.FromPeriod) ||
 		!periodPattern.MatchString(cursor.ThroughPeriod) ||
 		!protocol.IsDigest(cursor.LedgerHeadHash) ||
 		!protocol.IsDigest(cursor.AuditHeadHash) ||
 		!protocol.IsDigest(cursor.ReviewHeadHash) ||
+		!protocol.IsDigest(cursor.EligibilityHeadHash) ||
 		cursor.ThroughLedgerIndex < 0 ||
 		cursor.ThroughAuditIndex < 0 ||
 		cursor.ThroughReviewIndex < 0 ||
+		cursor.ThroughEligibilityIndex < 0 ||
 		cursor.AfterWeight < 0 ||
 		cursor.AfterID == "" {
 		return leaderboardCursor{}, requestError("invalid_cursor", "cursor payload is invalid")
@@ -1037,7 +1056,7 @@ func (registry *Service) decodeLeaderboardCursor(
 
 func leaderboardCursorMessage(payload []byte) []byte {
 	message := make([]byte, 0, len(payload)+48)
-	message = append(message, []byte("myscoutee-registry-leaderboard-cursor-v1\n")...)
+	message = append(message, []byte("myscoutee-registry-leaderboard-cursor-v2\n")...)
 	message = append(message, payload...)
 	return message
 }

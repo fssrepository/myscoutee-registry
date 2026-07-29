@@ -41,6 +41,7 @@ func TestSchemaEnablesWALAndAppendOnlyTriggers(t *testing.T) {
 		"operator_network_state_rows_no_update", "operator_network_state_rows_no_delete",
 		"operator_claim_verification_no_update", "operator_claim_verification_no_delete",
 		"operator_claim_reviews_no_update", "operator_claim_reviews_no_delete",
+		"operator_claim_eligibility_events_no_update", "operator_claim_eligibility_events_no_delete",
 		"announcements_no_update", "announcements_no_delete",
 		"registry_case_events_no_update", "registry_case_events_no_delete",
 	}
