@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"database/sql"
-	"fmt"
 	"reflect"
 	"time"
 

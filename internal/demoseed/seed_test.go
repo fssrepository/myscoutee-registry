@@ -187,8 +187,18 @@ func TestSeededDemoBackupRestorePreservesIdentityLedgerAndMerkle(t *testing.T) {
 		restoreDirectory,
 		"restored-registry-demo-signing-key.pem",
 	)
+	restored.GlobalIdentityVOPRFKeyRingPath = filepath.Join(
+		restoreDirectory,
+		"restored-registry-demo-global-identity-voprf-keyring.json",
+	)
 	copyDemoBackupFile(t, source.DatabasePath, restored.DatabasePath, 0o600)
 	copyDemoBackupFile(t, source.SigningKeyPath, restored.SigningKeyPath, 0o600)
+	copyDemoBackupFile(
+		t,
+		source.GlobalIdentityVOPRFKeyRingPath,
+		restored.GlobalIdentityVOPRFKeyRingPath,
+		0o600,
+	)
 
 	restoredRuntime, err := app.BootstrapExisting(
 		context.Background(),
@@ -412,16 +422,21 @@ func demoConfig(t *testing.T) config.Config {
 	t.Helper()
 	directory := t.TempDir()
 	return config.Config{
-		ListenAddress:       "127.0.0.1:0",
-		RegistryScope:       "demo:myscoutee",
-		DatabasePath:        filepath.Join(directory, "registry-demo.db"),
-		SigningKeyPath:      filepath.Join(directory, "registry-demo-signing-key.pem"),
-		GenerateSigningKey:  true,
-		DemoSeedEnabled:     true,
-		TimestampSkew:       5 * time.Minute,
-		MaxRequestBodyBytes: 64 * 1024,
-		CheckpointInterval:  time.Minute,
-		ShutdownTimeout:     5 * time.Second,
-		HealthcheckURL:      "http://127.0.0.1/healthz",
+		ListenAddress:      "127.0.0.1:0",
+		RegistryScope:      "demo:myscoutee",
+		DatabasePath:       filepath.Join(directory, "registry-demo.db"),
+		SigningKeyPath:     filepath.Join(directory, "registry-demo-signing-key.pem"),
+		GenerateSigningKey: true,
+		GlobalIdentityVOPRFKeyRingPath: filepath.Join(
+			directory,
+			"registry-demo-global-identity-voprf-keyring.json",
+		),
+		GenerateGlobalIdentityVOPRFKey: true,
+		DemoSeedEnabled:                true,
+		TimestampSkew:                  5 * time.Minute,
+		MaxRequestBodyBytes:            64 * 1024,
+		CheckpointInterval:             time.Minute,
+		ShutdownTimeout:                5 * time.Second,
+		HealthcheckURL:                 "http://127.0.0.1/healthz",
 	}
 }

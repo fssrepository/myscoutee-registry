@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 	"sort"
 	"time"

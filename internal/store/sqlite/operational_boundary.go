@@ -116,7 +116,7 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 	ctx context.Context,
 ) error {
-	const expectedTriggers = 104
+	const expectedTriggers = 105
 	var triggerCount int
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -217,6 +217,7 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'global_identity_presence_items_no_delete',
 			'global_identity_presence_submissions_no_update',
 			'global_identity_presence_submissions_no_delete',
+			'global_identity_presence_submissions_chunk_capacity',
 			'global_identity_presence_chunks_no_update',
 			'global_identity_presence_chunks_no_delete',
 			'global_identity_presence_chunk_items_no_update',

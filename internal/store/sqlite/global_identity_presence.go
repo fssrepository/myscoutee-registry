@@ -190,6 +190,7 @@ func (sqliteStore *Store) AcceptGlobalIdentityPresenceBatch(
 		RegistryKeyID:        input.RegistryKeyID,
 	}
 	var aggregatePayloadHash string
+	completionInput := input
 	if complete {
 		allCommitments, readErr := globalIdentityCompletedCommitments(
 			ctx,
@@ -242,8 +243,8 @@ func (sqliteStore *Store) AcceptGlobalIdentityPresenceBatch(
 				allCommitments,
 			),
 		)
-		input.Commitments = allCommitments
-		input.PrivateEventHash = protocol.Digest(
+		completionInput.Commitments = allCommitments
+		completionInput.PrivateEventHash = protocol.Digest(
 			protocol.GlobalIdentityPrivateEventCommitment(
 				protocol.GlobalIdentityActionPresence,
 				input.DeploymentID,
@@ -261,8 +262,8 @@ func (sqliteStore *Store) AcceptGlobalIdentityPresenceBatch(
 			tx,
 			input.Period,
 			head.EventIndex+1,
-			input.PrivateEventHash,
-			&input,
+			completionInput.PrivateEventHash,
+			&completionInput,
 		)
 		if snapshotErr != nil {
 			return store.GlobalIdentityPresenceRecord{}, false, snapshotErr
@@ -290,7 +291,7 @@ func (sqliteStore *Store) AcceptGlobalIdentityPresenceBatch(
 				[]byte(nil),
 				input.RequestSignature...,
 			),
-			PrivateEventHash: input.PrivateEventHash,
+			PrivateEventHash: completionInput.PrivateEventHash,
 			SubjectID:        input.CandidateBatchID,
 		}
 		event.EventHash = protocol.Digest(
@@ -343,7 +344,7 @@ func (sqliteStore *Store) AcceptGlobalIdentityPresenceBatch(
 		if err := insertCompletedGlobalIdentityPresence(
 			ctx,
 			tx,
-			input,
+			completionInput,
 			record,
 			aggregatePayloadHash,
 		); err != nil {
@@ -573,6 +574,7 @@ func globalIdentityCompletedCommitments(
 		input.Commitments...,
 	)
 	seen[input.ChunkIndex] = true
+	expectedItemCounts[input.ChunkIndex] = int64(len(input.Commitments))
 	total := 0
 	for chunkIndex, present := range seen {
 		if !present ||
