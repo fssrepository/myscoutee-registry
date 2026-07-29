@@ -651,7 +651,13 @@ func (registry *Service) Leaderboard(
 	items := make([]protocol.LeaderboardRowDto, 0, len(records))
 	for _, record := range records {
 		weight := big.NewRat(record.Weight, operatorWeightMonths)
-		share := registry.leaderboardShare(view, record.Weight, totals, snapshot)
+		share := registry.leaderboardShare(
+			view,
+			record.ClaimState,
+			record.Weight,
+			totals,
+			snapshot,
+		)
 		items = append(items, protocol.LeaderboardRowDto{
 			RowID:             record.RowID,
 			View:              record.View,
@@ -754,7 +760,13 @@ func (registry *Service) LeaderboardDeployments(
 	items := make([]protocol.LeaderboardDeploymentDto, 0, len(records))
 	for _, record := range records {
 		weight := big.NewRat(record.Weight, operatorWeightMonths)
-		share := registry.leaderboardShare("claimed", record.Weight, totals, snapshot)
+		share := registry.leaderboardShare(
+			"claimed",
+			record.ClaimState,
+			record.Weight,
+			totals,
+			snapshot,
+		)
 		items = append(items, protocol.LeaderboardDeploymentDto{
 			DeploymentID:      record.DeploymentID,
 			GroupID:           record.GroupID,
@@ -903,6 +915,7 @@ func (registry *Service) leaderboardSnapshot(
 
 func (registry *Service) leaderboardShare(
 	view string,
+	claimState string,
 	weight int64,
 	totals store.LeaderboardTotals,
 	snapshot protocol.LeaderboardSnapshotDto,
@@ -914,7 +927,10 @@ func (registry *Service) leaderboardShare(
 	if view == "founder" {
 		return founder
 	}
-	if view != "claimed" || totals.ClaimedWeight <= 0 || weight <= 0 {
+	if view != "claimed" ||
+		claimState == protocol.OperatorClaimStatePendingReview ||
+		totals.ClaimedWeight <= 0 ||
+		weight <= 0 {
 		return new(big.Rat)
 	}
 	operatorPool := new(big.Rat).Sub(big.NewRat(1, 1), founder)
