@@ -156,8 +156,10 @@ type OperatorClaimPage struct {
 type LeaderboardBoundary struct {
 	LedgerIndex int64
 	AuditIndex  int64
+	ReviewIndex int64
 	LedgerHash  string
 	AuditHash   string
+	ReviewHash  string
 	CreatedAt   string
 }
 
@@ -188,6 +190,7 @@ type LeaderboardQuery struct {
 	ThroughPeriod      string
 	ThroughLedgerIndex int64
 	ThroughAuditIndex  int64
+	ThroughReviewIndex int64
 	Limit              int
 	AfterWeight        int64
 	AfterID            string
@@ -200,6 +203,7 @@ type LeaderboardDeploymentQuery struct {
 	ThroughPeriod      string
 	ThroughLedgerIndex int64
 	ThroughAuditIndex  int64
+	ThroughReviewIndex int64
 	Limit              int
 	AfterWeight        int64
 	AfterID            string
@@ -231,6 +235,7 @@ type OperatorNetworkStore interface {
 		context.Context,
 		string,
 		string,
+		int64,
 		int64,
 		int64,
 	) (LeaderboardTotals, error)

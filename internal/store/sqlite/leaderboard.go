@@ -9,8 +9,14 @@ import (
 
 const leaderboardStateCTE = `
 	WITH
-	bounds(audit_bound, ledger_bound, from_period, through_period) AS (
-		VALUES (?, ?, ?, ?)
+	bounds(
+		audit_bound,
+		ledger_bound,
+		review_bound,
+		from_period,
+		through_period
+	) AS (
+		VALUES (?, ?, ?, ?, ?)
 	),
 	state_ranked AS (
 		SELECT
@@ -59,8 +65,9 @@ const leaderboardStateCTE = `
 			deployment.deployment_id,
 			COALESCE(state.claimed, 0) AS claimed,
 			CASE
-				WHEN status.verification_state IN ('pending-review', 'approved')
-					THEN status.verification_state
+				WHEN state.claim_state = 'pending-review'
+				 AND review.review_index IS NOT NULL
+					THEN 'approved'
 				ELSE COALESCE(state.claim_state, '')
 			END AS claim_state,
 			COALESCE(state.active, 1) AS active,
@@ -69,9 +76,11 @@ const leaderboardStateCTE = `
 		FROM deployments deployment
 		LEFT JOIN states state
 		  ON state.deployment_id = deployment.deployment_id
-		LEFT JOIN operator_claim_status status
-		  ON status.deployment_id = state.deployment_id
-		 AND status.claim_audit_index = state.claim_state_audit_index
+		LEFT JOIN operator_audit_events claim
+		  ON claim.audit_index = state.claim_state_audit_index
+		LEFT JOIN operator_claim_reviews review
+		  ON review.claim_action_id = claim.action_id
+		 AND review.review_index <= (SELECT review_bound FROM bounds)
 	),
 	memberships AS (
 		SELECT
@@ -89,8 +98,9 @@ const leaderboardStateCTE = `
 			state.operator_name,
 			state.operator_avatar_url,
 			CASE
-				WHEN status.verification_state IN ('pending-review', 'approved')
-					THEN status.verification_state
+				WHEN state.profile_claim_state = 'pending-review'
+				 AND review.review_index IS NOT NULL
+					THEN 'approved'
 				ELSE state.profile_claim_state
 			END AS claim_state,
 			ROW_NUMBER() OVER (
@@ -100,9 +110,11 @@ const leaderboardStateCTE = `
 					state.audit_index DESC
 			) AS rank
 		FROM states state
-		LEFT JOIN operator_claim_status status
-		  ON status.deployment_id = state.deployment_id
-		 AND status.claim_audit_index = state.profile_claim_audit_index
+		LEFT JOIN operator_audit_events claim
+		  ON claim.audit_index = state.profile_claim_audit_index
+		LEFT JOIN operator_claim_reviews review
+		  ON review.claim_action_id = claim.action_id
+		 AND review.review_index <= (SELECT review_bound FROM bounds)
 		WHERE state.active = 1
 		  AND state.claimed = 1
 		  AND state.claim_group_id <> ''
@@ -148,11 +160,17 @@ func (sqliteStore *Store) LeaderboardBoundary(
 	if err != nil {
 		return store.LeaderboardBoundary{}, err
 	}
+	reviewHead, err := operatorClaimReviewHeadQuery(ctx, sqliteStore.db)
+	if err != nil {
+		return store.LeaderboardBoundary{}, err
+	}
 	return store.LeaderboardBoundary{
 		LedgerIndex: ledgerHead.LedgerIndex,
 		AuditIndex:  auditHead.AuditIndex,
+		ReviewIndex: reviewHead.ReviewIndex,
 		LedgerHash:  ledgerHead.EntryHash,
 		AuditHash:   auditHead.AuditHash,
+		ReviewHash:  reviewHead.ReviewHash,
 	}, nil
 }
 
@@ -162,6 +180,7 @@ func (sqliteStore *Store) LeaderboardTotals(
 	throughPeriod string,
 	throughLedgerIndex int64,
 	throughAuditIndex int64,
+	throughReviewIndex int64,
 ) (store.LeaderboardTotals, error) {
 	var totals store.LeaderboardTotals
 	err := sqliteStore.db.QueryRowContext(
@@ -179,6 +198,7 @@ func (sqliteStore *Store) LeaderboardTotals(
 		FROM weighted_memberships membership`,
 		throughAuditIndex,
 		throughLedgerIndex,
+		throughReviewIndex,
 		fromPeriod,
 		throughPeriod,
 	).Scan(&totals.MeasuredWeight, &totals.ClaimedWeight)
@@ -290,6 +310,7 @@ func (sqliteStore *Store) LeaderboardRows(
 		statement,
 		query.ThroughAuditIndex,
 		query.ThroughLedgerIndex,
+		query.ThroughReviewIndex,
 		query.FromPeriod,
 		query.ThroughPeriod,
 		hasAfter,
@@ -364,6 +385,7 @@ func (sqliteStore *Store) LeaderboardDeployments(
 		LIMIT ?`,
 		query.ThroughAuditIndex,
 		query.ThroughLedgerIndex,
+		query.ThroughReviewIndex,
 		query.FromPeriod,
 		query.ThroughPeriod,
 		query.GroupID,

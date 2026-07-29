@@ -276,7 +276,14 @@ func operatorClaimReviewHeadTx(
 	ctx context.Context,
 	tx *sql.Tx,
 ) (store.OperatorClaimReview, error) {
-	review, err := scanOperatorClaimReview(tx.QueryRowContext(ctx, `
+	return operatorClaimReviewHeadQuery(ctx, tx)
+}
+
+func operatorClaimReviewHeadQuery(
+	ctx context.Context,
+	queryer operatorAuditQueryer,
+) (store.OperatorClaimReview, error) {
+	review, err := scanOperatorClaimReview(queryer.QueryRowContext(ctx, `
 		SELECT
 			review_index,
 			review_id,

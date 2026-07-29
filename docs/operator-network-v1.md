@@ -152,16 +152,21 @@ directly. Integrity verification independently reconstructs the expected value
 from signed append-only sources and rejects a mismatch; it does not serve or
 repair reconstructed state.
 
-Approval changes this status receipt only. The provisional group membership
-already exists, so approval does not append an operator-network action, change
-a leaderboard snapshot boundary, or invalidate a cursor. Leaderboard
-presentation selects an active, currently claimed group profile and uses the
-direct claim status only when it matches that deployment's exact profile-claim
-boundary. Structured profiles therefore expose `pending-review` or `approved`;
-legacy profiles retain their signed `claimed` state. A pending profile remains
-visible with its measured weight, but it has zero eligible sort/allocation
-weight and zero share. Approval makes that exact claim boundary eligible
-without changing its immutable measured ledger rows.
+Approval changes the current status receipt and appends the immutable,
+hash-linked review record. The provisional group membership already exists, so
+approval does not append an operator-network action. A fresh leaderboard
+snapshot captures the review-chain head as a third internal boundary alongside
+the audit and ledger heads; an existing signed cursor remains pinned to its
+earlier review boundary.
+
+Leaderboard presentation selects an active, currently claimed group profile
+and derives approval only from an immutable review of that exact claim action
+at or before the captured review boundary. It does not read mutable current
+claim status. Structured profiles therefore expose `pending-review` or
+`approved`; legacy profiles retain their signed `claimed` state. A pending
+profile remains visible with its measured weight, but it has zero eligible
+sort/allocation weight and zero share. Approval makes that exact claim boundary
+eligible without changing its immutable measured ledger rows.
 
 ## Other signed operator actions
 
@@ -451,14 +456,18 @@ docker compose exec -T registry \
 ```
 
 Never parse, edit, or combine a cursor with another view/group/period. It is a
-registry-signed opaque value bound to the first page's immutable snapshot
-boundaries. CLI output is the same protocol JSON shape as HTTP.
+registry-signed opaque value bound to the first page's immutable ledger,
+operator-audit, and claim-review boundaries. To retain public DTO compatibility,
+the review index/hash remain internal to the cursor and are committed by
+`snapshot_id`. CLI output is the same protocol JSON shape as HTTP.
 
-Leaderboard SQL reads weights from immutable `ledger_weight_rows` and operator
-membership/profile state from the versioned direct network-state table, always
-at or before the signed audit boundary. No action semantics are projected from
-the audit log at query time. Integrity verification rejects missing, extra, or
-mismatched direct rows.
+Leaderboard SQL reads weights from immutable `ledger_weight_rows`,
+membership/profile state from the versioned direct network-state table, and
+approval from the immutable review chain, always at or before their captured
+boundaries. Claim action IDs are joined at the exact state-row claim boundary;
+no mutable current-status row and no action-stream projection participates in
+the query. Integrity verification rejects missing, extra, or mismatched direct
+rows.
 
 The six most recent complete UTC months determine measured weight. Founder
 contribution is fixed at 100,000 units and founder share is:

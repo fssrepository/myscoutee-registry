@@ -76,6 +76,7 @@ func TestLeaderboardPendingClaimKeepsMeasuredWeightButIsNotEligible(t *testing.T
 		"2026-06",
 		2,
 		2,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("read pending leaderboard totals: %v", err)
@@ -92,6 +93,7 @@ func TestLeaderboardPendingClaimKeepsMeasuredWeightButIsNotEligible(t *testing.T
 			ThroughPeriod:      "2026-06",
 			ThroughLedgerIndex: 2,
 			ThroughAuditIndex:  2,
+			ThroughReviewIndex: 0,
 			Limit:              10,
 		},
 	)
@@ -110,21 +112,61 @@ func TestLeaderboardPendingClaimKeepsMeasuredWeightButIsNotEligible(t *testing.T
 		t.Fatalf("pending leaderboard rows = %+v", rows)
 	}
 
-	if _, err := registryStore.db.Exec(`
-		UPDATE operator_claim_status
-		SET verification_state = 'approved',
-		    updated_at = '2026-07-28T00:00:03Z'
-		WHERE deployment_id = ?`,
+	insertLeaderboardApproval(
+		t,
+		registryStore,
+		pendingAction,
 		pendingDeployment,
-	); err != nil {
-		t.Fatalf("approve pending query status: %v", err)
+		pendingGroup,
+	)
+
+	frozenTotals, err := registryStore.LeaderboardTotals(
+		context.Background(),
+		"2026-01",
+		"2026-06",
+		2,
+		2,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("read frozen pre-approval leaderboard totals: %v", err)
 	}
+	if frozenTotals != totals {
+		t.Fatalf(
+			"approval changed frozen leaderboard totals: before=%+v after=%+v",
+			totals,
+			frozenTotals,
+		)
+	}
+	frozenRows, err := registryStore.LeaderboardRows(
+		context.Background(),
+		store.LeaderboardQuery{
+			View:               "claimed",
+			FromPeriod:         "2026-01",
+			ThroughPeriod:      "2026-06",
+			ThroughLedgerIndex: 2,
+			ThroughAuditIndex:  2,
+			ThroughReviewIndex: 0,
+			Limit:              10,
+		},
+	)
+	if err != nil {
+		t.Fatalf("read frozen pre-approval leaderboard rows: %v", err)
+	}
+	if len(frozenRows) != 2 ||
+		frozenRows[1].RowID != pendingGroup ||
+		frozenRows[1].ClaimState != protocol.OperatorClaimStatePendingReview ||
+		frozenRows[1].SortWeight != 0 {
+		t.Fatalf("approval changed frozen leaderboard rows: %+v", frozenRows)
+	}
+
 	totals, err = registryStore.LeaderboardTotals(
 		context.Background(),
 		"2026-01",
 		"2026-06",
 		2,
 		2,
+		1,
 	)
 	if err != nil {
 		t.Fatalf("read approved leaderboard totals: %v", err)
@@ -140,6 +182,7 @@ func TestLeaderboardPendingClaimKeepsMeasuredWeightButIsNotEligible(t *testing.T
 			ThroughPeriod:      "2026-06",
 			ThroughLedgerIndex: 2,
 			ThroughAuditIndex:  2,
+			ThroughReviewIndex: 1,
 			Limit:              10,
 		},
 	)
@@ -152,6 +195,71 @@ func TestLeaderboardPendingClaimKeepsMeasuredWeightButIsNotEligible(t *testing.T
 		rows[0].Weight != 600 ||
 		rows[0].SortWeight != 600 {
 		t.Fatalf("approved leaderboard rows = %+v", rows)
+	}
+}
+
+func insertLeaderboardApproval(
+	t *testing.T,
+	registryStore *Store,
+	actionID string,
+	deploymentID string,
+	groupID string,
+) {
+	t.Helper()
+	const (
+		reviewID   = "opr_leaderboard_pending"
+		reviewHash = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+		reviewedAt = "2026-07-28T00:00:03Z"
+	)
+	if _, err := registryStore.db.Exec(`
+		INSERT INTO operator_claim_reviews (
+			review_index,
+			review_id,
+			deployment_id,
+			claim_action_id,
+			group_id,
+			legal_name,
+			decision,
+			reviewer_id,
+			review_reference,
+			idempotency_key,
+			reviewed_at,
+			previous_review_hash,
+			review_hash,
+			registry_key_id,
+			signature
+		) VALUES (1, ?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?, ?, ?, ?, zeroblob(64))`,
+		reviewID,
+		deploymentID,
+		actionID,
+		groupID,
+		"Pending Cooperative",
+		"leaderboard-reviewer",
+		"case:leaderboard-pending",
+		"approve-leaderboard-pending",
+		reviewedAt,
+		protocol.OperatorClaimReviewZeroHash,
+		reviewHash,
+		"registry-key",
+	); err != nil {
+		t.Fatalf("insert leaderboard approval review: %v", err)
+	}
+	if _, err := registryStore.db.Exec(`
+		UPDATE operator_claim_status
+		SET verification_state = 'approved',
+		    review_id = ?,
+		    review_index = 1,
+		    review_hash = ?,
+		    approved_at = ?,
+		    updated_at = ?
+		WHERE deployment_id = ?`,
+		reviewID,
+		reviewHash,
+		reviewedAt,
+		reviewedAt,
+		deploymentID,
+	); err != nil {
+		t.Fatalf("update current leaderboard approval status: %v", err)
 	}
 }
 

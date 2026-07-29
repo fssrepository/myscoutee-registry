@@ -51,8 +51,10 @@ type leaderboardCursor struct {
 	ThroughPeriod      string `json:"through_period"`
 	ThroughLedgerIndex int64  `json:"through_ledger_index"`
 	ThroughAuditIndex  int64  `json:"through_audit_index"`
+	ThroughReviewIndex int64  `json:"through_review_index"`
 	LedgerHeadHash     string `json:"ledger_head_hash"`
 	AuditHeadHash      string `json:"audit_head_hash"`
+	ReviewHeadHash     string `json:"review_head_hash"`
 	CreatedAt          string `json:"created_at"`
 	AfterWeight        int64  `json:"after_weight"`
 	AfterID            string `json:"after_id"`
@@ -609,6 +611,7 @@ func (registry *Service) Leaderboard(
 		state.ThroughPeriod,
 		state.ThroughLedgerIndex,
 		state.ThroughAuditIndex,
+		state.ThroughReviewIndex,
 	)
 	if err != nil {
 		return protocol.LeaderboardPageDto{}, err
@@ -635,6 +638,7 @@ func (registry *Service) Leaderboard(
 			ThroughPeriod:      state.ThroughPeriod,
 			ThroughLedgerIndex: state.ThroughLedgerIndex,
 			ThroughAuditIndex:  state.ThroughAuditIndex,
+			ThroughReviewIndex: state.ThroughReviewIndex,
 			Limit:              pageLimit + 1,
 			AfterWeight:        state.AfterWeight,
 			AfterID:            state.AfterID,
@@ -732,6 +736,7 @@ func (registry *Service) LeaderboardDeployments(
 		state.ThroughPeriod,
 		state.ThroughLedgerIndex,
 		state.ThroughAuditIndex,
+		state.ThroughReviewIndex,
 	)
 	if err != nil {
 		return protocol.LeaderboardDeploymentPageDto{}, err
@@ -745,6 +750,7 @@ func (registry *Service) LeaderboardDeployments(
 			ThroughPeriod:      state.ThroughPeriod,
 			ThroughLedgerIndex: state.ThroughLedgerIndex,
 			ThroughAuditIndex:  state.ThroughAuditIndex,
+			ThroughReviewIndex: state.ThroughReviewIndex,
 			Limit:              pageLimit + 1,
 			AfterWeight:        state.AfterWeight,
 			AfterID:            state.AfterID,
@@ -853,8 +859,10 @@ func (registry *Service) leaderboardState(
 		throughPeriod,
 		strconv.FormatInt(boundary.LedgerIndex, 10),
 		strconv.FormatInt(boundary.AuditIndex, 10),
+		strconv.FormatInt(boundary.ReviewIndex, 10),
 		boundary.LedgerHash,
 		boundary.AuditHash,
+		boundary.ReviewHash,
 		createdAt,
 	}, "\x00")
 	snapshotDigest := strings.TrimPrefix(
@@ -871,8 +879,10 @@ func (registry *Service) leaderboardState(
 		ThroughPeriod:      throughPeriod,
 		ThroughLedgerIndex: boundary.LedgerIndex,
 		ThroughAuditIndex:  boundary.AuditIndex,
+		ThroughReviewIndex: boundary.ReviewIndex,
 		LedgerHeadHash:     boundary.LedgerHash,
 		AuditHeadHash:      boundary.AuditHash,
+		ReviewHeadHash:     boundary.ReviewHash,
 		CreatedAt:          createdAt,
 	}, false, nil
 }
@@ -1012,8 +1022,10 @@ func (registry *Service) decodeLeaderboardCursor(
 		!periodPattern.MatchString(cursor.ThroughPeriod) ||
 		!protocol.IsDigest(cursor.LedgerHeadHash) ||
 		!protocol.IsDigest(cursor.AuditHeadHash) ||
+		!protocol.IsDigest(cursor.ReviewHeadHash) ||
 		cursor.ThroughLedgerIndex < 0 ||
 		cursor.ThroughAuditIndex < 0 ||
+		cursor.ThroughReviewIndex < 0 ||
 		cursor.AfterWeight < 0 ||
 		cursor.AfterID == "" {
 		return leaderboardCursor{}, requestError("invalid_cursor", "cursor payload is invalid")

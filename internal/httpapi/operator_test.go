@@ -1331,6 +1331,143 @@ func TestLeaderboardUsesOnlyActiveCurrentClaimProfile(t *testing.T) {
 	}
 }
 
+func TestLeaderboardCursorPinsClaimReviewBoundary(t *testing.T) {
+	fixture := newOperatorAPIFixture(t)
+	alpha := fixture.registerDeployment(t, "review-cursor-alpha")
+	beta := fixture.registerDeployment(t, "review-cursor-beta")
+
+	claim := func(
+		deployment operatorDeployment,
+		name string,
+		suffix string,
+	) (protocol.OperatorActionRequest, protocol.OperatorActionResponse) {
+		t.Helper()
+		draft := operatorClaimRequest(name)
+		draft.Nonce = "nonce_review_cursor_" + suffix
+		draft.IdempotencyKey = "review_cursor_" + suffix
+		response := fixture.acceptOperatorAction(
+			t,
+			fixture.operatorAction(t, deployment, draft),
+			http.StatusCreated,
+		)
+		return draft, response
+	}
+	alphaDraft, alphaClaim := claim(
+		alpha,
+		"Review Cursor Alpha Cooperative",
+		"alpha",
+	)
+	betaDraft, betaClaim := claim(
+		beta,
+		"Review Cursor Beta Cooperative",
+		"beta",
+	)
+
+	firstPage := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=1",
+	)
+	if len(firstPage.Items) != 1 ||
+		firstPage.Items[0].ClaimState !=
+			protocol.OperatorClaimStatePendingReview ||
+		firstPage.NextCursor == "" {
+		t.Fatalf("pre-approval first page = %+v", firstPage)
+	}
+
+	targetDeployment := alpha
+	targetDraft := alphaDraft
+	targetClaim := alphaClaim
+	if firstPage.Items[0].GroupID == alphaClaim.Receipt.GroupID {
+		targetDeployment = beta
+		targetDraft = betaDraft
+		targetClaim = betaClaim
+	}
+	if _, err := fixture.runtime.Service.ApproveOperatorClaim(
+		context.Background(),
+		service.OperatorClaimApproval{
+			DeploymentID:    targetDeployment.id,
+			ClaimActionID:   targetClaim.Receipt.ActionID,
+			GroupID:         targetClaim.Receipt.GroupID,
+			LegalName:       targetDraft.LegalName,
+			ReviewerID:      "network-review-team",
+			ReviewReference: "case:review-cursor",
+			IdempotencyKey:  "approve_review_cursor",
+		},
+	); err != nil {
+		t.Fatalf("approve claim between leaderboard pages: %v", err)
+	}
+
+	secondPage := fixture.leaderboard(
+		t,
+		"view=claimed&limit=1&cursor="+
+			url.QueryEscape(firstPage.NextCursor),
+	)
+	if secondPage.Snapshot != firstPage.Snapshot ||
+		len(secondPage.Items) != 1 ||
+		secondPage.Items[0].GroupID != targetClaim.Receipt.GroupID ||
+		secondPage.Items[0].ClaimState !=
+			protocol.OperatorClaimStatePendingReview {
+		t.Fatalf("approval changed review-bounded cursor page: %+v", secondPage)
+	}
+
+	freshPage := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=10",
+	)
+	if freshPage.Snapshot.SnapshotID == firstPage.Snapshot.SnapshotID {
+		t.Fatalf("fresh approval boundary reused old snapshot: %+v", freshPage.Snapshot)
+	}
+	foundApproved := false
+	for _, item := range freshPage.Items {
+		if item.GroupID == targetClaim.Receipt.GroupID {
+			foundApproved =
+				item.ClaimState == protocol.OperatorClaimStateApproved
+		}
+	}
+	if !foundApproved {
+		t.Fatalf("fresh leaderboard did not expose approval: %+v", freshPage)
+	}
+
+	approvedFirstPage := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=1",
+	)
+	if len(approvedFirstPage.Items) != 1 ||
+		approvedFirstPage.Items[0].GroupID == targetClaim.Receipt.GroupID ||
+		approvedFirstPage.NextCursor == "" {
+		t.Fatalf("approved pre-deactivation first page = %+v", approvedFirstPage)
+	}
+	fixture.acceptOperatorAction(
+		t,
+		fixture.operatorAction(
+			t,
+			targetDeployment,
+			protocol.OperatorActionRequest{
+				Nonce:          "nonce_review_cursor_deactivate",
+				IdempotencyKey: "review_cursor_deactivate",
+				Action:         protocol.OperatorActionDeactivateDeployment,
+			},
+		),
+		http.StatusCreated,
+	)
+	historicalApprovedPage := fixture.leaderboard(
+		t,
+		"view=claimed&limit=1&cursor="+
+			url.QueryEscape(approvedFirstPage.NextCursor),
+	)
+	if historicalApprovedPage.Snapshot != approvedFirstPage.Snapshot ||
+		len(historicalApprovedPage.Items) != 1 ||
+		historicalApprovedPage.Items[0].GroupID !=
+			targetClaim.Receipt.GroupID ||
+		historicalApprovedPage.Items[0].ClaimState !=
+			protocol.OperatorClaimStateApproved {
+		t.Fatalf(
+			"deactivation changed frozen approved cursor page: %+v",
+			historicalApprovedPage,
+		)
+	}
+}
+
 func TestClientTokenApprovalCannotAuthorizePastIssue(t *testing.T) {
 	fixture := newOperatorAPIFixture(t)
 	issuer := fixture.registerDeployment(t, "clock-issuer")
