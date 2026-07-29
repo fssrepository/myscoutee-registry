@@ -195,6 +195,12 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 				(SELECT COUNT(*) FROM mau_batches) +
 				(SELECT COUNT(*) FROM revenue_batches) +
 				(SELECT COUNT(*) FROM revenue_query_rows) +
+				(SELECT COUNT(*) FROM settlements) +
+				(SELECT COUNT(*) FROM settlement_revenue_sources) +
+				(SELECT COUNT(*) FROM settlement_ttm_months) +
+				(SELECT COUNT(*) FROM settlement_weight_sources) +
+				(SELECT COUNT(*) FROM settlement_beneficiary_deployments) +
+				(SELECT COUNT(*) FROM settlement_allocations) +
 				(SELECT COUNT(*) FROM checkpoints) +
 			(SELECT COUNT(*) FROM operator_audit_events) +
 			(SELECT COUNT(*) FROM operator_action_nonces) +

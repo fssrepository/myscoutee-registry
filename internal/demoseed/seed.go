@@ -15,6 +15,7 @@ import (
 	"github.com/fssrepository/myscoutee-registry/internal/config"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 	"github.com/fssrepository/myscoutee-registry/internal/service"
+	"github.com/fssrepository/myscoutee-registry/internal/store"
 	"github.com/fssrepository/myscoutee-registry/internal/store/sqlite"
 )
 
@@ -204,6 +205,25 @@ func Seed(
 	); err != nil {
 		return Summary{}, err
 	}
+	if err := ensureDemoSettlement(
+		ctx,
+		runtime.Service,
+		cfg.RegistryScope,
+		deployments[0],
+		completionTime,
+	); err != nil {
+		return Summary{}, err
+	}
+	if err := runtime.Service.VerifyState(ctx); err != nil {
+		return Summary{}, fmt.Errorf(
+			"verify generated demo settlement: %w",
+			err,
+		)
+	}
+	head, err := runtime.Store.LedgerHead(ctx)
+	if err != nil {
+		return Summary{}, err
+	}
 
 	deploymentIDs := make([]string, 0, len(deployments))
 	for _, deployment := range deployments {
@@ -213,7 +233,7 @@ func Seed(
 		SeedVersion:   Version,
 		RegistryScope: cfg.RegistryScope,
 		DeploymentIDs: deploymentIDs,
-		LedgerEntries: expected.LedgerEntries,
+		LedgerEntries: head.EntryCount,
 		AlreadySeeded: false,
 	}, nil
 }
@@ -260,6 +280,17 @@ func RefreshQualifiedMAU(
 		return RefreshSummary{}, fmt.Errorf(
 			"demo QMAU refresh requires a completed baseline",
 		)
+	}
+	firstDeployment := demoDeployment(1)
+	firstDeployment.ID = deterministicID("dep_", 1)
+	if err := ensureDemoSettlement(
+		ctx,
+		runtime.Service,
+		cfg.RegistryScope,
+		firstDeployment,
+		now,
+	); err != nil {
+		return RefreshSummary{}, err
 	}
 
 	periods := sixCompleteMonths(now)
@@ -397,6 +428,90 @@ func seedLedger(
 				err,
 			)
 		}
+	}
+	return nil
+}
+
+// ensureDemoSettlement adds a small deterministic three-window revenue
+// history through ordinary signed deployment requests, then invokes the same
+// registry calculation used by an administrator. It is deliberately guarded
+// by the immutable settlement history, so a long-lived demo registry receives
+// the baseline once without creating a revision on every QMAU refresh.
+func ensureDemoSettlement(
+	ctx context.Context,
+	registry *service.Service,
+	registryScope string,
+	deployment seedDeployment,
+	now time.Time,
+) error {
+	history, err := registry.SettlementHistoryForAdmin(
+		ctx,
+		store.SettlementHistoryQuery{
+			Period:            "2026-06",
+			CurrencyCode:      "USD",
+			IncludeSuperseded: true,
+			Limit:             1,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("inspect demo settlement baseline: %w", err)
+	}
+	if len(history.Items) != 0 {
+		return nil
+	}
+
+	sources := []struct {
+		period          string
+		commissionBasis int64
+		paymentCount    int64
+	}{
+		{"2025-10-31", 90_000, 9},
+		{"2026-01-31", 120_000, 12},
+		{"2026-06-30", 180_000, 18},
+	}
+	for index, source := range sources {
+		summary, err := registry.RevenueSummary(
+			ctx,
+			source.period,
+			"USD",
+			deployment.ID,
+			"",
+		)
+		if err != nil {
+			return fmt.Errorf(
+				"inspect demo settlement revenue %s: %w",
+				source.period,
+				err,
+			)
+		}
+		if summary.ActiveBatchCount != 0 {
+			continue
+		}
+		request := settlementRevenueRequest(
+			deployment,
+			registryScope,
+			index+1,
+			source.period,
+			source.commissionBasis,
+			source.paymentCount,
+			now,
+		)
+		if _, err := registry.SubmitRevenueBatch(ctx, request); err != nil {
+			return fmt.Errorf(
+				"seed demo settlement revenue %s: %w",
+				source.period,
+				err,
+			)
+		}
+	}
+	calculated, err := registry.CalculateSettlement(ctx, "2026-06", "USD")
+	if err != nil {
+		return fmt.Errorf("calculate demo settlement: %w", err)
+	}
+	if calculated.Duplicate {
+		return fmt.Errorf(
+			"demo settlement baseline unexpectedly resolved as a duplicate",
+		)
 	}
 	return nil
 }
@@ -832,6 +947,72 @@ func revenueRequest(
 		RulesetVersion:            protocol.RevenueRulesetVersion,
 		CommissionRateBasisPoints: protocol.RevenueCommissionBasisPoints,
 		Currencies:                currencies,
+	}
+	request.PayloadHash = protocol.Digest(protocol.RevenuePayload(
+		request.Kind,
+		request.Period,
+		request.Revision,
+		request.SupersedesBatchID,
+		request.RulesetVersion,
+		request.CommissionRateBasisPoints,
+		request.Currencies,
+	))
+	request.Signature = protocol.EncodeSignature(ed25519.Sign(
+		deployment.PrivateKey,
+		protocol.CanonicalRequest(
+			http.MethodPost,
+			protocol.RevenueBatchPath,
+			request.ProtocolVersion,
+			request.RegistryScope,
+			request.DeploymentID,
+			request.Timestamp,
+			request.Nonce,
+			request.IdempotencyKey,
+			request.PayloadHash,
+		),
+	))
+	return request
+}
+
+func settlementRevenueRequest(
+	deployment seedDeployment,
+	registryScope string,
+	index int,
+	period string,
+	commissionBasisMinor int64,
+	paymentCount int64,
+	now time.Time,
+) protocol.RevenueBatchRequest {
+	request := protocol.RevenueBatchRequest{
+		ProtocolVersion: protocol.Version,
+		RegistryScope:   registryScope,
+		DeploymentID:    deployment.ID,
+		Timestamp:       now.UTC().Truncate(time.Second).Format(time.RFC3339),
+		Nonce: fmt.Sprintf(
+			"demo_settlement_revenue_nonce_%02d",
+			index,
+		),
+		IdempotencyKey: fmt.Sprintf(
+			"demo_settlement_revenue_%02d",
+			index,
+		),
+		Kind:                      protocol.RevenueKind,
+		Period:                    period,
+		Revision:                  1,
+		RulesetVersion:            protocol.RevenueRulesetVersion,
+		CommissionRateBasisPoints: protocol.RevenueCommissionBasisPoints,
+		Currencies: []protocol.RevenueCurrency{{
+			CurrencyCode:             "USD",
+			FractionDigits:           2,
+			CapturedMinor:            commissionBasisMinor,
+			RefundedMinor:            0,
+			NetMinor:                 commissionBasisMinor,
+			CommissionBasisMinor:     commissionBasisMinor,
+			EstimatedCommissionMinor: protocol.RevenueCommissionMinor(
+				commissionBasisMinor,
+			),
+			PaymentCount: paymentCount,
+		}},
 	}
 	request.PayloadHash = protocol.Digest(protocol.RevenuePayload(
 		request.Kind,

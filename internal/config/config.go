@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 )
 
 type Config struct {
@@ -17,6 +19,7 @@ type Config struct {
 	DemoSeedEnabled     bool
 	TimestampSkew       time.Duration
 	MaxRequestBodyBytes int64
+	ValuationMultiplierBasisPoints int64
 	CheckpointInterval  time.Duration
 	ShutdownTimeout     time.Duration
 	HealthcheckURL      string
@@ -32,6 +35,8 @@ func Load() (Config, error) {
 		DemoSeedEnabled:     false,
 		TimestampSkew:       5 * time.Minute,
 		MaxRequestBodyBytes: 64 * 1024,
+		ValuationMultiplierBasisPoints:
+			protocol.SettlementDefaultValuationMultiplierBasisPoints,
 		CheckpointInterval:  time.Minute,
 		ShutdownTimeout:     10 * time.Second,
 		HealthcheckURL:      envOrDefault("REGISTRY_HEALTHCHECK_URL", "http://127.0.0.1:8080/healthz"),
@@ -54,6 +59,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.MaxRequestBodyBytes, err = envInt64("REGISTRY_MAX_REQUEST_BODY_BYTES", cfg.MaxRequestBodyBytes); err != nil {
+		return Config{}, err
+	}
+	if cfg.ValuationMultiplierBasisPoints, err = envInt64(
+		"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS",
+		cfg.ValuationMultiplierBasisPoints,
+	); err != nil {
 		return Config{}, err
 	}
 
@@ -80,6 +91,14 @@ func Load() (Config, error) {
 	}
 	if cfg.MaxRequestBodyBytes < 1024 || cfg.MaxRequestBodyBytes > 1024*1024 {
 		return Config{}, fmt.Errorf("REGISTRY_MAX_REQUEST_BODY_BYTES must be between 1024 and 1048576")
+	}
+	if cfg.ValuationMultiplierBasisPoints <
+		protocol.SettlementMinimumBaseValuationMultiplierBasisPoints ||
+		cfg.ValuationMultiplierBasisPoints >
+			protocol.SettlementMaximumBaseValuationMultiplierBasisPoints {
+		return Config{}, fmt.Errorf(
+			"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS must be between 1000 and 100000",
+		)
 	}
 	return cfg, nil
 }

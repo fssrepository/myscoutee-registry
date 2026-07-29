@@ -175,11 +175,12 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			rows.Close()
 			return fmt.Errorf("scan ledger weight row: %w", err)
 		}
-		if entryType == protocol.RevenueEntryType {
+		if entryType == protocol.RevenueEntryType ||
+			entryType == protocol.SettlementEntryType {
 			if rowLedgerIndex.Valid {
 				rows.Close()
 				return fmt.Errorf(
-					"revenue ledger entry %d unexpectedly has a weight row",
+					"non-MAU ledger entry %d unexpectedly has a weight row",
 					ledgerIndex,
 				)
 			}

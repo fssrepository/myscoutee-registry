@@ -10,6 +10,9 @@ provides:
   weighting;
 - signed daily aggregate revenue snapshots and immutable correction revisions,
   separated by ISO-4217 settlement currency;
+- registry-calculated, signed monthly technical settlement revisions with
+  exact share-weighted 5% pool allocation, a bounded non-binding TTM
+  valuation, and immutable pinned revenue/claim/eligibility source rows;
 - a SQLite WAL append-only, hash-linked ledger;
 - a compact RFC 9162 Certificate-Transparency-style Merkle Tree Hash index,
   signed tree heads, and inclusion/consistency proofs without duplicating
@@ -35,13 +38,15 @@ provides:
   checkpoint finalization.
 
 It does not implement global-human deduplication, Firebase migration,
-beneficial-owner due diligence, document upload/review, or a legal
-share-weighted revenue payout. The QMAU protocol accepts a deployment-signed
-aggregate and an opaque evidence commitment; the deployment remains
-responsible for applying `qmau-v1` to its private activity evidence. Company
-claims have an explicit local administrative approval boundary. Revenue
-receipts and the technical 5% network-pool calculation do not establish a
-legal payout or valuation.
+beneficial-owner due diligence, document upload/review, payment execution, or
+a final legal payout. The QMAU protocol accepts a deployment-signed aggregate
+and an opaque evidence commitment; the deployment remains responsible for
+applying `qmau-v1` to its private activity evidence. Company claims have an
+explicit local administrative approval boundary. The monthly technical
+settlement deterministically allocates the calculated 5% pool and publishes a
+clearly non-binding indicative value, but neither amount is a contractual
+entitlement, invoice, transfer instruction, buyer decision, or final legal
+allocation.
 
 The registration/ledger wire and signature format is
 [`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
@@ -49,6 +54,9 @@ client-code grouping, audit, and leaderboard behavior is documented in
 [`docs/operator-network-v1.md`](docs/operator-network-v1.md).
 The registry-local anomaly/case audit rail is documented in
 [`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
+The technical monthly allocation, bounded valuation, private signed history
+query, and revision rules are documented in
+[`docs/settlements-v1.md`](docs/settlements-v1.md).
 The local publication boundary, signed pull feed, and independently
 package-signed update manifest are documented in
 [`docs/announcements-v1.md`](docs/announcements-v1.md).
@@ -63,7 +71,9 @@ database, signing key, identity, and persistent volume. `start-demo` is
 explicitly gated by `REGISTRY_DEMO_SEED=true`, a `demo:` scope, and database
 and key filenames containing `demo`. It seeds through the normal signed
 registration, QMAU, revenue, claim, review, client-code, and announcement
-service paths. It does not insert domain fixtures with SQL.
+service paths. It then submits three deterministic signed revenue sources
+covering the valuation windows and invokes the ordinary registry settlement
+calculator. It does not insert domain fixtures with SQL.
 
 ```bash
 cp .env.example .env
@@ -82,13 +92,17 @@ The baseline has four genuine signed deployments, six complete QMAU months
 for each deployment, a two-deployment approved operator group created through
 a temporary client code, one pending claim, one unclaimed deployment, daily
 revenue, a completed-day checkpoint, two signed announcements, and a matching
-Merkle index. Seeding is resumable and idempotent after interruption. Once the
-baseline is marked complete, later interactive demo writes are preserved on
-restart. On each guarded `start-demo`, the service also appends only the
-missing QMAU snapshots needed to keep all four deterministic deployments
-populated through the latest six complete UTC months. Existing snapshots,
-claims, announcements, and interactive records are not re-created or read back
-through a browser database.
+Merkle index. It also has an immutable June 2026 USD settlement with non-zero
+earlier/prior/recent three-month averages, acceleration, a 5% allocation, and
+the non-binding TTM value. Seeding is resumable and idempotent after
+interruption. Once the baseline is marked complete, later interactive demo
+writes are preserved on restart. On each guarded `start-demo`, the service
+also appends only the missing QMAU snapshots needed to keep all four
+deterministic deployments populated through the latest six complete UTC
+months. An older completed demo volume receives the settlement once through
+the same signed service/calculation paths. Existing snapshots, claims,
+announcements, settlements, and interactive records are not re-created or
+read back through a browser database.
 
 A server-backed Explore workspace may run the same optimized image internally
 with no host port, `command: ["start-demo"]`, and its own demo volume. Browser
@@ -269,6 +283,7 @@ follow the signing-key lifecycle rules below.
 | `GET` | `/v1/mau/batches/{batch_id}/receipt` | Stored signed receipt |
 | `POST` | `/v1/revenue/batches` | `201` appended daily aggregate, `200` idempotent duplicate |
 | `GET` | `/v1/revenue/batches/{revbatch_id}/receipt` | Stored signed revenue receipt |
+| `POST` | `/v1/settlements/query` | Deployment-signed private history for that deployment's exact historical beneficiary memberships |
 | `GET` | `/v1/ledger/checkpoints/{YYYY-MM-DD}` | Completed UTC day checkpoint |
 | `GET` | `/v1/ledger/merkle/inclusion/{tree_size}/{ledger_index}` | Registry-signed RFC 9162-style inclusion proof |
 | `GET` | `/v1/ledger/merkle/consistency/{old_tree_size}/{new_tree_size}` | Registry-signed RFC 9162-style append-only consistency proof |
@@ -389,6 +404,17 @@ docker compose exec -T registry \
   --group-id opg_0123456789abcdef0123456789abcdef
 
 docker compose exec -T registry \
+  /registry calculate-settlement --period 2026-06 --currency EUR
+
+docker compose exec -T registry \
+  /registry settlements --period 2026-06 --currency EUR --limit 20
+
+docker compose exec -T registry \
+  /registry settlements \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --currency EUR --limit 20
+
+docker compose exec -T registry \
   /registry merkle-proof --ledger-index 1
 
 docker compose exec -T registry \
@@ -402,15 +428,24 @@ CLI access is the review authority; the registry signature binds what it
 recorded but is not a separate human signature. Cursors and
 `next_deployment_id` values are opaque and must be copied unchanged.
 
-The revenue command reads the already-initialized local registry database and
-never publishes a query endpoint. It reports one settlement currency at a
-time, performs no foreign-exchange conversion, and keeps
+The raw revenue command reads the already-initialized local registry database
+and has no HTTP query endpoint. It reports one settlement currency at a time,
+performs no foreign-exchange conversion, and keeps
 `network_commission_pool_minor` equal to the global day/currency pool even
 when the other totals are filtered to one deployment or current claimed
 group. `reported_estimated_commission_minor` remains the sum of the selected
 rows' individually rounded estimates. The global pool is
 `floor(SUM(active commission_basis_minor) * 500 / 10000)`; it is not the sum
 of per-deployment rounded estimates and is not a payout instruction.
+
+`calculate-settlement` accepts only a completed UTC month and one currency. It
+appends a new immutable signed revision only when the pinned source boundary
+or exact source fingerprint changed. `settlements` is a local administrative
+query and can expose every beneficiary amount. The HTTP settlement-history
+endpoint is different: it requires a current registered deployment signature
+and returns only allocations whose immutable historical membership table
+contains that deployment. It is not linked from the public leaderboard and
+does not expose raw revenue rows.
 
 The complete list/show/approve flow, JSON examples, signed status receipt,
 cursor examples, exit codes, privacy/backup handling, and stale-target
@@ -475,6 +510,7 @@ identifier field. The full signed format and pagination semantics are in
 | `REGISTRY_DEMO_SEED` | `false` | Guard accepted only with the explicit `start-demo` command |
 | `REGISTRY_TIMESTAMP_SKEW` | `5m` | Signed-request clock window |
 | `REGISTRY_MAX_REQUEST_BODY_BYTES` | `65536` | JSON body limit, 1 KiB-1 MiB |
+| `REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS` | `30000` | Technical TTM valuation base multiplier (30000 = 3x), bounded to 1000-100000 |
 | `REGISTRY_CHECKPOINT_INTERVAL` | `1m` | Background completed-day finalization |
 | `REGISTRY_SHUTDOWN_TIMEOUT` | `10s` | HTTP graceful shutdown timeout |
 | `REGISTRY_HEALTHCHECK_URL` | `http://127.0.0.1:8080/healthz` | Binary healthcheck target |
@@ -567,14 +603,17 @@ Generated inclusion and consistency proofs are also verified in-process before
 they are returned. Ordinary append and read paths therefore do not rebuild the
 ledger, receipt, operator, announcement, or Merkle history.
 
-`ledger_weight_rows` and `revenue_query_rows` are not asynchronous projections
-and are never repaired from the ledger. An installation-test acceptance writes
+`ledger_weight_rows`, `revenue_query_rows`, and the settlement source/allocation
+tables are not asynchronous projections and are never repaired from the
+ledger. An installation-test acceptance writes
 its authoritative ledger entry and exact weight row in one transaction. A
 revenue acceptance writes its ledger entry, immutable source batch, and one
 exact query row per reported currency in one transaction; an explicit
 zero-revenue snapshot deliberately has no currency row. If any required insert
 fails, none is committed. Integrity verification rejects missing, extra, or
-mismatched source/query rows.
+mismatched source/query rows. A settlement calculation likewise appends its
+registry-owned ledger/Merkle event and every pinned revenue, TTM, weight,
+historical membership, and exact allocation row in one transaction.
 
 On every restart and health check, the registry validates:
 
@@ -587,6 +626,10 @@ On every restart and health check, the registry validates:
 - revenue request proofs, canonical currency aggregates, immutable revision
   links, direct query rows, ledger entries, receipts, nonces, idempotency
   links, and bounded active aggregates;
+- settlement revision links, registry receipt signatures, all four pinned
+  source-chain boundaries, exact revenue/TTM/weight/historical-membership
+  inputs, valuation arithmetic, largest-remainder conservation, allocation
+  hashes, direct rows, and the registry-owned ledger/Merkle append;
 - ledger index/hash/timestamp monotonicity, every compact Merkle internal node,
   and the full checkpoint chain;
 - exact ledger/query-row cardinality and field equality;

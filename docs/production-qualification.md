@@ -33,6 +33,10 @@ This gate proves, with Java-generated Ed25519 requests consumed by the Go HTTP
 server:
 
 - accepted QMAU and revenue delivery with Go-signed receipts;
+- a Java-submitted structured claim, registry-manager CLI approval, ordinary
+  completed-month calculation, and a Java-signed private
+  `/v1/settlements/query` whose Go-signed response is fully verified and mapped
+  by the production Java settlement service;
 - response loss after Go acceptance, durable Java outbox recovery through a
   new service/repository instance, and exact idempotent retry;
 - the same recovery after restarting the Go process over its original SQLite
@@ -57,7 +61,8 @@ in-process HTTP servers. The relevant release gates cover:
 - restart/key-loss guards and a closed-database backup/restore drill that
   preserves the seeded registry scope, key ID, ledger head, and Merkle proof;
 - guarded demo seeding, interrupted-seed resume, exact idempotent restart,
-  latest-six-complete-month QMAU refresh, and rejection of disabled,
+  latest-six-complete-month QMAU refresh, deterministic signed revenue sources
+  plus ordinary settlement calculation, and rejection of disabled,
   production-scope, non-demo-path, or populated-unmarked seed targets.
 
 The Docker release image must additionally be inspected as:

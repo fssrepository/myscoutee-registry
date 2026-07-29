@@ -54,7 +54,12 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 	if err := sqliteStore.verifyAppendOnlyTriggerBoundary(ctx); err != nil {
 		return err
 	}
-	if err := sqliteStore.verifyLedgerBoundary(ctx, registryScope); err != nil {
+	if err := sqliteStore.verifyLedgerBoundary(
+		ctx,
+		registryPublicKey,
+		registryKeyID,
+		registryScope,
+	); err != nil {
 		return err
 	}
 	if err := sqliteStore.verifyCheckpointBoundary(
@@ -103,7 +108,7 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 	ctx context.Context,
 ) error {
-	const expectedTriggers = 40
+	const expectedTriggers = 52
 	var triggerCount int
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -144,6 +149,18 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'revenue_batches_no_delete',
 			'revenue_query_rows_no_update',
 			'revenue_query_rows_no_delete',
+			'settlements_no_update',
+			'settlements_no_delete',
+			'settlement_revenue_sources_no_update',
+			'settlement_revenue_sources_no_delete',
+			'settlement_ttm_months_no_update',
+			'settlement_ttm_months_no_delete',
+			'settlement_weight_sources_no_update',
+			'settlement_weight_sources_no_delete',
+			'settlement_beneficiary_deployments_no_update',
+			'settlement_beneficiary_deployments_no_delete',
+			'settlement_allocations_no_update',
+			'settlement_allocations_no_delete',
 			'ledger_merkle_nodes_no_update',
 			'ledger_merkle_nodes_no_delete',
 			'registry_case_events_no_update',
@@ -194,6 +211,8 @@ func registryPublicKeyDER(publicKey ed25519.PublicKey) []byte {
 
 func (sqliteStore *Store) verifyLedgerBoundary(
 	ctx context.Context,
+	registryPublicKey ed25519.PublicKey,
+	registryKeyID string,
 	registryScope string,
 ) error {
 	rows, err := sqliteStore.db.QueryContext(ctx, `
@@ -264,7 +283,12 @@ func (sqliteStore *Store) verifyLedgerBoundary(
 			return inconsistentMessage("operational ledger boundary has invalid timestamp ordering")
 		}
 	}
-	if err := sqliteStore.verifyLedgerSourceBoundary(ctx, head); err != nil {
+	if err := sqliteStore.verifyLedgerSourceBoundary(
+		ctx,
+		head,
+		registryPublicKey,
+		registryKeyID,
+	); err != nil {
 		return err
 	}
 	if err := sqliteStore.verifyMerkleAppendBoundary(ctx, head); err != nil {
@@ -297,6 +321,8 @@ func scanOperationalLedgerEntry(scanner rowScanner) (protocol.LedgerEntry, error
 func (sqliteStore *Store) verifyLedgerSourceBoundary(
 	ctx context.Context,
 	entry protocol.LedgerEntry,
+	registryPublicKey ed25519.PublicKey,
+	registryKeyID string,
 ) error {
 	switch entry.EntryType {
 	case protocol.InstallationEntryType, protocol.QualifiedMAUEntryType:
@@ -383,6 +409,34 @@ func (sqliteStore *Store) verifyLedgerSourceBoundary(
 			entry.QualifiedMAUCount != 0 {
 			return inconsistentMessage("operational revenue source does not match the ledger head")
 		}
+	case protocol.SettlementEntryType:
+		record, err := settlementByIDQuery(ctx, sqliteStore.db, entry.BatchID)
+		if err != nil {
+			return inconsistent("read operational settlement source boundary", err)
+		}
+		receipt := settlementReceipt(
+			record,
+			entry.RegistryScope,
+		)
+		if record.LedgerEntry != entry ||
+			record.RegistryKeyID != registryKeyID ||
+			record.SourceFingerprint != settlementSourceFingerprint(record) ||
+			record.AllocationHash != protocol.SettlementAllocationHash(
+				record.Allocations,
+			) ||
+			record.SettlementHash != protocol.Digest(
+				protocol.SettlementHashMessage(receipt),
+			) ||
+			!ed25519.Verify(
+				registryPublicKey,
+				protocol.SettlementReceiptMessage(receipt),
+				record.ReceiptSignature,
+			) {
+			return inconsistentMessage(
+				"operational settlement source does not match the ledger head",
+			)
+		}
+		return nil
 	default:
 		return inconsistentMessage(
 			"operational ledger head has unsupported entry type %q",
