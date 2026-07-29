@@ -551,7 +551,7 @@ func testIndependentRegistryIsolation(t *testing.T, binary string) {
 		beta.baseURL+protocol.BatchPath,
 		alphaBatch,
 	)
-	assertAPIError(t, foreignBatch, http.StatusBadRequest, "registry_scope_mismatch")
+	assertAPIError(t, foreignBatch, http.StatusNotFound, "deployment_not_found")
 	foreignReceipt := request(
 		t,
 		http.MethodGet,
@@ -844,18 +844,23 @@ func acceptingAddress(logs string) (string, bool) {
 
 func registryEnvironment(files registryFiles, address string) []string {
 	replacements := map[string]string{
-		"REGISTRY_LISTEN_ADDR":                       address,
-		"REGISTRY_SCOPE":                             files.scope,
-		"REGISTRY_DATABASE_PATH":                     files.databasePath,
-		"REGISTRY_SIGNING_KEY_PATH":                  files.keyPath,
-		"REGISTRY_GENERATE_SIGNING_KEY":              "true",
-		"REGISTRY_DEMO_SEED":                         "false",
-		"REGISTRY_TIMESTAMP_SKEW":                    "5m",
-		"REGISTRY_MAX_REQUEST_BODY_BYTES":            "65536",
-		"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS": "30000",
-		"REGISTRY_CHECKPOINT_INTERVAL":               "1h",
-		"REGISTRY_SHUTDOWN_TIMEOUT":                  "3s",
-		"REGISTRY_HEALTHCHECK_URL":                   "http://" + address + "/healthz",
+		"REGISTRY_LISTEN_ADDR":          address,
+		"REGISTRY_SCOPE":                files.scope,
+		"REGISTRY_DATABASE_PATH":        files.databasePath,
+		"REGISTRY_SIGNING_KEY_PATH":     files.keyPath,
+		"REGISTRY_GENERATE_SIGNING_KEY": "true",
+		"REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH": filepath.Join(
+			files.directory,
+			"registry-global-identity-voprf-keyring.json",
+		),
+		"REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY": "true",
+		"REGISTRY_DEMO_SEED":                          "false",
+		"REGISTRY_TIMESTAMP_SKEW":                     "5m",
+		"REGISTRY_MAX_REQUEST_BODY_BYTES":             "65536",
+		"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS":  "30000",
+		"REGISTRY_CHECKPOINT_INTERVAL":                "1h",
+		"REGISTRY_SHUTDOWN_TIMEOUT":                   "3s",
+		"REGISTRY_HEALTHCHECK_URL":                    "http://" + address + "/healthz",
 	}
 	environment := make([]string, 0, len(os.Environ())+len(replacements))
 	for _, entry := range os.Environ() {
