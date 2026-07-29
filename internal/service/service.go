@@ -576,6 +576,14 @@ func (registry *Service) verifyOperationalState(ctx context.Context) error {
 	); err != nil {
 		return fmt.Errorf("verify registry case boundary: %w", err)
 	}
+	if err := registry.store.VerifyExitReviews(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify exit review boundary: %w", err)
+	}
 	after, err := registry.store.OperationalRevision(ctx)
 	if err != nil {
 		return err
@@ -645,6 +653,14 @@ func (registry *Service) verifyCompleteOperationalState(ctx context.Context) err
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify registry cases: %w", err)
+	}
+	if err := registry.store.VerifyExitReviews(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify exit reviews: %w", err)
 	}
 	return nil
 }

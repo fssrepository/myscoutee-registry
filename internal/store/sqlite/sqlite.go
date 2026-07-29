@@ -208,6 +208,11 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM announcements) +
 			(SELECT COUNT(*) FROM registry_case_events) +
 			(SELECT COUNT(*) FROM registry_cases) +
+			(SELECT COUNT(*) FROM exit_reviews) +
+			(SELECT COUNT(*) FROM exit_review_deployments) +
+			(SELECT COUNT(*) FROM exit_review_settlement_boundaries) +
+			(SELECT COUNT(*) FROM exit_review_events) +
+			(SELECT COUNT(*) FROM exit_review_state_rows) +
 			(SELECT COUNT(*) FROM demo_seed_metadata)`).Scan(&recordCount); err != nil {
 		return false, fmt.Errorf("inspect registry persistent state: %w", err)
 	}

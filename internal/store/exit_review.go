@@ -44,6 +44,8 @@ type ExitReviewDeployment struct {
 	MemberOrder       int64
 	DeploymentID     string
 	ClaimActionID    string
+	ClaimState       string
+	EligibilityState string
 	ClaimAuditIndex  int64
 	ClaimAuditHash   string
 	ReviewIndex      int64
@@ -133,6 +135,7 @@ type ExitReview struct {
 	LatestEvidenceHash  string
 	LatestReasonCode    string
 	LatestAcceptedAt    string
+	Events              []ExitReviewEvent
 }
 
 type ExitReviewQuery struct {

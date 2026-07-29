@@ -108,7 +108,7 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 	ctx context.Context,
 ) error {
-	const expectedTriggers = 52
+	const expectedTriggers = 62
 	var triggerCount int
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -165,6 +165,16 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'ledger_merkle_nodes_no_delete',
 			'registry_case_events_no_update',
 			'registry_case_events_no_delete',
+			'exit_reviews_no_update',
+			'exit_reviews_no_delete',
+			'exit_review_deployments_no_update',
+			'exit_review_deployments_no_delete',
+			'exit_review_settlement_boundaries_no_update',
+			'exit_review_settlement_boundaries_no_delete',
+			'exit_review_events_no_update',
+			'exit_review_events_no_delete',
+			'exit_review_state_rows_no_update',
+			'exit_review_state_rows_no_delete',
 			'demo_seed_metadata_guard_update',
 			'demo_seed_metadata_no_delete'
 		  )`).Scan(&triggerCount); err != nil {

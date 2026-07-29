@@ -29,6 +29,8 @@ type ExitReviewDeployment struct {
 	MemberOrder     int64  `json:"member_order"`
 	DeploymentID   string `json:"deployment_id"`
 	ClaimActionID  string `json:"claim_action_id"`
+	ClaimState     string `json:"claim_state"`
+	EligibilityState string `json:"eligibility_state"`
 	ClaimAuditIndex int64  `json:"claim_audit_index"`
 	ClaimAuditHash string `json:"claim_audit_hash"`
 	ReviewIndex    int64  `json:"review_index"`
@@ -120,6 +122,7 @@ type ExitReview struct {
 	LatestEvidenceHash string          `json:"latest_evidence_hash"`
 	LatestReasonCode  string           `json:"latest_reason_code,omitempty"`
 	LatestAcceptedAt  string           `json:"latest_accepted_at"`
+	Events            []ExitReviewEvent `json:"events,omitempty"`
 }
 
 type ExitReviewMutationResult struct {
@@ -144,6 +147,8 @@ func ExitReviewMembershipHash(members []ExitReviewDeployment) string {
 			strconv.FormatInt(member.MemberOrder, 10),
 			member.DeploymentID,
 			member.ClaimActionID,
+			member.ClaimState,
+			member.EligibilityState,
 			strconv.FormatInt(member.ClaimAuditIndex, 10),
 			member.ClaimAuditHash,
 			strconv.FormatInt(member.ReviewIndex, 10),

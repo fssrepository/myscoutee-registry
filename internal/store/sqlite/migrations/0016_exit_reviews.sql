@@ -44,7 +44,18 @@ CREATE TABLE exit_review_deployments (
     member_order       INTEGER NOT NULL CHECK (member_order >= 0),
     deployment_id      TEXT NOT NULL REFERENCES deployments(deployment_id),
     claim_action_id    TEXT NOT NULL
-        REFERENCES operator_claim_verification_submissions(claim_action_id),
+        REFERENCES operator_audit_events(action_id),
+    claim_state        TEXT NOT NULL CHECK (claim_state IN (
+        'claimed',
+        'pending-review',
+        'approved',
+        'rejected'
+    )),
+    eligibility_state  TEXT NOT NULL CHECK (eligibility_state IN (
+        'active',
+        'suspended',
+        'inactive'
+    )),
     claim_audit_index  INTEGER NOT NULL CHECK (claim_audit_index > 0),
     claim_audit_hash   TEXT NOT NULL,
     review_index       INTEGER NOT NULL CHECK (review_index >= 0),

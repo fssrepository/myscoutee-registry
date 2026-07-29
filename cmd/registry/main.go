@@ -58,6 +58,18 @@ func main() {
 		err = runFlagRegistryCase(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "clear-registry-case" {
 		err = runClearRegistryCase(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "freeze-exit-review" {
+		err = runFreezeExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "decide-exit-review" {
+		err = runDecideExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "dispute-exit-review" {
+		err = runDisputeExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "withdraw-exit-review" {
+		err = runWithdrawExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-exit-reviews" {
+		err = runListExitReviews(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-exit-review" {
+		err = runShowExitReview(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "leaderboard" {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
@@ -76,7 +88,7 @@ func main() {
 		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|leaderboard|revenue|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
+			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|leaderboard|revenue|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {

@@ -34,6 +34,9 @@ provides:
 - a registry-signed, hash-linked anomaly/case rail with same-transaction query
   rows and local flag/clear/list/show CLI commands that never mutate claim or
   accounting state;
+- a registry-local signed exit-review rail that freezes completed checkpoint,
+  Merkle, claim/group membership, eligibility, and settlement boundaries, with
+  effective-dated buyer/auditor decisions and no payment or ownership transfer;
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
@@ -54,6 +57,9 @@ client-code grouping, audit, and leaderboard behavior is documented in
 [`docs/operator-network-v1.md`](docs/operator-network-v1.md).
 The registry-local anomaly/case audit rail is documented in
 [`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
+The registry-local record-date freeze and buyer/auditor decision rail is
+documented in
+[`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
 The technical monthly allocation, bounded valuation, private signed history
 query, and revision rules are documented in
 [`docs/settlements-v1.md`](docs/settlements-v1.md).
@@ -498,6 +504,47 @@ addresses, document contents, or secrets in `reference`, `actor-id`, or any
 identifier field. The full signed format and pagination semantics are in
 [`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
 
+## Exit-review CLI
+
+An exit record freezes one exact approved claim generation at a completed UTC
+checkpoint. It commits to the ledger/Merkle prefix, operator audit/review/
+eligibility heads, every eligible deployment in the exact group, and the
+latest settlement revision for each period/currency at that boundary.
+Subsequent `verify`, `reject`, `dispute`, and `withdraw` decisions are
+effective-dated, registry-signed immutable events.
+
+```bash
+docker compose exec -T registry \
+  /registry freeze-exit-review \
+  --record-date 2026-07-28 \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --actor-role auditor \
+  --actor-id exit-audit-team \
+  --reference exit:2026-0042 \
+  --idempotency-key freeze-exit-2026-0042
+
+docker compose exec -T registry \
+  /registry list-exit-reviews --status review-pending --limit 50
+
+docker compose exec -T registry \
+  /registry decide-exit-review \
+  --review-id exr_0123456789abcdef0123456789abcdef \
+  --decision verify \
+  --effective-date 2026-07-29 \
+  --actor-role buyer \
+  --actor-id acquisition-audit \
+  --reference acquisition:2026-0042 \
+  --idempotency-key verify-exit-2026-0042
+```
+
+This rail neither transfers ownership nor executes or authorizes a payment.
+Only bounded non-personal actor/reference fields and SHA-256 evidence
+commitments are stored. Full command, transition, pagination, privacy, and
+verification rules are in
+[`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
+
 ## Configuration
 
 | Environment variable | Default | Meaning |
@@ -639,6 +686,9 @@ On every restart and health check, the registry validates:
   eligibility, and versioned operator-network query rows;
 - the announcement hash chain, normalized nested-content hashes, publication
   idempotency hashes, registry signatures, and stored canonical JSON.
+- frozen exit-review checkpoint/Merkle/operator/settlement boundaries, exact
+  historical group membership, global and per-review signed event chains,
+  transition rules, and one same-transaction query row per event.
 
 Registration, MAU/revenue batch, operator-action, announcement-publication,
 and signed read-model operations fail closed when their operational integrity
