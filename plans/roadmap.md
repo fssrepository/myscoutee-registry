@@ -27,9 +27,12 @@ service.
 9. The registry may publish signed update metadata, but it never performs an
    unattended deployment upgrade. A local operator must inspect and explicitly
    approve every installation.
-10. A registry URL is a route, not a deployment identity. Moving one parent
-    service to another domain preserves the deployment key, code, idempotency
-    state, receipts, and pinned parent signing identity.
+10. A bound registry URL is never rewritten in place. Moving to any other
+    endpoint, including a new domain for the same signed registry identity,
+    first requires signed central deactivation. That withdraws the claim; Java
+    archives the old code, idempotency state, and receipts, clears the active
+    binding, and preserves only the deployment key pair for a fresh explicit
+    registration.
 11. Each independently governed parent/accounting scope is a separate
     cryptographic and operational domain. A deployment selects one parent
     directly; neither registration, raw accounting traffic, identity data, nor
@@ -176,12 +179,14 @@ Deliverables:
   enforcement, certificate/key pin diagnostics, connection testing, and a
   deliberate
   insecure-local-development exception;
-- route-change diagnostics that distinguish the same pinned parent registry
-  behind a new domain from a genuinely different parent/signing identity;
-- safe manual retry for transient failures and an explicit, warned
-  re-enrollment flow when moving to a genuinely different registry identity;
-- deployment-domain changes that preserve the deployment key, code, receipts,
-  and registry identity without requiring re-registration;
+- route-change diagnostics that explain whether the candidate endpoint exposes
+  the same signed identity or a different one, without treating either case as
+  permission to rewrite an active binding;
+- safe manual retry for transient failures and an explicit, warned disconnect
+  followed by fresh registration when moving to any other endpoint;
+- signed deactivation withdraws the current claim, and Java privately archives
+  the old deployment code, receipts, and idempotency state while preserving the
+  node key pair; no history is copied into the new registry;
 - connection status, last successful receipt, pending outbox count, key ID,
   deployment code, protocol version, and safe retry controls;
 - audit trail for operator setting changes;
@@ -294,6 +299,14 @@ Deliverables:
 - provisional leaderboard presentation: a claimed operator name may appear
   before human validation, but claim verification, grouping status, audit
   status, and any later exit-eligibility status remain visibly distinct;
+- pending-review claims appear as yellow leaderboard rows and are excluded from
+  approved-share allocation; the row shows an `Under review` badge instead of
+  an approved percentage. The separate large workspace action still keeps
+  `Claim share` as its primary label and changes only its secondary status to
+  `Under review`;
+- claim, registration, deactivation, and client-code responses return targeted
+  leaderboard mutations so the local signal store can insert, remove, or
+  reorder cached rows without invalidating the complete cursor-paginated list;
 - strict separation of deployment identities, claim histories, MAU receipts,
   ledger entries, weight calculations, and revenue allocations inside a
   grouping; raw users and identities are never merged by default, and any
@@ -331,8 +344,9 @@ Deliverables:
 - all branding, provider, Firebase, forum/community, registry-route, and update
   preferences exposed through the authenticated local operator workspace
   rather than requiring routine server-file edits;
-- operator logo/icon upload, safe image validation, home label, product name,
-  contact links, and landing copy;
+- operator logo/icon upload, safe image validation, product name, contact links,
+  and theme selection; non-configurable landing copy remains localized product
+  content rather than a hidden branding field;
 - immutable default assets plus reversible operator overrides;
 - provider catalog and server-side encrypted payment credentials;
 - provider capability/status checks and explicit test/live modes;
@@ -343,6 +357,9 @@ Deliverables:
 - masked secret rotation and audit events;
 - external forum/community configuration, initially Discord or Discourse links
   and feeds instead of a custom forum;
+- community-provider links stored by the deployment, with optional demo
+  Discord/Discourse records and a valid empty production catalog; the registry
+  supplies signed announcements rather than owning deployment link settings;
 - operator help links and central documentation cached locally so temporary
   registry unavailability does not remove help.
 

@@ -24,9 +24,21 @@ Each deployment has:
 - potentially its own Firebase project;
 - potentially, later, a different authentication provider;
 - its own application database and user data;
-- a deployment identity registered with the central accounting service.
+- an optional deployment identity, created and registered only after an
+  authenticated operator explicitly selects and confirms a signed registry.
 
-The installer should be able to create a deployment key pair. The private key remains on the deployment server. The public key is registered centrally.
+The installer does not contact a registry and does not create a deployment key
+pair. In the local operator UI, registry inspection is read-only. After the
+authenticated operator confirms the selected registry's signed identity, the
+Java backend creates the deployment key pair, keeps the private key on the
+deployment server, and registers only the public key over HTTPS.
+
+An active registry endpoint is not edited in place. To use any other endpoint,
+even one presenting the same signed registry identity at a new domain, the
+operator first requests signed central deactivation. Deactivation withdraws
+the claim; Java archives the old deployment code, receipts, and idempotency
+state, clears the active binding, preserves the node key pair, and then allows
+a fresh explicit registration. No claim or ledger history is copied.
 
 Suggested deployment identifier:
 
@@ -437,15 +449,19 @@ When working on this project:
 
 ## 16. Recommended first implementation milestone
 
-Build only the deployment registration and signed batch-receipt path:
+Build only the operator-confirmed deployment registration and signed
+batch-receipt path:
 
-1. Generate an Ed25519 key pair during installation.
-2. Register the public key and receive a `deployment_id`.
-3. Submit a signed, idempotent test MAU batch.
-4. Validate the signature and replay protection centrally.
-5. Append the accepted batch to a hash-linked ledger.
-6. Return a centrally signed receipt.
-7. Generate a signed daily checkpoint.
-8. Add tests for signature failure, replay, duplicate batch, and ledger-chain verification.
+1. Install without registry traffic or node-identity creation.
+2. Let the authenticated operator inspect and confirm a signed registry
+   identity in the local UI.
+3. Have the Java backend generate an Ed25519 key pair after that confirmation.
+4. Register the public key and receive a `deployment_id`.
+5. Submit a signed, idempotent test MAU batch.
+6. Validate the signature and replay protection centrally.
+7. Append the accepted batch to a hash-linked ledger.
+8. Return a centrally signed receipt.
+9. Generate a signed daily checkpoint.
+10. Add tests for signature failure, replay, duplicate batch, and ledger-chain verification.
 
 Do not implement cross-project account merging or global human deduplication in this milestone.
