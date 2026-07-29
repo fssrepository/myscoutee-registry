@@ -25,14 +25,33 @@ sha256(GlobalIdentityCommitmentMessage(
 ))
 ```
 
-The registry receives that opaque `sha256:` commitment. It cannot reverse the
-input and the HTTP schema has no raw-identifier field. Linking is explicit and
-requires a separate opaque consent-evidence commitment.
+The registry receives that opaque `sha256:` commitment. During an honest VOPRF
+evaluation the blinded request does not reveal the input, and the HTTP schema
+has no raw-identifier field. Linking is explicit and requires a separate
+opaque consent-evidence commitment.
 
 The public `global_identity_events` chain contains only aggregate counts and a
 commitment to the restricted same-transaction direct rows. The alias, link,
 consent, and presence tables are access-restricted direct query tables.
 Neither public nor direct storage contains the raw identifier.
+
+### Threat-model limit
+
+This v1 design is privacy-enhancing, not anonymous PSI. A single registry
+operator controls the VOPRF secret and can read the restricted commitment
+tables. A malicious or compromised operator holding both can evaluate a
+dictionary of likely low-entropy identifiers (for example known email
+addresses) offline and compare the derived commitments. TLS, request blinding,
+domain separation, rate limiting, encryption at rest, and the absence of raw
+identifiers do not remove that key-holder attack.
+
+Accordingly, access to the VOPRF keyring and restricted tables must be
+separated, least-privileged, audited, and backed up as sensitive material.
+Deployments must obtain user consent and must not describe this protocol as
+full anonymity. A stronger future boundary can use a threshold OPRF or a
+separately governed/HSM-backed evaluation service so no single registry
+operator holds both capabilities. That more complex machinery is deliberately
+not part of v1.
 
 QMAU not covered by a link remains counted as unlinked QMAU. For a period:
 
@@ -45,6 +64,12 @@ Aggregate MAU alone cannot prove person-level overlap. Therefore a presence
 batch is required for exact cross-deployment deduplication. It must match an
 already accepted signed `monthly-qmau` deployment/period/revision and cannot
 change that deployment's QMAU count.
+
+The deduplicated snapshot is a network-total measurement only. It does not
+redistribute a duplicate person's activity or weight between deployments,
+change any deployment's QMAU/leaderboard share, or decide a payout. Identity
+uniqueness evidence and deployment activity/weight evidence remain separate
+auditable inputs.
 
 ## Canonical request rule
 
@@ -287,6 +312,12 @@ count, then each commitment.
 The response contains `protocol_version`, `registry_scope`, `batch_id`,
 `deployment_id`, `period`, `revision`, `linked_count`, `unlinked_count`, the
 public signed `event`, the `snapshot` below, and `duplicate`.
+
+New link, correction, and presence writes must use the active VOPRF key
+version. Retired versions remain evaluable for explicit rotation correction.
+An exact idempotent retry of a mutation or presence batch accepted before a
+rotation returns its original receipt even though its key version is now
+retired; rotation cannot turn a committed success into an ambiguous failure.
 
 ## Aggregate query
 

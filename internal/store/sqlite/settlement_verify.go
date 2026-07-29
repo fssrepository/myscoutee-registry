@@ -276,6 +276,14 @@ func (sqliteStore *Store) verifySettlementRecordTx(
 	if err != nil {
 		return err
 	}
+	transferHead, err := ownershipTransferEventHeadAt(
+		ctx,
+		tx,
+		record.AcceptedAt,
+	)
+	if err != nil {
+		return err
+	}
 	expectedWeights, expectedMembers, measuredWeight, err :=
 		settlementWeightSourcesTx(
 			ctx,
@@ -283,11 +291,13 @@ func (sqliteStore *Store) verifySettlementRecordTx(
 			periodStart.AddDate(0, -5, 0).Format("2006-01"),
 			record.Period,
 			store.LeaderboardBoundary{
-				LedgerIndex:      record.ThroughLedgerIndex,
-				AuditIndex:       record.ThroughAuditIndex,
-				ReviewIndex:      record.ThroughReviewIndex,
-				EligibilityIndex: record.ThroughEligibilityIndex,
+				LedgerIndex:        record.ThroughLedgerIndex,
+				AuditIndex:         record.ThroughAuditIndex,
+				ReviewIndex:        record.ThroughReviewIndex,
+				EligibilityIndex:   record.ThroughEligibilityIndex,
+				TransferEventIndex: transferHead.EventIndex,
 			},
+			record.AcceptedAt[:len("2006-01-02")],
 		)
 	if err != nil {
 		return err

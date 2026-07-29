@@ -90,24 +90,24 @@ const exitReviewStateSelect = `
 	FROM exit_review_state_rows`
 
 type exitReviewState struct {
-	EventIndex         int64
-	EventHash          string
-	ReviewID           string
-	Status             string
-	RecordDate         string
-	TargetDeploymentID string
-	ClaimActionID      string
-	GroupID            string
-	LegalName          string
-	RecordHash         string
-	LatestAction       string
+	EventIndex          int64
+	EventHash           string
+	ReviewID            string
+	Status              string
+	RecordDate          string
+	TargetDeploymentID  string
+	ClaimActionID       string
+	GroupID             string
+	LegalName           string
+	RecordHash          string
+	LatestAction        string
 	LatestEffectiveDate string
-	LatestActorRole    string
-	LatestActorID      string
-	LatestReference    string
-	LatestEvidenceHash string
-	LatestReasonCode   string
-	LatestAcceptedAt   string
+	LatestActorRole     string
+	LatestActorID       string
+	LatestReference     string
+	LatestEvidenceHash  string
+	LatestReasonCode    string
+	LatestAcceptedAt    string
 }
 
 type exitReviewQueryer interface {
@@ -186,23 +186,23 @@ func (sqliteStore *Store) FreezeExitReview(
 	}
 
 	event := store.ExitReviewEvent{
-		EventIndex:             head.EventIndex + 1,
-		EventID:                input.CandidateEventID,
-		ReviewID:               record.ReviewID,
-		Action:                 protocol.ExitReviewActionFreeze,
-		ResultingStatus:        protocol.ExitReviewStatusPending,
-		EffectiveDate:          record.RecordDate,
-		ActorRole:              input.ActorRole,
-		ActorID:                input.ActorID,
-		Reference:              input.Reference,
-		EvidenceHash:           input.EvidenceHash,
-		IdempotencyKey:         input.IdempotencyKey,
-		RecordHash:             record.RecordHash,
-		AcceptedAt:             input.AcceptedAt,
-		PreviousEventHash:      head.EventHash,
+		EventIndex:              head.EventIndex + 1,
+		EventID:                 input.CandidateEventID,
+		ReviewID:                record.ReviewID,
+		Action:                  protocol.ExitReviewActionFreeze,
+		ResultingStatus:         protocol.ExitReviewStatusPending,
+		EffectiveDate:           record.RecordDate,
+		ActorRole:               input.ActorRole,
+		ActorID:                 input.ActorID,
+		Reference:               input.Reference,
+		EvidenceHash:            input.EvidenceHash,
+		IdempotencyKey:          input.IdempotencyKey,
+		RecordHash:              record.RecordHash,
+		AcceptedAt:              input.AcceptedAt,
+		PreviousEventHash:       head.EventHash,
 		PreviousReviewEventHash: protocol.ExitReviewZeroHash,
-		RegistryScope:          input.RegistryScope,
-		RegistryKeyID:          input.RegistryKeyID,
+		RegistryScope:           input.RegistryScope,
+		RegistryKeyID:           input.RegistryKeyID,
 	}
 	event.PayloadHash = protocol.Digest(
 		protocol.ExitReviewEventPayloadMessage(exitReviewProtocolEvent(event)),
@@ -295,25 +295,25 @@ func (sqliteStore *Store) AppendExitReviewEvent(
 	}
 
 	event := store.ExitReviewEvent{
-		EventIndex:             head.EventIndex + 1,
-		EventID:                input.CandidateEventID,
-		ReviewID:               input.ReviewID,
-		Action:                 input.Action,
-		ResultingStatus:        input.ResultingStatus,
-		EffectiveDate:          input.EffectiveDate,
-		ActorRole:              input.ActorRole,
-		ActorID:                input.ActorID,
-		Reference:              input.Reference,
-		EvidenceHash:           input.EvidenceHash,
-		ReasonCode:             input.ReasonCode,
-		IdempotencyKey:         input.IdempotencyKey,
-		PayloadHash:            input.PayloadHash,
-		RecordHash:             current.Record.RecordHash,
-		AcceptedAt:             input.AcceptedAt,
-		PreviousEventHash:      head.EventHash,
+		EventIndex:              head.EventIndex + 1,
+		EventID:                 input.CandidateEventID,
+		ReviewID:                input.ReviewID,
+		Action:                  input.Action,
+		ResultingStatus:         input.ResultingStatus,
+		EffectiveDate:           input.EffectiveDate,
+		ActorRole:               input.ActorRole,
+		ActorID:                 input.ActorID,
+		Reference:               input.Reference,
+		EvidenceHash:            input.EvidenceHash,
+		ReasonCode:              input.ReasonCode,
+		IdempotencyKey:          input.IdempotencyKey,
+		PayloadHash:             input.PayloadHash,
+		RecordHash:              current.Record.RecordHash,
+		AcceptedAt:              input.AcceptedAt,
+		PreviousEventHash:       head.EventHash,
 		PreviousReviewEventHash: current.LatestEventHash,
-		RegistryScope:          input.RegistryScope,
-		RegistryKeyID:          input.RegistryKeyID,
+		RegistryScope:           input.RegistryScope,
+		RegistryKeyID:           input.RegistryKeyID,
 	}
 	expectedPayloadHash := protocol.Digest(
 		protocol.ExitReviewEventPayloadMessage(exitReviewProtocolEvent(event)),
@@ -489,6 +489,14 @@ func freezeExitReviewRecordTx(
 	if err != nil {
 		return store.ExitReviewRecord{}, err
 	}
+	transferHead, err := ownershipTransferEventHeadAt(
+		ctx,
+		tx,
+		day.AddDate(0, 0, 1).Add(-time.Second).UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return store.ExitReviewRecord{}, err
+	}
 	members, legalName, err := exitReviewMembersAtBoundaryTx(
 		ctx,
 		tx,
@@ -496,6 +504,7 @@ func freezeExitReviewRecordTx(
 		auditIndex,
 		reviewIndex,
 		eligibilityIndex,
+		transferHead.EventIndex,
 	)
 	if err != nil {
 		return store.ExitReviewRecord{}, err
@@ -553,8 +562,8 @@ func freezeExitReviewRecordTx(
 		FrozenAt:      input.AcceptedAt,
 		RegistryScope: input.RegistryScope,
 		RegistryKeyID: input.RegistryKeyID,
-		Deployments:  members,
-		Settlements:  settlements,
+		Deployments:   members,
+		Settlements:   settlements,
 	}
 	record.RecordHash = protocol.Digest(
 		protocol.ExitReviewRecordHashMessage(exitReviewProtocolRecord(record)),
@@ -569,6 +578,7 @@ func exitReviewMembersAtBoundaryTx(
 	auditIndex int64,
 	reviewIndex int64,
 	eligibilityIndex int64,
+	transferEventIndex int64,
 ) ([]store.ExitReviewDeployment, string, error) {
 	var legalName string
 	if err := tx.QueryRowContext(ctx, `
@@ -604,6 +614,8 @@ func exitReviewMembersAtBoundaryTx(
 		int64(0),
 		reviewIndex,
 		eligibilityIndex,
+		transferEventIndex,
+		input.RecordDate,
 		"",
 		"",
 		input.GroupID,
@@ -613,11 +625,11 @@ func exitReviewMembersAtBoundaryTx(
 	}
 	defer rows.Close()
 	type membership struct {
-		deploymentID string
-		claimActionID string
-		claimState string
+		deploymentID     string
+		claimActionID    string
+		claimState       string
 		eligibilityState string
-		eligible bool
+		eligible         bool
 	}
 	raw := make([]membership, 0)
 	targetFound := false
@@ -651,13 +663,13 @@ func exitReviewMembersAtBoundaryTx(
 	members := make([]store.ExitReviewDeployment, 0, len(raw))
 	for index, rawMember := range raw {
 		member := store.ExitReviewDeployment{
-			MemberOrder:    int64(index),
-			DeploymentID:  rawMember.deploymentID,
-			ClaimActionID: rawMember.claimActionID,
-			ClaimState: rawMember.claimState,
+			MemberOrder:      int64(index),
+			DeploymentID:     rawMember.deploymentID,
+			ClaimActionID:    rawMember.claimActionID,
+			ClaimState:       rawMember.claimState,
 			EligibilityState: rawMember.eligibilityState,
-			ReviewHash:    protocol.OperatorClaimReviewZeroHash,
-			EligibilityHash: protocol.OperatorClaimEligibilityZeroHash,
+			ReviewHash:       protocol.OperatorClaimReviewZeroHash,
+			EligibilityHash:  protocol.OperatorClaimEligibilityZeroHash,
 		}
 		if err := tx.QueryRowContext(ctx, `
 			SELECT audit_index, audit_hash
@@ -1414,7 +1426,7 @@ func exitReviewProtocolMembers(
 	result := make([]protocol.ExitReviewDeployment, 0, len(items))
 	for _, item := range items {
 		result = append(result, protocol.ExitReviewDeployment{
-			MemberOrder:       item.MemberOrder,
+			MemberOrder:      item.MemberOrder,
 			DeploymentID:     item.DeploymentID,
 			ClaimActionID:    item.ClaimActionID,
 			ClaimState:       item.ClaimState,

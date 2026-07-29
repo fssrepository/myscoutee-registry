@@ -32,6 +32,8 @@ type GlobalIdentityEvaluationInput struct {
 	ResponseHash      string
 	EvaluatedAt       string
 	ReceiptSignature []byte
+	RateWindowStart  string
+	RateLimit         int64
 }
 
 type GlobalIdentityEvaluationRecord struct {
@@ -52,6 +54,7 @@ type GlobalIdentityMutationInput struct {
 	CandidateGlobalIdentityID string
 	LinkID                    string
 	KeyVersion                int64
+	RequiredActiveKeyVersion  int64
 	Suite                     string
 	NetworkIdentityCommitment string
 	ConsentVersion            string
@@ -108,44 +111,65 @@ type GlobalIdentityLink struct {
 }
 
 type GlobalIdentityPresenceInput struct {
-	DeploymentID      string
-	IdempotencyKey    string
-	Nonce             string
-	RequestTimestamp string
-	RequestHash      string
-	RequestSignature []byte
-	PayloadHash       string
-	CandidateEventID  string
-	CandidateBatchID  string
-	Period            string
-	Revision          int64
-	SupersedesBatchID string
-	ReportedQMAUCount int64
-	KeyVersion        int64
-	Suite             string
-	Commitments       []string
-	PrivateEventHash  string
-	AcceptedAt        string
-	RegistryScope     string
-	RegistryKeyID     string
+	DeploymentID             string
+	IdempotencyKey           string
+	Nonce                    string
+	RequestTimestamp        string
+	RequestHash             string
+	RequestSignature        []byte
+	PayloadHash              string
+	CandidateEventID         string
+	CandidateBatchID         string
+	SubmissionID             string
+	Period                   string
+	Revision                 int64
+	SupersedesBatchID        string
+	ReportedQMAUCount        int64
+	KeyVersion               int64
+	RequiredActiveKeyVersion int64
+	Suite                    string
+	ChunkIndex               int64
+	ChunkCount               int64
+	TotalCommitmentCount     int64
+	CommitmentSetHash        string
+	Commitments              []string
+	PrivateEventHash         string
+	AcceptedAt               string
+	RegistryScope            string
+	RegistryKeyID            string
 }
 
 type GlobalIdentityPresenceRecord struct {
-	BatchID               string
-	DeploymentID          string
-	Period                string
-	Revision              int64
-	SupersedesBatchID     string
-	ReportedQMAUCount     int64
+	BatchID                string
+	SubmissionID           string
+	DeploymentID           string
+	RegistryScope          string
+	Period                 string
+	Revision               int64
+	ChunkIndex             int64
+	ChunkCount             int64
+	ReceivedChunkCount     int64
+	TotalCommitmentCount   int64
+	CommitmentSetHash      string
+	Complete               bool
+	SupersedesBatchID      string
+	ReportedQMAUCount      int64
 	LinkedObservationCount int64
-	UnlinkedQMAUCount     int64
-	PayloadHash           string
-	AcceptedAt            string
-	Event                 GlobalIdentityEvent
-	Snapshot              protocol.GlobalIdentityDedupSnapshot
+	UnlinkedQMAUCount      int64
+	RequestHash            string
+	PayloadHash            string
+	AcceptedAt             string
+	RegistryKeyID          string
+	ReceiptHash            string
+	ReceiptSignature       []byte
+	Event                  GlobalIdentityEvent
+	Snapshot               protocol.GlobalIdentityDedupSnapshot
 }
 
 type GlobalIdentityEventSigner func(GlobalIdentityEvent) ([]byte, error)
+type GlobalIdentityPresenceReceiptSigner func(
+	protocol.GlobalIdentityPresenceBatchResponse,
+) ([]byte, error)
 
 type GlobalIdentityStore interface {
 	EnsureGlobalIdentityVOPRFKeys(
@@ -179,6 +203,7 @@ type GlobalIdentityStore interface {
 		context.Context,
 		GlobalIdentityPresenceInput,
 		GlobalIdentityEventSigner,
+		GlobalIdentityPresenceReceiptSigner,
 	) (GlobalIdentityPresenceRecord, bool, error)
 	GlobalIdentityDedupSnapshot(
 		context.Context,

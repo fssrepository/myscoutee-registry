@@ -18,6 +18,7 @@ import (
 const (
 	globalIdentityEvaluationLimitPerMinute = int64(60)
 	globalIdentityMaximumCommitments       = 4096
+	globalIdentityMaximumPresenceChunks    = int64(4096)
 )
 
 func (registry *Service) CurrentGlobalIdentityVOPRFKey(
@@ -29,6 +30,10 @@ func (registry *Service) CurrentGlobalIdentityVOPRFKey(
 				"global_identity_unavailable",
 				"privacy-preserving global identity service is unavailable",
 			)
+	}
+	if err := registry.verifyOperationalState(ctx); err != nil {
+		return protocol.GlobalIdentityVOPRFKey{},
+			registryIntegrityRequestError(err)
 	}
 	key := registry.globalIdentityKeys.ActivePublicKey()
 	response := protocol.GlobalIdentityVOPRFKey{
@@ -99,6 +104,10 @@ func (registry *Service) EvaluateGlobalIdentity(
 				"privacy-preserving global identity service is unavailable",
 			)
 	}
+	if err := registry.verifyOperationalState(ctx); err != nil {
+		return protocol.GlobalIdentityEvaluationResponse{},
+			registryIntegrityRequestError(err)
+	}
 
 	existing, lookupErr := registry.store.GlobalIdentityEvaluationByIdempotency(
 		ctx,
@@ -114,10 +123,6 @@ func (registry *Service) EvaluateGlobalIdentity(
 	}
 	if !errors.Is(lookupErr, store.ErrNotFound) {
 		return protocol.GlobalIdentityEvaluationResponse{}, lookupErr
-	}
-	if err := registry.verifyOperationalState(ctx); err != nil {
-		return protocol.GlobalIdentityEvaluationResponse{},
-			registryIntegrityRequestError(err)
 	}
 	since := registry.canonicalNow().
 		Add(-time.Minute).
@@ -197,6 +202,8 @@ func (registry *Service) EvaluateGlobalIdentity(
 			ResponseHash:      responseHash,
 			EvaluatedAt:       evaluatedAt,
 			ReceiptSignature: receipt,
+			RateWindowStart:  since,
+			RateLimit:        globalIdentityEvaluationLimitPerMinute,
 		},
 	)
 	if err != nil {
@@ -230,7 +237,7 @@ func (registry *Service) LinkGlobalIdentity(
 		request.KeyVersion,
 		request.Suite,
 		request.NetworkIdentityCommitment,
-		true,
+		false,
 	); err != nil {
 		return protocol.GlobalIdentityMutationResponse{}, err
 	}
@@ -268,6 +275,8 @@ func (registry *Service) LinkGlobalIdentity(
 			RequestSignature:          signature,
 			PayloadHash:               request.PayloadHash,
 			KeyVersion:                request.KeyVersion,
+			RequiredActiveKeyVersion: registry.globalIdentityKeys.
+				ActivePublicKey().Version,
 			Suite:                     request.Suite,
 			NetworkIdentityCommitment: request.NetworkIdentityCommitment,
 			ConsentVersion:            request.ConsentVersion,
@@ -340,7 +349,7 @@ func (registry *Service) ApplyGlobalIdentityLinkAction(
 			request.ReplacementKeyVersion,
 			request.ReplacementSuite,
 			request.ReplacementCommitment,
-			true,
+			false,
 		); err != nil {
 			return protocol.GlobalIdentityMutationResponse{}, err
 		}
@@ -360,6 +369,8 @@ func (registry *Service) ApplyGlobalIdentityLinkAction(
 			return protocol.GlobalIdentityMutationResponse{}, err
 		}
 		input.KeyVersion = request.ReplacementKeyVersion
+		input.RequiredActiveKeyVersion = registry.globalIdentityKeys.
+			ActivePublicKey().Version
 		input.Suite = request.ReplacementSuite
 		input.NetworkIdentityCommitment = request.ReplacementCommitment
 		input.ConsentVersion = request.ConsentVersion
@@ -401,11 +412,28 @@ func (registry *Service) SubmitGlobalIdentityPresenceBatch(
 		request.Revision < 1 ||
 		request.ReportedQMAUCount < 0 ||
 		len(request.Commitments) > globalIdentityMaximumCommitments ||
-		int64(len(request.Commitments)) > request.ReportedQMAUCount {
+		!globalIdentityPresenceSubmissionIDPattern.MatchString(
+			request.SubmissionID,
+		) ||
+		request.ChunkCount < 1 ||
+		request.ChunkCount > globalIdentityMaximumPresenceChunks ||
+		request.ChunkIndex < 0 ||
+		request.ChunkIndex >= request.ChunkCount ||
+		request.TotalCommitmentCount < 0 ||
+		request.TotalCommitmentCount > request.ReportedQMAUCount ||
+		int64(len(request.Commitments)) > request.TotalCommitmentCount ||
+		request.ChunkCount > maxInt64(1, request.TotalCommitmentCount) ||
+		(request.TotalCommitmentCount == 0 &&
+			(request.ChunkCount != 1 ||
+				request.ChunkIndex != 0 ||
+				len(request.Commitments) != 0)) ||
+		(request.TotalCommitmentCount > 0 &&
+			len(request.Commitments) == 0) ||
+		!protocol.IsDigest(request.CommitmentSetHash) {
 		return protocol.GlobalIdentityPresenceBatchResponse{},
 			requestError(
 				"invalid_request",
-				"presence period, revision, counts, or commitment count is invalid",
+				"presence submission, period, revision, chunk manifest, or counts are invalid",
 			)
 	}
 	if request.SupersedesBatchID != "" &&
@@ -419,7 +447,7 @@ func (registry *Service) SubmitGlobalIdentityPresenceBatch(
 	if err := registry.validateGlobalIdentityKey(
 		request.KeyVersion,
 		request.Suite,
-		true,
+		false,
 	); err != nil {
 		return protocol.GlobalIdentityPresenceBatchResponse{}, err
 	}
@@ -456,19 +484,6 @@ func (registry *Service) SubmitGlobalIdentityPresenceBatch(
 		return protocol.GlobalIdentityPresenceBatchResponse{}, err
 	}
 	acceptedAt := registry.canonicalNow().Format(time.RFC3339)
-	privateHash := protocol.Digest(
-		protocol.GlobalIdentityPrivateEventCommitment(
-			protocol.GlobalIdentityActionPresence,
-			request.DeploymentID,
-			batchID,
-			request.KeyVersion,
-			"",
-			"",
-			"",
-			request.Period,
-			request.PayloadHash,
-		),
-	)
 	record, duplicate, err :=
 		registry.store.AcceptGlobalIdentityPresenceBatch(
 			ctx,
@@ -482,22 +497,30 @@ func (registry *Service) SubmitGlobalIdentityPresenceBatch(
 				PayloadHash:       request.PayloadHash,
 				CandidateEventID:  eventID,
 				CandidateBatchID:  batchID,
+				SubmissionID:      request.SubmissionID,
 				Period:            request.Period,
 				Revision:          request.Revision,
 				SupersedesBatchID: request.SupersedesBatchID,
 				ReportedQMAUCount: request.ReportedQMAUCount,
 				KeyVersion:        request.KeyVersion,
+				RequiredActiveKeyVersion: registry.globalIdentityKeys.
+					ActivePublicKey().Version,
 				Suite:             request.Suite,
+				ChunkIndex:        request.ChunkIndex,
+				ChunkCount:        request.ChunkCount,
+				TotalCommitmentCount:
+					request.TotalCommitmentCount,
+				CommitmentSetHash: request.CommitmentSetHash,
 				Commitments: append(
 					[]string(nil),
 					request.Commitments...,
 				),
-				PrivateEventHash: privateHash,
 				AcceptedAt:       acceptedAt,
 				RegistryScope:    registry.registryScope,
 				RegistryKeyID:    registry.signingKey.KeyID(),
 			},
 			registry.signGlobalIdentityEvent,
+			registry.signGlobalIdentityPresenceReceipt,
 		)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -510,20 +533,10 @@ func (registry *Service) SubmitGlobalIdentityPresenceBatch(
 		return protocol.GlobalIdentityPresenceBatchResponse{},
 			mapStoreError(err)
 	}
-	record.Snapshot.RegistryScope = registry.registryScope
-	return protocol.GlobalIdentityPresenceBatchResponse{
-		ProtocolVersion: protocol.Version,
-		RegistryScope:   registry.registryScope,
-		BatchID:         record.BatchID,
-		DeploymentID:    record.DeploymentID,
-		Period:          record.Period,
-		Revision:        record.Revision,
-		LinkedCount:     record.LinkedObservationCount,
-		UnlinkedCount:   record.UnlinkedQMAUCount,
-		Event:           globalIdentityProtocolEvent(record.Event),
-		Snapshot:        record.Snapshot,
-		Duplicate:       duplicate,
-	}, nil
+	return registry.globalIdentityPresenceResponse(
+		record,
+		duplicate,
+	), nil
 }
 
 func (registry *Service) GlobalIdentityDedupSnapshot(
@@ -536,6 +549,10 @@ func (registry *Service) GlobalIdentityDedupSnapshot(
 				"invalid_request",
 				"period must be a UTC month in YYYY-MM",
 			)
+	}
+	if err := registry.verifyOperationalState(ctx); err != nil {
+		return protocol.GlobalIdentityDedupSnapshot{},
+			registryIntegrityRequestError(err)
 	}
 	snapshot, err := registry.store.GlobalIdentityDedupSnapshot(ctx, period)
 	if errors.Is(err, store.ErrNotFound) {
@@ -788,6 +805,55 @@ func (registry *Service) signGlobalIdentityEvent(
 	), nil
 }
 
+func (registry *Service) signGlobalIdentityPresenceReceipt(
+	response protocol.GlobalIdentityPresenceBatchResponse,
+) ([]byte, error) {
+	return registry.signingKey.Sign(
+		protocol.GlobalIdentityPresenceChunkReceiptMessage(response),
+	), nil
+}
+
+func (registry *Service) globalIdentityPresenceResponse(
+	record store.GlobalIdentityPresenceRecord,
+	duplicate bool,
+) protocol.GlobalIdentityPresenceBatchResponse {
+	response := protocol.GlobalIdentityPresenceBatchResponse{
+		ProtocolVersion:      protocol.Version,
+		RegistryScope:        registry.registryScope,
+		SubmissionID:         record.SubmissionID,
+		DeploymentID:         record.DeploymentID,
+		Period:               record.Period,
+		Revision:             record.Revision,
+		ChunkIndex:           record.ChunkIndex,
+		ChunkCount:           record.ChunkCount,
+		ReceivedChunkCount:   record.ReceivedChunkCount,
+		TotalCommitmentCount: record.TotalCommitmentCount,
+		CommitmentSetHash:    record.CommitmentSetHash,
+		Complete:             record.Complete,
+		BatchID:              record.BatchID,
+		LinkedCount:          record.LinkedObservationCount,
+		UnlinkedCount:        record.UnlinkedQMAUCount,
+		RequestHash:          record.RequestHash,
+		PayloadHash:          record.PayloadHash,
+		AcceptedAt:           record.AcceptedAt,
+		RegistryKeyID:        record.RegistryKeyID,
+		RegistryPublicKey:    registry.signingKey.EncodedPublicKey(),
+		ReceiptHash:          record.ReceiptHash,
+		ReceiptSignature: protocol.EncodeSignature(
+			record.ReceiptSignature,
+		),
+		Duplicate: duplicate,
+	}
+	if record.Complete {
+		event := globalIdentityProtocolEvent(record.Event)
+		snapshot := record.Snapshot
+		snapshot.RegistryScope = registry.registryScope
+		response.Event = &event
+		response.Snapshot = &snapshot
+	}
+	return response
+}
+
 func globalIdentityProtocolLink(
 	link store.GlobalIdentityLink,
 ) protocol.GlobalIdentityLink {
@@ -891,3 +957,13 @@ func firstNonEmpty(values ...string) string {
 }
 
 var globalIdentityLinkIDPattern = regexp.MustCompile(`^gil_[0-9a-f]{32}$`)
+var globalIdentityPresenceSubmissionIDPattern = regexp.MustCompile(
+	`^gipsub_[0-9a-f]{32}$`,
+)
+
+func maxInt64(left, right int64) int64 {
+	if left > right {
+		return left
+	}
+	return right
+}

@@ -213,6 +213,10 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM exit_review_settlement_boundaries) +
 			(SELECT COUNT(*) FROM exit_review_events) +
 			(SELECT COUNT(*) FROM exit_review_state_rows) +
+			(SELECT COUNT(*) FROM ownership_transfers) +
+			(SELECT COUNT(*) FROM ownership_transfer_events) +
+			(SELECT COUNT(*) FROM ownership_transfer_state_rows) +
+			(SELECT COUNT(*) FROM ownership_transfer_memberships) +
 			(SELECT COUNT(*) FROM global_identity_voprf_keys) +
 			(SELECT COUNT(*) FROM global_identity_evaluations) +
 			(SELECT COUNT(*) FROM global_identities) +

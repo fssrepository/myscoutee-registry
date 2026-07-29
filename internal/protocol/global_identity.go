@@ -169,35 +169,54 @@ type GlobalIdentityMutationResponse struct {
 // Commitments MUST be sorted bytewise and may repeat: repeated values represent
 // multiple locally counted accounts that collapse to one network identity.
 type GlobalIdentityPresenceBatchRequest struct {
-	ProtocolVersion   string   `json:"protocol_version"`
-	RegistryScope     string   `json:"registry_scope"`
-	DeploymentID      string   `json:"deployment_id"`
-	Timestamp         string   `json:"timestamp"`
-	Nonce             string   `json:"nonce"`
-	IdempotencyKey    string   `json:"idempotency_key"`
-	Period            string   `json:"period"`
-	Revision          int64    `json:"revision"`
-	SupersedesBatchID string   `json:"supersedes_batch_id,omitempty"`
-	ReportedQMAUCount int64    `json:"reported_qmau_count"`
-	KeyVersion        int64    `json:"key_version"`
-	Suite             string   `json:"suite"`
-	Commitments       []string `json:"network_identity_commitments"`
-	PayloadHash       string   `json:"payload_hash"`
-	Signature         string   `json:"signature"`
+	ProtocolVersion      string   `json:"protocol_version"`
+	RegistryScope        string   `json:"registry_scope"`
+	DeploymentID         string   `json:"deployment_id"`
+	Timestamp            string   `json:"timestamp"`
+	Nonce                string   `json:"nonce"`
+	IdempotencyKey       string   `json:"idempotency_key"`
+	SubmissionID         string   `json:"submission_id"`
+	Period               string   `json:"period"`
+	Revision             int64    `json:"revision"`
+	SupersedesBatchID    string   `json:"supersedes_batch_id,omitempty"`
+	ReportedQMAUCount    int64    `json:"reported_qmau_count"`
+	KeyVersion           int64    `json:"key_version"`
+	Suite                string   `json:"suite"`
+	ChunkIndex           int64    `json:"chunk_index"`
+	ChunkCount           int64    `json:"chunk_count"`
+	TotalCommitmentCount int64    `json:"total_commitment_count"`
+	CommitmentSetHash    string   `json:"commitment_set_hash"`
+	Commitments          []string `json:"network_identity_commitments"`
+	PayloadHash          string   `json:"payload_hash"`
+	Signature            string   `json:"signature"`
 }
 
 type GlobalIdentityPresenceBatchResponse struct {
-	ProtocolVersion  string                       `json:"protocol_version"`
-	RegistryScope    string                       `json:"registry_scope"`
-	BatchID          string                       `json:"batch_id"`
-	DeploymentID     string                       `json:"deployment_id"`
-	Period           string                       `json:"period"`
-	Revision         int64                        `json:"revision"`
-	LinkedCount      int64                        `json:"linked_count"`
-	UnlinkedCount    int64                        `json:"unlinked_count"`
-	Event            GlobalIdentityEvent          `json:"event"`
-	Snapshot         GlobalIdentityDedupSnapshot  `json:"snapshot"`
-	Duplicate        bool                         `json:"duplicate"`
+	ProtocolVersion      string                       `json:"protocol_version"`
+	RegistryScope        string                       `json:"registry_scope"`
+	SubmissionID         string                       `json:"submission_id"`
+	DeploymentID         string                       `json:"deployment_id"`
+	Period               string                       `json:"period"`
+	Revision             int64                        `json:"revision"`
+	ChunkIndex           int64                        `json:"chunk_index"`
+	ChunkCount           int64                        `json:"chunk_count"`
+	ReceivedChunkCount   int64                        `json:"received_chunk_count"`
+	TotalCommitmentCount int64                        `json:"total_commitment_count"`
+	CommitmentSetHash    string                       `json:"commitment_set_hash"`
+	Complete             bool                         `json:"complete"`
+	BatchID              string                       `json:"batch_id,omitempty"`
+	LinkedCount          int64                        `json:"linked_count"`
+	UnlinkedCount        int64                        `json:"unlinked_count"`
+	Event                *GlobalIdentityEvent         `json:"event,omitempty"`
+	Snapshot             *GlobalIdentityDedupSnapshot `json:"snapshot,omitempty"`
+	RequestHash          string                       `json:"request_hash"`
+	PayloadHash          string                       `json:"payload_hash"`
+	AcceptedAt           string                       `json:"accepted_at"`
+	RegistryKeyID        string                       `json:"registry_key_id"`
+	RegistryPublicKey    string                       `json:"registry_public_key"`
+	ReceiptHash          string                       `json:"receipt_hash"`
+	ReceiptSignature     string                       `json:"receipt_signature"`
+	Duplicate            bool                         `json:"duplicate"`
 }
 
 type GlobalIdentityDedupSnapshot struct {
@@ -336,17 +355,86 @@ func GlobalIdentityPresenceBatchPayload(
 	request GlobalIdentityPresenceBatchRequest,
 ) []byte {
 	fields := []string{
-		"myscoutee-registry-global-identity-presence-batch-v1",
+		"myscoutee-registry-global-identity-presence-chunk-v2",
+		request.SubmissionID,
 		request.Period,
 		strconv.FormatInt(request.Revision, 10),
 		request.SupersedesBatchID,
 		strconv.FormatInt(request.ReportedQMAUCount, 10),
 		strconv.FormatInt(request.KeyVersion, 10),
 		request.Suite,
+		strconv.FormatInt(request.ChunkIndex, 10),
+		strconv.FormatInt(request.ChunkCount, 10),
+		strconv.FormatInt(request.TotalCommitmentCount, 10),
+		request.CommitmentSetHash,
 		strconv.Itoa(len(request.Commitments)),
 	}
 	fields = append(fields, request.Commitments...)
 	return canonical(fields...)
+}
+
+func GlobalIdentityPresenceCommitmentSetMessage(
+	commitments []string,
+) []byte {
+	fields := []string{
+		"myscoutee-registry-global-identity-presence-set-v1",
+		strconv.Itoa(len(commitments)),
+	}
+	fields = append(fields, commitments...)
+	return canonical(fields...)
+}
+
+func GlobalIdentityLegacyPresenceBatchPayload(
+	period string,
+	revision int64,
+	supersedesBatchID string,
+	reportedQMAUCount int64,
+	keyVersion int64,
+	suite string,
+	commitments []string,
+) []byte {
+	fields := []string{
+		"myscoutee-registry-global-identity-presence-batch-v1",
+		period,
+		strconv.FormatInt(revision, 10),
+		supersedesBatchID,
+		strconv.FormatInt(reportedQMAUCount, 10),
+		strconv.FormatInt(keyVersion, 10),
+		suite,
+		strconv.Itoa(len(commitments)),
+	}
+	fields = append(fields, commitments...)
+	return canonical(fields...)
+}
+
+func GlobalIdentityPresenceChunkReceiptMessage(
+	response GlobalIdentityPresenceBatchResponse,
+) []byte {
+	eventHash := ""
+	if response.Event != nil {
+		eventHash = response.Event.EventHash
+	}
+	return canonical(
+		"myscoutee-registry-global-identity-presence-chunk-receipt-v2",
+		response.ProtocolVersion,
+		response.RegistryScope,
+		response.DeploymentID,
+		response.SubmissionID,
+		response.Period,
+		strconv.FormatInt(response.Revision, 10),
+		strconv.FormatInt(response.ChunkIndex, 10),
+		strconv.FormatInt(response.ChunkCount, 10),
+		strconv.FormatInt(response.ReceivedChunkCount, 10),
+		strconv.FormatInt(response.TotalCommitmentCount, 10),
+		response.CommitmentSetHash,
+		response.RequestHash,
+		response.PayloadHash,
+		response.AcceptedAt,
+		strconv.FormatBool(response.Complete),
+		response.BatchID,
+		eventHash,
+		response.RegistryKeyID,
+	)
 }
 
 func GlobalIdentityPrivateEventCommitment(

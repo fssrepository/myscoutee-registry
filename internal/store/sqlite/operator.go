@@ -114,6 +114,13 @@ func (sqliteStore *Store) AppendOperatorAction(
 	if err := ensureAcceptedAtNotBeforeHead(input.AcceptedAt, head.AcceptedAt); err != nil {
 		return store.OperatorAuditEvent{}, false, err
 	}
+	if err := ensureOperatorActionAfterOwnershipTransfer(
+		ctx,
+		tx,
+		input.AcceptedAt,
+	); err != nil {
+		return store.OperatorAuditEvent{}, false, err
+	}
 
 	event := store.OperatorAuditEvent{
 		AuditIndex:          head.AuditIndex + 1,

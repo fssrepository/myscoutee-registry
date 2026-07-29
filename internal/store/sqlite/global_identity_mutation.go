@@ -114,6 +114,13 @@ func (sqliteStore *Store) ApplyGlobalIdentityMutation(
 		return store.GlobalIdentityLink{}, store.GlobalIdentityEvent{}, false,
 			store.ErrDeploymentInactive
 	}
+	if (input.Action == protocol.GlobalIdentityActionLink ||
+		input.Action == protocol.GlobalIdentityActionCorrect) &&
+		(input.RequiredActiveKeyVersion < 1 ||
+			input.KeyVersion != input.RequiredActiveKeyVersion) {
+		return store.GlobalIdentityLink{}, store.GlobalIdentityEvent{}, false,
+			store.ErrGlobalIdentityKeyMismatch
+	}
 	if err := ensureAcceptedAtAfterRegistryCreation(
 		ctx,
 		tx,
@@ -330,6 +337,15 @@ func prepareGlobalIdentityCorrection(
 	); err != nil {
 		return store.GlobalIdentityLink{}, err
 	}
+	sourceGlobalID, err := globalIdentityAliasTx(
+		ctx,
+		tx,
+		link.KeyVersion,
+		link.NetworkIdentityCommitment,
+	)
+	if err != nil {
+		return store.GlobalIdentityLink{}, err
+	}
 	targetGlobalID, err := globalIdentityAliasTx(
 		ctx,
 		tx,
@@ -337,7 +353,7 @@ func prepareGlobalIdentityCorrection(
 		input.NetworkIdentityCommitment,
 	)
 	if errors.Is(err, store.ErrNotFound) {
-		targetGlobalID = link.GlobalIdentityID
+		targetGlobalID = sourceGlobalID
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO global_identity_aliases (
 				key_version,
@@ -356,13 +372,13 @@ func prepareGlobalIdentityCorrection(
 	} else if err != nil {
 		return store.GlobalIdentityLink{}, err
 	}
-	if targetGlobalID != link.GlobalIdentityID {
+	if targetGlobalID != sourceGlobalID {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE global_identity_aliases
 			SET global_identity_id = ?
 			WHERE global_identity_id = ?`,
 			targetGlobalID,
-			link.GlobalIdentityID,
+			sourceGlobalID,
 		); err != nil {
 			return store.GlobalIdentityLink{},
 				fmt.Errorf("merge global identity aliases: %w", err)

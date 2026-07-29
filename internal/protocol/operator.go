@@ -18,8 +18,8 @@ const (
 	OperatorActionDeactivateDeployment = "deactivate-deployment"
 	OperatorActionReactivateDeployment = "reactivate-deployment"
 
-	OperatorAuditZeroHash             = ZeroHash
-	OperatorClaimReviewZeroHash       = ZeroHash
+	OperatorAuditZeroHash            = ZeroHash
+	OperatorClaimReviewZeroHash      = ZeroHash
 	OperatorClaimEligibilityZeroHash = ZeroHash
 
 	OperatorClaimStateClaimed       = "claimed"
@@ -189,23 +189,23 @@ type OperatorClaimReviewListPage struct {
 }
 
 type OperatorClaimEligibilityReceipt struct {
-	EligibilityIndex         int64  `json:"eligibility_index"`
-	EligibilityID            string `json:"eligibility_id"`
-	DeploymentID             string `json:"deployment_id"`
-	ClaimActionID            string `json:"claim_action_id"`
-	GroupID                  string `json:"group_id"`
-	LegalName                string `json:"legal_name"`
-	Decision                 string `json:"decision"`
-	ActorID                  string `json:"actor_id"`
-	DecisionReference        string `json:"decision_reference"`
-	ReasonCode               string `json:"reason_code,omitempty"`
-	IdempotencyKey           string `json:"idempotency_key"`
-	DecidedAt                string `json:"decided_at"`
+	EligibilityIndex        int64  `json:"eligibility_index"`
+	EligibilityID           string `json:"eligibility_id"`
+	DeploymentID            string `json:"deployment_id"`
+	ClaimActionID           string `json:"claim_action_id"`
+	GroupID                 string `json:"group_id"`
+	LegalName               string `json:"legal_name"`
+	Decision                string `json:"decision"`
+	ActorID                 string `json:"actor_id"`
+	DecisionReference       string `json:"decision_reference"`
+	ReasonCode              string `json:"reason_code,omitempty"`
+	IdempotencyKey          string `json:"idempotency_key"`
+	DecidedAt               string `json:"decided_at"`
 	PreviousEligibilityHash string `json:"previous_eligibility_hash"`
-	EligibilityHash          string `json:"eligibility_hash"`
-	RegistryScope            string `json:"registry_scope"`
-	RegistryKeyID            string `json:"registry_key_id"`
-	Signature                string `json:"signature"`
+	EligibilityHash         string `json:"eligibility_hash"`
+	RegistryScope           string `json:"registry_scope"`
+	RegistryKeyID           string `json:"registry_key_id"`
+	Signature               string `json:"signature"`
 }
 
 type OperatorClaimEligibilityResult struct {
@@ -222,10 +222,12 @@ type LeaderboardSnapshotDto struct {
 	ThroughAuditIndex         int64  `json:"through_audit_index"`
 	ThroughReviewIndex        int64  `json:"through_review_index"`
 	ThroughEligibilityIndex   int64  `json:"through_eligibility_index"`
+	ThroughTransferEventIndex int64  `json:"through_transfer_event_index"`
 	LedgerHeadHash            string `json:"ledger_head_hash"`
 	AuditHeadHash             string `json:"audit_head_hash"`
 	ReviewHeadHash            string `json:"review_head_hash"`
 	EligibilityHeadHash       string `json:"eligibility_head_hash"`
+	TransferEventHeadHash     string `json:"transfer_event_head_hash"`
 	FounderUnitsNumerator     string `json:"founder_units_numerator"`
 	FounderUnitsDenominator   string `json:"founder_units_denominator"`
 	FounderShareNumerator     string `json:"founder_share_numerator"`
@@ -615,7 +617,7 @@ func LeaderboardSnapshotMessage(snapshot LeaderboardSnapshotDto) []byte {
 
 func LeaderboardSnapshotHashMessage(snapshot LeaderboardSnapshotDto) []byte {
 	return canonical(
-		"myscoutee-registry-leaderboard-snapshot-hash-v2",
+		"myscoutee-registry-leaderboard-snapshot-hash-v3",
 		snapshot.SnapshotID,
 		snapshot.FormulaVersion,
 		snapshot.RulesetVersion,
@@ -624,10 +626,12 @@ func LeaderboardSnapshotHashMessage(snapshot LeaderboardSnapshotDto) []byte {
 		strconv.FormatInt(snapshot.ThroughAuditIndex, 10),
 		strconv.FormatInt(snapshot.ThroughReviewIndex, 10),
 		strconv.FormatInt(snapshot.ThroughEligibilityIndex, 10),
+		strconv.FormatInt(snapshot.ThroughTransferEventIndex, 10),
 		snapshot.LedgerHeadHash,
 		snapshot.AuditHeadHash,
 		snapshot.ReviewHeadHash,
 		snapshot.EligibilityHeadHash,
+		snapshot.TransferEventHeadHash,
 		snapshot.FounderUnitsNumerator,
 		snapshot.FounderUnitsDenominator,
 		snapshot.FounderShareNumerator,

@@ -29,25 +29,25 @@ var (
 )
 
 type Options struct {
-	TimestampSkew time.Duration
-	RegistryScope string
+	TimestampSkew                  time.Duration
+	RegistryScope                  string
 	ValuationMultiplierBasisPoints int64
-	GlobalIdentityKeys *globalidentity.KeyRing
-	Now           func() time.Time
-	NewID         func(prefix string) (string, error)
-	Logger        *slog.Logger
+	GlobalIdentityKeys             *globalidentity.KeyRing
+	Now                            func() time.Time
+	NewID                          func(prefix string) (string, error)
+	Logger                         *slog.Logger
 }
 
 type Service struct {
-	store         store.Store
-	signingKey    *identity.SigningKey
-	timestampSkew time.Duration
-	registryScope string
+	store                          store.Store
+	signingKey                     *identity.SigningKey
+	timestampSkew                  time.Duration
+	registryScope                  string
 	valuationMultiplierBasisPoints int64
-	globalIdentityKeys *globalidentity.KeyRing
-	now           func() time.Time
-	newID         func(prefix string) (string, error)
-	logger        *slog.Logger
+	globalIdentityKeys             *globalidentity.KeyRing
+	now                            func() time.Time
+	newID                          func(prefix string) (string, error)
+	logger                         *slog.Logger
 
 	integrityMutex             sync.Mutex
 	trustedOperationalRevision store.OperationalRevision
@@ -76,15 +76,15 @@ func New(registryStore store.Store, signingKey *identity.SigningKey, options Opt
 			protocol.SettlementDefaultValuationMultiplierBasisPoints
 	}
 	return &Service{
-		store:         registryStore,
-		signingKey:    signingKey,
-		timestampSkew: options.TimestampSkew,
-		registryScope: registryScope,
+		store:                          registryStore,
+		signingKey:                     signingKey,
+		timestampSkew:                  options.TimestampSkew,
+		registryScope:                  registryScope,
 		valuationMultiplierBasisPoints: valuationMultiplier,
-		globalIdentityKeys: options.GlobalIdentityKeys,
-		now:           now,
-		newID:         newID,
-		logger:        logger,
+		globalIdentityKeys:             options.GlobalIdentityKeys,
+		now:                            now,
+		newID:                          newID,
+		logger:                         logger,
 	}
 }
 
@@ -588,6 +588,14 @@ func (registry *Service) verifyOperationalState(ctx context.Context) error {
 	); err != nil {
 		return fmt.Errorf("verify exit review boundary: %w", err)
 	}
+	if err := registry.store.VerifyOwnershipTransfers(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify ownership transfer boundary: %w", err)
+	}
 	after, err := registry.store.OperationalRevision(ctx)
 	if err != nil {
 		return err
@@ -665,6 +673,14 @@ func (registry *Service) verifyCompleteOperationalState(ctx context.Context) err
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify exit reviews: %w", err)
+	}
+	if err := registry.store.VerifyOwnershipTransfers(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify ownership transfers: %w", err)
 	}
 	if err := registry.store.VerifyGlobalIdentities(
 		ctx,

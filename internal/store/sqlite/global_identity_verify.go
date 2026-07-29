@@ -1,11 +1,14 @@
 package sqlite
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
 	"errors"
+	"strings"
 
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 	"github.com/fssrepository/myscoutee-registry/internal/store"
@@ -121,9 +124,13 @@ func (sqliteStore *Store) verifyGlobalIdentityEvaluations(
 			e.response_hash,
 			e.evaluated_at,
 			e.receipt_signature,
-			d.public_key_der
+			d.public_key_der,
+			k.suite,
+			k.public_key
 		FROM global_identity_evaluations e
 		JOIN deployments d ON d.deployment_id = e.deployment_id
+		JOIN global_identity_voprf_keys k
+		  ON k.key_version = e.key_version
 		ORDER BY e.evaluated_at, e.evaluation_id`)
 	if err != nil {
 		return inconsistent("read global identity evaluations", err)
@@ -132,6 +139,8 @@ func (sqliteStore *Store) verifyGlobalIdentityEvaluations(
 	for rows.Next() {
 		var record store.GlobalIdentityEvaluationRecord
 		var deploymentDER []byte
+		var persistedSuite string
+		var persistedPublicKey []byte
 		if err := rows.Scan(
 			&record.EvaluationID,
 			&record.DeploymentID,
@@ -151,6 +160,8 @@ func (sqliteStore *Store) verifyGlobalIdentityEvaluations(
 			&record.EvaluatedAt,
 			&record.ReceiptSignature,
 			&deploymentDER,
+			&persistedSuite,
+			&persistedPublicKey,
 		); err != nil {
 			return inconsistent("scan global identity evaluation", err)
 		}
@@ -171,6 +182,11 @@ func (sqliteStore *Store) verifyGlobalIdentityEvaluations(
 			len(record.PublicKey) != 33 ||
 			len(record.EvaluatedElement) != 33 ||
 			len(record.Proof) != 64 ||
+			record.Suite != persistedSuite ||
+			!bytes.Equal(
+				record.PublicKey,
+				persistedPublicKey,
+			) ||
 			!protocol.IsDigest(record.PayloadHash) ||
 			!protocol.IsDigest(record.RequestHash) ||
 			!protocol.IsDigest(record.ResponseHash) ||
@@ -252,18 +268,41 @@ func (sqliteStore *Store) verifyGlobalIdentityEvents(
 ) (map[int64]store.GlobalIdentityEvent, error) {
 	rows, err := sqliteStore.db.QueryContext(
 		ctx,
-		globalIdentityEventSelect+" ORDER BY event_index",
+		`SELECT event_index
+		 FROM global_identity_events
+		 ORDER BY event_index`,
 	)
 	if err != nil {
 		return nil, inconsistent("read global identity events", err)
 	}
-	defer rows.Close()
+	eventIndexes := make([]int64, 0)
+	for rows.Next() {
+		var eventIndex int64
+		if err := rows.Scan(&eventIndex); err != nil {
+			rows.Close()
+			return nil, inconsistent("scan global identity event index", err)
+		}
+		eventIndexes = append(eventIndexes, eventIndex)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, inconsistent("iterate global identity event indexes", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, inconsistent("close global identity event indexes", err)
+	}
 	events := make(map[int64]store.GlobalIdentityEvent)
 	var previousHash = protocol.ZeroHash
 	var previousAcceptedAt string
 	var expectedIndex int64 = 1
-	for rows.Next() {
-		event, err := scanGlobalIdentityEvent(rows)
+	for _, eventIndex := range eventIndexes {
+		event, err := scanGlobalIdentityEvent(
+			sqliteStore.db.QueryRowContext(
+				ctx,
+				globalIdentityEventSelect+" WHERE event_index = ?",
+				eventIndex,
+			),
+		)
 		if err != nil {
 			return nil, inconsistent("scan global identity event", err)
 		}
@@ -335,9 +374,6 @@ func (sqliteStore *Store) verifyGlobalIdentityEvents(
 		previousHash = event.EventHash
 		previousAcceptedAt = event.AcceptedAt
 		expectedIndex++
-	}
-	if err := rows.Err(); err != nil {
-		return nil, inconsistent("iterate global identity events", err)
 	}
 	return events, nil
 }
@@ -463,6 +499,10 @@ func (sqliteStore *Store) globalIdentityEventSource(
 	case protocol.GlobalIdentityActionPresence:
 		var request protocol.GlobalIdentityPresenceBatchRequest
 		var batchID string
+		var linkedObservationCount int64
+		var unlinkedQMAUCount int64
+		var payloadHash string
+		var acceptedAt string
 		if err := sqliteStore.db.QueryRowContext(ctx, `
 			SELECT
 				batch_id,
@@ -471,7 +511,11 @@ func (sqliteStore *Store) globalIdentityEventSource(
 				supersedes_batch_id,
 				reported_qmau_count,
 				key_version,
-				suite
+				suite,
+				linked_observation_count,
+				unlinked_qmau_count,
+				payload_hash,
+				accepted_at
 			FROM global_identity_presence_batches
 			WHERE event_index = ?`,
 			event.EventIndex,
@@ -483,20 +527,48 @@ func (sqliteStore *Store) globalIdentityEventSource(
 			&request.ReportedQMAUCount,
 			&request.KeyVersion,
 			&request.Suite,
+			&linkedObservationCount,
+			&unlinkedQMAUCount,
+			&payloadHash,
+			&acceptedAt,
 		); err != nil {
 			return nil, "", inconsistent(
 				"read global identity presence event source",
 				err,
 			)
 		}
-		if batchID != event.SubjectID {
+		if batchID != event.SubjectID ||
+			request.Period != event.Period ||
+			payloadHash != event.PayloadHash ||
+			acceptedAt != event.AcceptedAt {
 			return nil, "", inconsistentMessage(
 				"global identity presence batch does not match event %d",
 				event.EventIndex,
 			)
 		}
+		var persistedSuite string
+		if err := sqliteStore.db.QueryRowContext(ctx, `
+			SELECT suite
+			FROM global_identity_voprf_keys
+			WHERE key_version = ?`,
+			request.KeyVersion,
+		).Scan(&persistedSuite); err != nil {
+			return nil, "", inconsistent(
+				"read global identity presence VOPRF key",
+				err,
+			)
+		}
+		if request.Suite != persistedSuite {
+			return nil, "", inconsistentMessage(
+				"global identity presence batch %s has a mismatched VOPRF suite",
+				batchID,
+			)
+		}
 		itemRows, err := sqliteStore.db.QueryContext(ctx, `
-			SELECT network_identity_commitment
+			SELECT
+				item_index,
+				key_version,
+				network_identity_commitment
 			FROM global_identity_presence_items
 			WHERE batch_id = ?
 			ORDER BY item_index`,
@@ -508,16 +580,37 @@ func (sqliteStore *Store) globalIdentityEventSource(
 				err,
 			)
 		}
+		var expectedItemIndex int64
+		var previousCommitment string
 		for itemRows.Next() {
+			var itemIndex int64
+			var itemKeyVersion int64
 			var commitment string
-			if err := itemRows.Scan(&commitment); err != nil {
+			if err := itemRows.Scan(
+				&itemIndex,
+				&itemKeyVersion,
+				&commitment,
+			); err != nil {
 				itemRows.Close()
 				return nil, "", inconsistent(
 					"scan global identity presence item",
 					err,
 				)
 			}
+			if itemIndex != expectedItemIndex ||
+				itemKeyVersion != request.KeyVersion ||
+				!protocol.IsDigest(commitment) ||
+				(previousCommitment != "" &&
+					strings.Compare(previousCommitment, commitment) > 0) {
+				itemRows.Close()
+				return nil, "", inconsistentMessage(
+					"global identity presence batch %s has invalid items",
+					batchID,
+				)
+			}
 			request.Commitments = append(request.Commitments, commitment)
+			expectedItemIndex++
+			previousCommitment = commitment
 		}
 		if err := itemRows.Err(); err != nil {
 			itemRows.Close()
@@ -527,6 +620,96 @@ func (sqliteStore *Store) globalIdentityEventSource(
 			)
 		}
 		itemRows.Close()
+		if linkedObservationCount != int64(len(request.Commitments)) ||
+			unlinkedQMAUCount !=
+				request.ReportedQMAUCount-linkedObservationCount ||
+			request.ReportedQMAUCount < linkedObservationCount {
+			return nil, "", inconsistentMessage(
+				"global identity presence batch %s has inconsistent counts",
+				batchID,
+			)
+		}
+		var qualifiedMAUCount int64
+		if err := sqliteStore.db.QueryRowContext(ctx, `
+			SELECT qualified_mau_count
+			FROM mau_batches
+			WHERE deployment_id = ?
+			  AND period = ?
+			  AND kind = ?
+			  AND revision = ?`,
+			event.DeploymentID,
+			request.Period,
+			protocol.QualifiedMAUKind,
+			request.Revision,
+		).Scan(&qualifiedMAUCount); err != nil {
+			return nil, "", inconsistent(
+				"read global identity presence QMAU source",
+				err,
+			)
+		}
+		if qualifiedMAUCount != request.ReportedQMAUCount {
+			return nil, "", inconsistentMessage(
+				"global identity presence batch %s differs from its QMAU source",
+				batchID,
+			)
+		}
+		var previousBatchID string
+		var previousRevision int64
+		previousErr := sqliteStore.db.QueryRowContext(ctx, `
+			SELECT batch_id, revision
+			FROM global_identity_presence_batches
+			WHERE deployment_id = ?
+			  AND period = ?
+			  AND revision < ?
+			ORDER BY revision DESC
+			LIMIT 1`,
+			event.DeploymentID,
+			request.Period,
+			request.Revision,
+		).Scan(&previousBatchID, &previousRevision)
+		switch {
+		case errors.Is(previousErr, sql.ErrNoRows):
+			if request.SupersedesBatchID != "" {
+				return nil, "", inconsistentMessage(
+					"first global identity presence batch %s supersedes another batch",
+					batchID,
+				)
+			}
+		case previousErr != nil:
+			return nil, "", inconsistent(
+				"read prior global identity presence revision",
+				previousErr,
+			)
+		case request.Revision != previousRevision+1 ||
+			request.SupersedesBatchID != previousBatchID:
+			return nil, "", inconsistentMessage(
+				"global identity presence batch %s does not extend the prior revision",
+				batchID,
+			)
+		}
+		for _, commitment := range request.Commitments {
+			active, err := globalIdentityCommitmentActiveForPeriod(
+				ctx,
+				sqliteStore.db,
+				event.DeploymentID,
+				request.KeyVersion,
+				commitment,
+				request.Period,
+				event.EventIndex,
+			)
+			if err != nil {
+				return nil, "", inconsistent(
+					"verify period-effective global identity presence link",
+					err,
+				)
+			}
+			if !active {
+				return nil, "", inconsistentMessage(
+					"global identity presence batch %s contains an unaudited link",
+					batchID,
+				)
+			}
+		}
 		privateHash := protocol.Digest(
 			protocol.GlobalIdentityPrivateEventCommitment(
 				event.Action,
@@ -648,6 +831,204 @@ func (sqliteStore *Store) verifyGlobalIdentitySnapshots(
 func (sqliteStore *Store) verifyGlobalIdentityDirectRows(
 	ctx context.Context,
 ) error {
+	type aliasKey struct {
+		version    int64
+		commitment string
+	}
+	type replayedLink struct {
+		globalIdentityID          string
+		status                    string
+		keyVersion                int64
+		suite                     string
+		commitment                string
+		consentVersion            string
+		consentEvidenceCommitment string
+		verifiedAt                string
+		activeFromPeriod          string
+		inactiveFromPeriod        string
+	}
+
+	aliases := make(map[aliasKey]string)
+	createdIdentities := make(map[string]string)
+	links := make(map[string]replayedLink)
+	historyRows, err := sqliteStore.db.QueryContext(ctx, `
+		SELECT
+			e.action,
+			e.period,
+			e.accepted_at,
+			h.link_id,
+			h.global_identity_id,
+			h.status,
+			h.key_version,
+			h.suite,
+			h.network_identity_commitment,
+			h.consent_version,
+			h.consent_evidence_commitment,
+			h.verified_at,
+			h.active_from_period,
+			h.inactive_from_period
+		FROM global_identity_events e
+		JOIN global_identity_link_history h
+		  ON h.event_index = e.event_index
+		WHERE e.action IN (?, ?, ?)
+		ORDER BY e.event_index`,
+		protocol.GlobalIdentityActionLink,
+		protocol.GlobalIdentityActionUnlink,
+		protocol.GlobalIdentityActionCorrect,
+	)
+	if err != nil {
+		return inconsistent("read global identity history for replay", err)
+	}
+	defer historyRows.Close()
+	for historyRows.Next() {
+		var action, period, acceptedAt, linkID string
+		var history replayedLink
+		if err := historyRows.Scan(
+			&action,
+			&period,
+			&acceptedAt,
+			&linkID,
+			&history.globalIdentityID,
+			&history.status,
+			&history.keyVersion,
+			&history.suite,
+			&history.commitment,
+			&history.consentVersion,
+			&history.consentEvidenceCommitment,
+			&history.verifiedAt,
+			&history.activeFromPeriod,
+			&history.inactiveFromPeriod,
+		); err != nil {
+			return inconsistent("scan global identity history for replay", err)
+		}
+		key := aliasKey{
+			version:    history.keyVersion,
+			commitment: history.commitment,
+		}
+		previous, existed := links[linkID]
+		switch action {
+		case protocol.GlobalIdentityActionLink:
+			if existed ||
+				history.status != protocol.GlobalIdentityLinkActive ||
+				history.activeFromPeriod != period ||
+				history.inactiveFromPeriod != "" {
+				return inconsistentMessage(
+					"global identity link %s has an invalid creation transition",
+					linkID,
+				)
+			}
+			globalID, aliasExists := aliases[key]
+			if !aliasExists {
+				globalID = history.globalIdentityID
+				aliases[key] = globalID
+				if priorCreatedAt, duplicateID :=
+					createdIdentities[globalID]; duplicateID &&
+					priorCreatedAt != acceptedAt {
+					return inconsistentMessage(
+						"global identity %s has multiple creation points",
+						globalID,
+					)
+				}
+				createdIdentities[globalID] = acceptedAt
+			}
+			if history.globalIdentityID != globalID {
+				return inconsistentMessage(
+					"global identity link %s conflicts with the replayed alias map",
+					linkID,
+				)
+			}
+		case protocol.GlobalIdentityActionUnlink:
+			if !existed ||
+				previous.status != protocol.GlobalIdentityLinkActive ||
+				history.status != protocol.GlobalIdentityLinkUnlinked ||
+				history.globalIdentityID != previous.globalIdentityID ||
+				history.keyVersion != previous.keyVersion ||
+				history.suite != previous.suite ||
+				history.commitment != previous.commitment ||
+				history.consentVersion != previous.consentVersion ||
+				history.consentEvidenceCommitment !=
+					previous.consentEvidenceCommitment ||
+				history.verifiedAt != previous.verifiedAt ||
+				history.activeFromPeriod != previous.activeFromPeriod ||
+				history.inactiveFromPeriod != period {
+				return inconsistentMessage(
+					"global identity link %s has an invalid unlink transition",
+					linkID,
+				)
+			}
+		case protocol.GlobalIdentityActionCorrect:
+			if !existed ||
+				previous.status != protocol.GlobalIdentityLinkActive ||
+				history.status != protocol.GlobalIdentityLinkActive ||
+				history.activeFromPeriod != previous.activeFromPeriod ||
+				history.inactiveFromPeriod != "" {
+				return inconsistentMessage(
+					"global identity link %s has an invalid correction transition",
+					linkID,
+				)
+			}
+			sourceKey := aliasKey{
+				version:    previous.keyVersion,
+				commitment: previous.commitment,
+			}
+			sourceGlobalID, sourceExists := aliases[sourceKey]
+			if !sourceExists {
+				return inconsistentMessage(
+					"global identity link %s correction has no replayed source alias",
+					linkID,
+				)
+			}
+			targetGlobalID, targetExists := aliases[key]
+			if !targetExists {
+				targetGlobalID = sourceGlobalID
+				aliases[key] = targetGlobalID
+			}
+			if history.globalIdentityID != targetGlobalID {
+				return inconsistentMessage(
+					"global identity link %s correction conflicts with the replayed alias map",
+					linkID,
+				)
+			}
+			if targetGlobalID != sourceGlobalID {
+				for replayKey, globalID := range aliases {
+					if globalID == sourceGlobalID {
+						aliases[replayKey] = targetGlobalID
+					}
+				}
+			}
+		default:
+			return inconsistentMessage(
+				"global identity link %s has an unsupported history action",
+				linkID,
+			)
+		}
+		links[linkID] = history
+	}
+	if err := historyRows.Err(); err != nil {
+		return inconsistent("iterate global identity history for replay", err)
+	}
+	if err := historyRows.Close(); err != nil {
+		return inconsistent("close global identity history replay", err)
+	}
+	var linkEventCount, historyCount int64
+	if err := sqliteStore.db.QueryRowContext(ctx, `
+		SELECT
+			(SELECT COUNT(*)
+			 FROM global_identity_events
+			 WHERE action IN (?, ?, ?)),
+			(SELECT COUNT(*) FROM global_identity_link_history)`,
+		protocol.GlobalIdentityActionLink,
+		protocol.GlobalIdentityActionUnlink,
+		protocol.GlobalIdentityActionCorrect,
+	).Scan(&linkEventCount, &historyCount); err != nil {
+		return inconsistent("count global identity link audit rows", err)
+	}
+	if linkEventCount != historyCount {
+		return inconsistentMessage(
+			"global identity link events and immutable history differ",
+		)
+	}
+
 	var inconsistentLinks int64
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -667,9 +1048,15 @@ func (sqliteStore *Store) verifyGlobalIdentityDirectRows(
 			  AND h.consent_version = l.consent_version
 			  AND h.consent_evidence_commitment =
 			      l.consent_evidence_commitment
-			  AND h.verified_at = l.verified_at
-			  AND h.active_from_period = l.active_from_period
-			  AND h.inactive_from_period = l.inactive_from_period
+				  AND h.verified_at = l.verified_at
+				  AND h.active_from_period = l.active_from_period
+				  AND h.inactive_from_period = l.inactive_from_period
+				  AND EXISTS (
+				      SELECT 1
+				      FROM global_identity_events e
+				      WHERE e.event_index = l.latest_event_index
+				        AND e.event_hash = l.latest_event_hash
+				  )
 		)`).Scan(&inconsistentLinks); err != nil {
 		return inconsistent("verify global identity direct links", err)
 	}
@@ -678,22 +1065,86 @@ func (sqliteStore *Store) verifyGlobalIdentityDirectRows(
 			"global identity current links differ from immutable history",
 		)
 	}
-	var inconsistentAliases int64
-	if err := sqliteStore.db.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		FROM global_identity_aliases a
-		WHERE NOT EXISTS (
-			SELECT 1
-			FROM global_identity_links l
-			WHERE l.key_version = a.key_version
-			  AND l.network_identity_commitment =
-			      a.network_identity_commitment
-		)`).Scan(&inconsistentAliases); err != nil {
-		return inconsistent("verify global identity aliases", err)
+	var persistedLinkCount int
+	if err := sqliteStore.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM global_identity_links`,
+	).Scan(&persistedLinkCount); err != nil {
+		return inconsistent("count global identity direct links", err)
 	}
-	if inconsistentAliases != 0 {
+	if persistedLinkCount != len(links) {
 		return inconsistentMessage(
-			"global identity alias has no matching audited direct link",
+			"global identity direct link count differs from immutable history replay",
+		)
+	}
+	aliasRows, err := sqliteStore.db.QueryContext(ctx, `
+		SELECT
+			key_version,
+			network_identity_commitment,
+			global_identity_id
+		FROM global_identity_aliases`)
+	if err != nil {
+		return inconsistent("read global identity direct aliases", err)
+	}
+	defer aliasRows.Close()
+	persistedAliasCount := 0
+	for aliasRows.Next() {
+		var key aliasKey
+		var globalID string
+		if err := aliasRows.Scan(
+			&key.version,
+			&key.commitment,
+			&globalID,
+		); err != nil {
+			return inconsistent("scan global identity direct alias", err)
+		}
+		expectedGlobalID, ok := aliases[key]
+		if !ok || expectedGlobalID != globalID {
+			return inconsistentMessage(
+				"global identity direct alias differs from immutable history replay",
+			)
+		}
+		persistedAliasCount++
+	}
+	if err := aliasRows.Err(); err != nil {
+		return inconsistent("iterate global identity direct aliases", err)
+	}
+	if err := aliasRows.Close(); err != nil {
+		return inconsistent("close global identity direct aliases", err)
+	}
+	if persistedAliasCount != len(aliases) {
+		return inconsistentMessage(
+			"global identity direct alias count differs from immutable history replay",
+		)
+	}
+
+	identityRows, err := sqliteStore.db.QueryContext(ctx, `
+		SELECT global_identity_id, created_at
+		FROM global_identities`)
+	if err != nil {
+		return inconsistent("read opaque global identities", err)
+	}
+	defer identityRows.Close()
+	persistedIdentityCount := 0
+	for identityRows.Next() {
+		var globalID, createdAt string
+		if err := identityRows.Scan(&globalID, &createdAt); err != nil {
+			return inconsistent("scan opaque global identity", err)
+		}
+		expectedCreatedAt, ok := createdIdentities[globalID]
+		if !ok || expectedCreatedAt != createdAt {
+			return inconsistentMessage(
+				"opaque global identity differs from immutable history replay",
+			)
+		}
+		persistedIdentityCount++
+	}
+	if err := identityRows.Err(); err != nil {
+		return inconsistent("iterate opaque global identities", err)
+	}
+	if persistedIdentityCount != len(createdIdentities) {
+		return inconsistentMessage(
+			"opaque global identity count differs from immutable history replay",
 		)
 	}
 	return nil
@@ -705,6 +1156,9 @@ func (sqliteStore *Store) verifyGlobalIdentityBoundary(
 	registryKeyID string,
 	registryScope string,
 ) error {
+	if err := sqliteStore.verifyGlobalIdentityKeys(ctx); err != nil {
+		return err
+	}
 	var count int64
 	if err := sqliteStore.db.QueryRowContext(
 		ctx,
@@ -713,7 +1167,7 @@ func (sqliteStore *Store) verifyGlobalIdentityBoundary(
 		return inconsistent("read global identity boundary count", err)
 	}
 	if count == 0 {
-		return nil
+		return sqliteStore.verifyGlobalIdentityDirectRows(ctx)
 	}
 	events, err := sqliteStore.verifyGlobalIdentityEvents(
 		ctx,
