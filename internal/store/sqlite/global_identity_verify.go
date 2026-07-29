@@ -45,6 +45,15 @@ func (sqliteStore *Store) VerifyGlobalIdentities(
 	if err != nil {
 		return err
 	}
+	if err := sqliteStore.verifyGlobalIdentityPresenceChunks(
+		ctx,
+		registryPublicKey,
+		registryKeyID,
+		registryScope,
+		events,
+	); err != nil {
+		return err
+	}
 	if err := sqliteStore.verifyGlobalIdentitySnapshots(
 		ctx,
 		events,
@@ -480,6 +489,49 @@ func (sqliteStore *Store) globalIdentityEventSource(
 				link.ConsentEvidenceCommitment
 			request.VerifiedAt = link.VerifiedAt
 		}
+		aggregatePayloadHash := protocol.Digest(
+			protocol.GlobalIdentityLegacyPresenceBatchPayload(
+				request.Period,
+				request.Revision,
+				request.SupersedesBatchID,
+				request.ReportedQMAUCount,
+				request.KeyVersion,
+				request.Suite,
+				request.Commitments,
+			),
+		)
+		signedPayload := protocol.GlobalIdentityLegacyPresenceBatchPayload(
+			request.Period,
+			request.Revision,
+			request.SupersedesBatchID,
+			request.ReportedQMAUCount,
+			request.KeyVersion,
+			request.Suite,
+			request.Commitments,
+		)
+		privatePayloadHash := event.PayloadHash
+		chunkRequest, completedAggregateHash, chunked, err :=
+			sqliteStore.globalIdentityCompletedPresenceRequest(
+				ctx,
+				event,
+				batchID,
+				request,
+			)
+		if err != nil {
+			return nil, "", err
+		}
+		if chunked {
+			if completedAggregateHash != aggregatePayloadHash {
+				return nil, "", inconsistentMessage(
+					"global identity presence completion %s has an invalid aggregate payload hash",
+					batchID,
+				)
+			}
+			signedPayload = protocol.GlobalIdentityPresenceBatchPayload(
+				chunkRequest,
+			)
+			privatePayloadHash = completedAggregateHash
+		}
 		privateHash := protocol.Digest(
 			protocol.GlobalIdentityPrivateEventCommitment(
 				event.Action,
@@ -720,18 +772,172 @@ func (sqliteStore *Store) globalIdentityEventSource(
 				"",
 				"",
 				event.Period,
-				event.PayloadHash,
+				privatePayloadHash,
 			),
 		)
-		return protocol.GlobalIdentityPresenceBatchPayload(request),
-			privateHash,
-			nil
+		return signedPayload, privateHash, nil
 	default:
 		return nil, "", inconsistentMessage(
 			"global identity event %d has unsupported action",
 			event.EventIndex,
 		)
 	}
+}
+
+func (sqliteStore *Store) globalIdentityCompletedPresenceRequest(
+	ctx context.Context,
+	event store.GlobalIdentityEvent,
+	batchID string,
+	aggregateRequest protocol.GlobalIdentityPresenceBatchRequest,
+) (protocol.GlobalIdentityPresenceBatchRequest, string, bool, error) {
+	request := aggregateRequest
+	var registryScope string
+	var itemCount, receivedChunkCount int64
+	var complete int
+	var completedBatchID, completedEventHash string
+	var persistedPayloadHash, aggregatePayloadHash string
+	err := sqliteStore.db.QueryRowContext(ctx, `
+		SELECT
+			s.submission_id,
+			s.registry_scope,
+			s.chunk_count,
+			s.total_commitment_count,
+			s.commitment_set_hash,
+			c.chunk_index,
+			c.item_count,
+			c.received_chunk_count,
+			c.complete,
+			c.completed_batch_id,
+			c.completed_event_hash,
+			c.payload_hash,
+			x.aggregate_payload_hash
+		FROM global_identity_presence_completions x
+		JOIN global_identity_presence_submissions s
+		  ON s.submission_id = x.submission_id
+		JOIN global_identity_presence_chunks c
+		  ON c.submission_id = x.submission_id
+		 AND c.chunk_index = x.completing_chunk_index
+		WHERE x.event_index = ?
+		  AND x.batch_id = ?`,
+		event.EventIndex,
+		batchID,
+	).Scan(
+		&request.SubmissionID,
+		&registryScope,
+		&request.ChunkCount,
+		&request.TotalCommitmentCount,
+		&request.CommitmentSetHash,
+		&request.ChunkIndex,
+		&itemCount,
+		&receivedChunkCount,
+		&complete,
+		&completedBatchID,
+		&completedEventHash,
+		&persistedPayloadHash,
+		&aggregatePayloadHash,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return protocol.GlobalIdentityPresenceBatchRequest{}, "", false, nil
+	}
+	if err != nil {
+		return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+			inconsistent("read global identity presence completion", err)
+	}
+	if !validHexID(request.SubmissionID, "gipsub_", 32) ||
+		registryScope != event.RegistryScope ||
+		request.ChunkCount < 1 ||
+		request.ChunkCount > 4096 ||
+		request.ChunkIndex < 0 ||
+		request.ChunkIndex >= request.ChunkCount ||
+		receivedChunkCount != request.ChunkCount ||
+		complete != 1 ||
+		completedBatchID != batchID ||
+		completedEventHash != event.EventHash ||
+		persistedPayloadHash != event.PayloadHash ||
+		request.TotalCommitmentCount !=
+			int64(len(aggregateRequest.Commitments)) ||
+		protocol.Digest(
+			protocol.GlobalIdentityPresenceCommitmentSetMessage(
+				aggregateRequest.Commitments,
+			),
+		) != request.CommitmentSetHash {
+		return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+			inconsistentMessage(
+				"global identity presence completion %s has invalid manifest fields",
+				batchID,
+			)
+	}
+	request.Commitments = nil
+	rows, err := sqliteStore.db.QueryContext(ctx, `
+		SELECT item_index, key_version, network_identity_commitment
+		FROM global_identity_presence_chunk_items
+		WHERE submission_id = ? AND chunk_index = ?
+		ORDER BY item_index`,
+		request.SubmissionID,
+		request.ChunkIndex,
+	)
+	if err != nil {
+		return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+			inconsistent(
+				"read completing global identity presence chunk items",
+				err,
+			)
+	}
+	for rows.Next() {
+		var itemIndex, keyVersion int64
+		var commitment string
+		if err := rows.Scan(
+			&itemIndex,
+			&keyVersion,
+			&commitment,
+		); err != nil {
+			rows.Close()
+			return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+				inconsistent(
+					"scan completing global identity presence chunk item",
+					err,
+				)
+		}
+		if itemIndex != int64(len(request.Commitments)) ||
+			keyVersion != request.KeyVersion ||
+			!protocol.IsDigest(commitment) ||
+			(len(request.Commitments) > 0 &&
+				request.Commitments[len(request.Commitments)-1] > commitment) {
+			rows.Close()
+			return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+				inconsistentMessage(
+					"global identity presence completion %s has invalid chunk items",
+					batchID,
+				)
+		}
+		request.Commitments = append(request.Commitments, commitment)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+			inconsistent(
+				"iterate completing global identity presence chunk items",
+				err,
+			)
+	}
+	if err := rows.Close(); err != nil {
+		return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+			inconsistent(
+				"close completing global identity presence chunk items",
+				err,
+			)
+	}
+	if int64(len(request.Commitments)) != itemCount ||
+		persistedPayloadHash != protocol.Digest(
+			protocol.GlobalIdentityPresenceBatchPayload(request),
+		) {
+		return protocol.GlobalIdentityPresenceBatchRequest{}, "", false,
+			inconsistentMessage(
+				"global identity presence completion %s has an invalid signed chunk payload",
+				batchID,
+			)
+	}
+	return request, aggregatePayloadHash, true, nil
 }
 
 func (sqliteStore *Store) verifyGlobalIdentitySnapshots(
@@ -1166,22 +1372,32 @@ func (sqliteStore *Store) verifyGlobalIdentityBoundary(
 	).Scan(&count); err != nil {
 		return inconsistent("read global identity boundary count", err)
 	}
-	if count == 0 {
-		return sqliteStore.verifyGlobalIdentityDirectRows(ctx)
+	events := make(map[int64]store.GlobalIdentityEvent)
+	if count > 0 {
+		verifiedEvents, err := sqliteStore.verifyGlobalIdentityEvents(
+			ctx,
+			registryPublicKey,
+			registryKeyID,
+			registryScope,
+		)
+		if err != nil {
+			return err
+		}
+		events = verifiedEvents
+		if int64(len(events)) != count {
+			return inconsistentMessage(
+				"global identity boundary event count is inconsistent",
+			)
+		}
 	}
-	events, err := sqliteStore.verifyGlobalIdentityEvents(
+	if err := sqliteStore.verifyGlobalIdentityPresenceChunks(
 		ctx,
 		registryPublicKey,
 		registryKeyID,
 		registryScope,
-	)
-	if err != nil {
+		events,
+	); err != nil {
 		return err
-	}
-	if int64(len(events)) != count {
-		return inconsistentMessage(
-			"global identity boundary event count is inconsistent",
-		)
 	}
 	if err := sqliteStore.verifyGlobalIdentitySnapshots(
 		ctx,
