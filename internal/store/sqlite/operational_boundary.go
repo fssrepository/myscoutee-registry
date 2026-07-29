@@ -102,13 +102,21 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 	); err != nil {
 		return err
 	}
+	if err := sqliteStore.verifyGlobalIdentityBoundary(
+		ctx,
+		registryPublicKey,
+		registryKeyID,
+		registryScope,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 	ctx context.Context,
 ) error {
-	const expectedTriggers = 62
+	const expectedTriggers = 78
 	var triggerCount int
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -175,6 +183,22 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'exit_review_events_no_delete',
 			'exit_review_state_rows_no_update',
 			'exit_review_state_rows_no_delete',
+			'global_identity_voprf_keys_no_update',
+			'global_identity_voprf_keys_no_delete',
+			'global_identity_evaluations_no_update',
+			'global_identity_evaluations_no_delete',
+			'global_identities_no_update',
+			'global_identities_no_delete',
+			'global_identity_events_no_update',
+			'global_identity_events_no_delete',
+			'global_identity_link_history_no_update',
+			'global_identity_link_history_no_delete',
+			'global_identity_presence_batches_no_update',
+			'global_identity_presence_batches_no_delete',
+			'global_identity_presence_items_no_update',
+			'global_identity_presence_items_no_delete',
+			'global_identity_dedup_snapshots_no_update',
+			'global_identity_dedup_snapshots_no_delete',
 			'demo_seed_metadata_guard_update',
 			'demo_seed_metadata_no_delete'
 		  )`).Scan(&triggerCount); err != nil {

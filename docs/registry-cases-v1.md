@@ -33,9 +33,9 @@ queried current row, written in the same SQLite transaction. Startup, health,
 and external-CLI revision checks derive the expected current rows from the
 signed events and fail closed on any mismatch; they never repair state.
 
-A `flag` creates one case. A `clear` may follow it once. Reopening, suspension,
-reinstatement, dispute resolution, and legal eligibility are later versioned
-actions rather than overloaded v1 case states.
+A `flag` creates one case. A `clear` may follow it once. Reopening and ownership
+transfer remain later versioned actions rather than overloaded v1 case states.
+Suspension/reinstatement and exit disputes already use their own signed rails.
 
 The caller-intent digest for `flag` excludes the registry-generated case ID, so
 an exact idempotent retry returns the original signed flag event. Its adjacent
@@ -44,6 +44,11 @@ the original `flag` therefore returns the original event together with the
 current `CLEARED` case row, never a misleading stale `OPEN` row. A `clear`
 digest includes the existing target case ID. Reusing an idempotency key with
 different content fails.
+
+Claim suspension and reinstatement now exist as a separate signed eligibility
+rail, and exit disputes exist in the separate exit-review rail. They never
+overload or rewrite a registry case. Case reopening, ownership transfer, and
+final contractual allocation are not v1 case actions.
 
 The event payload digest uses:
 

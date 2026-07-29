@@ -29,6 +29,9 @@ provides:
 - transactionally maintained, versioned operator-network rows used directly by
   leaderboard queries;
 - signed, snapshot-bound cursor leaderboard reads;
+- privacy-preserving RFC 9497 VOPRF identity linking, append-only
+  link/correction/unlink audit, and directly maintained monthly
+  cross-deployment QMAU dedup snapshots without central raw identifiers;
 - a registry-signed, append-only operator announcement/update-manifest feed
   published only through a local CLI;
 - a registry-signed, hash-linked anomaly/case rail with same-transaction query
@@ -40,9 +43,10 @@ provides:
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
-It does not implement global-human deduplication, Firebase migration,
-beneficial-owner due diligence, document upload/review, payment execution, or
-a final legal payout. The QMAU protocol accepts a deployment-signed aggregate
+It does not implement Firebase migration, beneficial-owner due diligence,
+document upload/review, payment execution, or a final legal payout. Global
+identity linking is explicit, consent-evidence-bound, and optional; unlinked
+QMAU remains counted without a central identity. The QMAU protocol accepts a deployment-signed aggregate
 and an opaque evidence commitment; the deployment remains responsible for
 applying `qmau-v1` to its private activity evidence. Company claims have an
 explicit local administrative approval boundary. The monthly technical
@@ -55,6 +59,9 @@ The registration/ledger wire and signature format is
 [`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
 client-code grouping, audit, and leaderboard behavior is documented in
 [`docs/operator-network-v1.md`](docs/operator-network-v1.md).
+Privacy-safe cross-deployment identity linking and deduplicated QMAU are
+documented in
+[`docs/global-identity-v1.md`](docs/global-identity-v1.md).
 The registry-local anomaly/case audit rail is documented in
 [`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
 The registry-local record-date freeze and buyer/auditor decision rail is
@@ -298,6 +305,12 @@ follow the signing-key lifecycle rules below.
 | `GET` | `/v1/leaderboard?view=founder\|claimed\|unclaimed` | Signed snapshot-bound cursor page |
 | `GET` | `/v1/leaderboard/groups/{group_id}/deployments` | Cursor page of the deployments kept separate inside one virtual operator group |
 | `GET` | `/v1/announcements` | Registry-signed, snapshot-bound cursor feed of active operator notices and update manifests |
+| `GET` | `/v1/global-identities/voprf-keys/current` | Registry-attested active RFC 9497 VOPRF public key |
+| `POST` | `/v1/global-identities/evaluate` | Deployment-signed blinded VOPRF evaluation |
+| `POST` | `/v1/global-identities/links` | Append an opaque consent-bound identity link |
+| `POST` | `/v1/global-identities/link-actions` | Append `UNLINK` or key/correction action |
+| `POST` | `/v1/global-identities/presence-batches` | Submit the private opaque identities behind an accepted QMAU revision |
+| `GET` | `/v1/global-identities/dedup/{YYYY-MM}` | Latest aggregate globally deduplicated QMAU snapshot |
 | `GET` | `/healthz` | Storage and full integrity status |
 
 Errors are JSON:
@@ -319,6 +332,25 @@ The identity preflight is stable and creates no ledger entry. Clients verify
 its Ed25519 self-signature and deterministic key ID before asking an operator
 to pin the endpoint, scope, and key. It fails closed if full registry integrity
 verification fails.
+
+The global-identity endpoints never accept an email, phone number, Firebase
+UID, local profile ID, or plain identifier hash. Deployments locally normalize
+an eligible identifier, run the RFC 9497 `P256-SHA256` VOPRF flow, and send
+only the resulting domain-separated commitment. Public global-identity events
+contain aggregate counts and a snapshot commitment; opaque commitments remain
+in restricted direct tables. See
+[`docs/global-identity-v1.md`](docs/global-identity-v1.md) for the exact wire,
+signature, correction, key-rotation, rate-limit, and privacy rules.
+
+```bash
+docker compose exec -T registry \
+  /registry global-identity-dedup --period 2026-06
+
+docker compose exec -T registry \
+  /registry rotate-global-identity-key
+# Restart the registry after rotation. Old versions remain available only for
+# explicit correction; new links use the new active version.
+```
 
 ## Local announcement publication
 
@@ -508,8 +540,9 @@ identifier field. The full signed format and pagination semantics are in
 
 An exit record freezes one exact approved claim generation at a completed UTC
 checkpoint. It commits to the ledger/Merkle prefix, operator audit/review/
-eligibility heads, every eligible deployment in the exact group, and the
-latest settlement revision for each period/currency at that boundary.
+eligibility heads, every active claimed deployment in the exact group, and
+the latest settlement revision for each period/currency at that boundary.
+The target claim itself must be active and eligible when the record is frozen.
 Subsequent `verify`, `reject`, `dispute`, and `withdraw` decisions are
 effective-dated, registry-signed immutable events.
 
@@ -554,6 +587,8 @@ verification rules are in
 | `REGISTRY_DATABASE_PATH` | `/data/registry.db` | SQLite database |
 | `REGISTRY_SIGNING_KEY_PATH` | `/data/registry-signing-key.pem` | PKCS#8 Ed25519 PEM |
 | `REGISTRY_GENERATE_SIGNING_KEY` | `true` | Allow key creation only for a pristine first start |
+| `REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH` | `/data/registry-global-identity-voprf-keyring.json` | Versioned mode-0600 RFC 9497 VOPRF server keyring |
+| `REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY` | `true` | Generate the first VOPRF key when that subsystem is first initialized |
 | `REGISTRY_DEMO_SEED` | `false` | Guard accepted only with the explicit `start-demo` command |
 | `REGISTRY_TIMESTAMP_SKEW` | `5m` | Signed-request clock window |
 | `REGISTRY_MAX_REQUEST_BODY_BYTES` | `65536` | JSON body limit, 1 KiB-1 MiB |
@@ -604,7 +639,9 @@ row. Subsequent `up` starts verify the persisted identity. If `/data` is lost
 while the external key remains, ordinary startup fails instead of silently
 resetting the ledger under the trusted key.
 
-Back up the database and signing key as one recovery unit. Stop/quiesce the
+Back up the database, signing key, and global-identity VOPRF keyring as one
+recovery unit. The VOPRF keyring is generated in the runtime data volume; it
+is never embedded in the image or Debian package. Stop/quiesce the
 service before a raw filesystem copy. For an online backup, use SQLite's online
 backup API or a storage-level atomic snapshot; copying a changing database,
 WAL, and SHM one after another is not a consistent backup. Restore the database

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fssrepository/myscoutee-registry/internal/config"
+	"github.com/fssrepository/myscoutee-registry/internal/globalidentity"
 	"github.com/fssrepository/myscoutee-registry/internal/identity"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 	"github.com/fssrepository/myscoutee-registry/internal/service"
@@ -28,6 +29,7 @@ type Runtime struct {
 	Store      *sqlite.Store
 	Service    *service.Service
 	SigningKey *identity.SigningKey
+	GlobalIdentityKeys *globalidentity.KeyRing
 }
 
 func Bootstrap(ctx context.Context, cfg config.Config, options Options) (*Runtime, error) {
@@ -88,6 +90,7 @@ func BootstrapExisting(
 		)
 	}
 	cfg.GenerateSigningKey = false
+	cfg.GenerateGlobalIdentityVOPRFKey = false
 	return bootstrap(ctx, cfg, options, true)
 }
 
@@ -169,10 +172,46 @@ func bootstrap(
 		return closeOnError(err)
 	}
 
+	globalIdentityKeyPath := cfg.GlobalIdentityVOPRFKeyRingPath
+	implicitGlobalIdentityKeyConfiguration := globalIdentityKeyPath == ""
+	if globalIdentityKeyPath == "" {
+		globalIdentityKeyPath = filepath.Join(
+			filepath.Dir(cfg.DatabasePath),
+			"registry-global-identity-voprf-keyring.json",
+		)
+	}
+	globalIdentityKeys, globalIdentityKeyGenerated, err :=
+		globalidentity.LoadOrGenerate(
+			globalIdentityKeyPath,
+			(cfg.GenerateGlobalIdentityVOPRFKey ||
+				implicitGlobalIdentityKeyConfiguration) &&
+				!requireExisting,
+			now,
+		)
+	if err != nil {
+		return closeOnError(err)
+	}
+	keyMetadata := make([]store.GlobalIdentityVOPRFKey, 0)
+	for _, key := range globalIdentityKeys.PublicKeys() {
+		keyMetadata = append(keyMetadata, store.GlobalIdentityVOPRFKey{
+			KeyVersion:  key.Version,
+			Suite:       key.Suite,
+			PublicKey:   key.PublicKey,
+			ActivatedAt: key.ActivatedAt,
+		})
+	}
+	if err := registryStore.EnsureGlobalIdentityVOPRFKeys(
+		ctx,
+		keyMetadata,
+	); err != nil {
+		return closeOnError(err)
+	}
+
 	registryService := service.New(registryStore, signingKey, service.Options{
 		TimestampSkew: cfg.TimestampSkew,
 		RegistryScope: registryScope,
 		ValuationMultiplierBasisPoints: cfg.ValuationMultiplierBasisPoints,
+		GlobalIdentityKeys: globalIdentityKeys,
 		Now:           now,
 		NewID:         options.NewID,
 		Logger:        options.Logger,
@@ -187,11 +226,20 @@ func bootstrap(
 			"path", cfg.SigningKeyPath,
 		)
 	}
+	if globalIdentityKeyGenerated && options.Logger != nil {
+		options.Logger.Info(
+			"generated first global identity VOPRF key",
+			"path", globalIdentityKeyPath,
+			"key_version",
+			globalIdentityKeys.ActivePublicKey().Version,
+		)
+	}
 
 	return &Runtime{
 		Store:      registryStore,
 		Service:    registryService,
 		SigningKey: signingKey,
+		GlobalIdentityKeys: globalIdentityKeys,
 	}, nil
 }
 

@@ -87,6 +87,7 @@ func LoadOrGenerate(
 			ActivatedAt: now().UTC().Truncate(time.Second).Format(time.RFC3339),
 		}},
 	}
+	clearBytes(seed)
 	if err := writeKeyRing(path, persisted, true); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			ring, loadErr := Load(path)
@@ -102,61 +103,79 @@ func LoadOrGenerate(
 }
 
 func Load(path string) (*KeyRing, error) {
+	persisted, err := readPersistedKeyRing(path)
+	if err != nil {
+		return nil, err
+	}
+	return parseKeyRing(persisted)
+}
+
+func readPersistedKeyRing(path string) (persistedKeyRing, error) {
 	info, err := os.Lstat(path)
 	if err != nil {
-		return nil, fmt.Errorf("read global identity VOPRF keyring: %w", err)
+		return persistedKeyRing{},
+			fmt.Errorf("read global identity VOPRF keyring: %w", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return nil, errors.New(
+		return persistedKeyRing{}, errors.New(
 			"global identity VOPRF keyring must be a regular non-symlink file",
 		)
 	}
 	if info.Mode().Perm()&0o077 != 0 {
-		return nil, errors.New(
+		return persistedKeyRing{}, errors.New(
 			"global identity VOPRF keyring must not be accessible by group or other users",
 		)
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("open global identity VOPRF keyring: %w", err)
+		return persistedKeyRing{},
+			fmt.Errorf("open global identity VOPRF keyring: %w", err)
 	}
 	defer file.Close()
 	opened, err := file.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("stat global identity VOPRF keyring: %w", err)
+		return persistedKeyRing{},
+			fmt.Errorf("stat global identity VOPRF keyring: %w", err)
 	}
 	if !os.SameFile(info, opened) {
-		return nil, errors.New(
+		return persistedKeyRing{}, errors.New(
 			"global identity VOPRF keyring was replaced while being opened",
 		)
 	}
 	contents, err := io.ReadAll(io.LimitReader(file, 64*1024+1))
 	if err != nil {
-		return nil, fmt.Errorf("read global identity VOPRF keyring: %w", err)
+		return persistedKeyRing{},
+			fmt.Errorf("read global identity VOPRF keyring: %w", err)
 	}
 	if len(contents) > 64*1024 {
-		return nil, errors.New("global identity VOPRF keyring is unexpectedly large")
+		return persistedKeyRing{},
+			errors.New("global identity VOPRF keyring is unexpectedly large")
 	}
 	var persisted persistedKeyRing
 	decoder := json.NewDecoder(bytes.NewReader(contents))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&persisted); err != nil {
-		return nil, fmt.Errorf("decode global identity VOPRF keyring: %w", err)
+		return persistedKeyRing{},
+			fmt.Errorf("decode global identity VOPRF keyring: %w", err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return nil, errors.New(
+		return persistedKeyRing{}, errors.New(
 			"global identity VOPRF keyring must contain one JSON object",
 		)
 	}
-	return parseKeyRing(persisted)
+	return persisted, nil
 }
 
 // Rotate appends a fresh key version and atomically changes the active
 // version. Older key versions remain available so deployments can evaluate
 // both old and new commitments during an explicit correction.
 func Rotate(path string, now func() time.Time) (PublicKey, error) {
-	ring, err := Load(path)
+	persisted, err := readPersistedKeyRing(path)
+	if err != nil {
+		return PublicKey{}, err
+	}
+	ring, err := parseKeyRing(persisted)
 	if err != nil {
 		return PublicKey{}, err
 	}
@@ -169,10 +188,6 @@ func Rotate(path string, now func() time.Time) (PublicKey, error) {
 	if _, err := io.ReadFull(rand.Reader, seed); err != nil {
 		return PublicKey{}, fmt.Errorf("generate rotated VOPRF seed: %w", err)
 	}
-	persisted, err := readPersistedKeyRing(path)
-	if err != nil {
-		return PublicKey{}, err
-	}
 	activatedAt := now().UTC().Truncate(time.Second).Format(time.RFC3339)
 	persisted.ActiveVersion = nextVersion
 	persisted.Keys = append(persisted.Keys, persistedKey{
@@ -180,6 +195,7 @@ func Rotate(path string, now func() time.Time) (PublicKey, error) {
 		Seed:        base64.StdEncoding.EncodeToString(seed),
 		ActivatedAt: activatedAt,
 	})
+	clearBytes(seed)
 	if err := writeKeyRing(path, persisted, false); err != nil {
 		return PublicKey{}, err
 	}
@@ -256,6 +272,12 @@ func (ring *KeyRing) Evaluate(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("encode VOPRF DLEQ proof: %w", err)
 	}
+	if len(key.public.PublicKey) != 33 ||
+		len(evaluated) != 33 ||
+		len(encodedProof) != 64 {
+		return nil, nil, nil,
+			errors.New("VOPRF evaluation has a non-canonical encoded length")
+	}
 	return append([]byte(nil), key.public.PublicKey...),
 		evaluated,
 		encodedProof,
@@ -294,12 +316,18 @@ func parseKeyRing(persisted persistedKeyRing) (*KeyRing, error) {
 			seed,
 			deriveInfo,
 		)
+		clearBytes(seed)
 		if err != nil {
 			return nil, fmt.Errorf("derive global identity VOPRF key %d: %w", item.Version, err)
 		}
 		publicKey, err := privateKey.Public().MarshalBinary()
 		if err != nil {
 			return nil, fmt.Errorf("encode global identity VOPRF public key %d: %w", item.Version, err)
+		}
+		if len(publicKey) != 33 {
+			return nil, errors.New(
+				"global identity VOPRF public key is not compressed SEC1",
+			)
 		}
 		ring.keys[item.Version] = &keyVersion{
 			privateKey: privateKey,
@@ -316,18 +344,6 @@ func parseKeyRing(persisted persistedKeyRing) (*KeyRing, error) {
 		return nil, errors.New("active global identity VOPRF key is missing")
 	}
 	return ring, nil
-}
-
-func readPersistedKeyRing(path string) (persistedKeyRing, error) {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return persistedKeyRing{}, fmt.Errorf("read VOPRF keyring for rotation: %w", err)
-	}
-	var persisted persistedKeyRing
-	if err := json.Unmarshal(contents, &persisted); err != nil {
-		return persistedKeyRing{}, fmt.Errorf("decode VOPRF keyring for rotation: %w", err)
-	}
-	return persisted, nil
 }
 
 func writeKeyRing(path string, persisted persistedKeyRing, exclusive bool) error {
@@ -390,4 +406,10 @@ func writeKeyRing(path string, persisted persistedKeyRing, exclusive bool) error
 		return fmt.Errorf("sync VOPRF keyring directory: %w", err)
 	}
 	return directoryHandle.Close()
+}
+
+func clearBytes(value []byte) {
+	for index := range value {
+		value[index] = 0
+	}
 }

@@ -74,6 +74,16 @@ func main() {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
 		err = runRevenue(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 &&
+		os.Args[1] == "global-identity-dedup" {
+		err = runGlobalIdentityDedup(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 &&
+		os.Args[1] == "rotate-global-identity-key" {
+		err = runRotateGlobalIdentityKey(
+			os.Args[2:],
+			os.Stdout,
+			logger,
+		)
 	} else if len(os.Args) >= 2 && os.Args[1] == "calculate-settlement" {
 		err = runCalculateSettlement(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "settlements" {
@@ -88,7 +98,7 @@ func main() {
 		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|leaderboard|revenue|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
+			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|leaderboard|revenue|global-identity-dedup|rotate-global-identity-key|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {

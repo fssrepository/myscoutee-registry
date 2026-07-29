@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/fssrepository/myscoutee-registry/internal/globalidentity"
 	"github.com/fssrepository/myscoutee-registry/internal/identity"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 	"github.com/fssrepository/myscoutee-registry/internal/store"
@@ -31,6 +32,7 @@ type Options struct {
 	TimestampSkew time.Duration
 	RegistryScope string
 	ValuationMultiplierBasisPoints int64
+	GlobalIdentityKeys *globalidentity.KeyRing
 	Now           func() time.Time
 	NewID         func(prefix string) (string, error)
 	Logger        *slog.Logger
@@ -42,6 +44,7 @@ type Service struct {
 	timestampSkew time.Duration
 	registryScope string
 	valuationMultiplierBasisPoints int64
+	globalIdentityKeys *globalidentity.KeyRing
 	now           func() time.Time
 	newID         func(prefix string) (string, error)
 	logger        *slog.Logger
@@ -78,6 +81,7 @@ func New(registryStore store.Store, signingKey *identity.SigningKey, options Opt
 		timestampSkew: options.TimestampSkew,
 		registryScope: registryScope,
 		valuationMultiplierBasisPoints: valuationMultiplier,
+		globalIdentityKeys: options.GlobalIdentityKeys,
 		now:           now,
 		newID:         newID,
 		logger:        logger,
@@ -538,10 +542,10 @@ func (registry *Service) VerifyState(ctx context.Context) error {
 // process's transactionally checked Store methods. When a second connection
 // (normally the local registry CLI) commits, the cryptographic chain heads,
 // source/projection boundary rows, newly completed Merkle frontier, and the
-// complete low-volume administrator case chain are checked before the new
-// revision becomes trusted. Case verification deliberately remains a full
-// replay in v1 because its mutable query rows otherwise have no safe bounded
-// trust boundary.
+// complete low-volume administrator case and exit-review chains are checked
+// before the new revision becomes trusted. Those two verification paths
+// deliberately remain full replays in v1 because their direct query rows
+// otherwise have no safe bounded trust boundary.
 func (registry *Service) verifyOperationalState(ctx context.Context) error {
 	registry.integrityMutex.Lock()
 	defer registry.integrityMutex.Unlock()
@@ -661,6 +665,14 @@ func (registry *Service) verifyCompleteOperationalState(ctx context.Context) err
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify exit reviews: %w", err)
+	}
+	if err := registry.store.VerifyGlobalIdentities(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify global identity dedup state: %w", err)
 	}
 	return nil
 }
@@ -827,6 +839,31 @@ func mapStoreError(err error) error {
 		return requestError(
 			"qmau_revision_conflict",
 			"revision must increment and supersede the current active QMAU snapshot for this deployment and period",
+		)
+	case errors.Is(err, store.ErrDeploymentInactive):
+		return requestError(
+			"deployment_inactive",
+			"deployment is not active",
+		)
+	case errors.Is(err, store.ErrGlobalIdentityRateLimited):
+		return requestError(
+			"global_identity_rate_limited",
+			"global identity evaluation rate limit was exceeded",
+		)
+	case errors.Is(err, store.ErrGlobalIdentityKeyMismatch):
+		return requestError(
+			"global_identity_key_unavailable",
+			"global identity VOPRF key metadata does not match",
+		)
+	case errors.Is(err, store.ErrGlobalIdentityLinkConflict):
+		return requestError(
+			"global_identity_link_conflict",
+			"global identity link action conflicts with current state",
+		)
+	case errors.Is(err, store.ErrGlobalIdentityPresenceConflict):
+		return requestError(
+			"global_identity_presence_conflict",
+			"global identity presence revision or counts conflict with current state",
 		)
 	default:
 		return err

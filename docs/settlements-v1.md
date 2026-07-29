@@ -84,9 +84,11 @@ ascending stable beneficiary ID. The allocation verifier recalculates every
 ratio and requires both the monthly pool and indicative-value allocations to
 conserve their respective totals exactly.
 
-## Non-binding indicative value
+## Non-binding indicative company market value
 
-The valuation uses accepted commission-basis revenue, not the 5% pool.
+The company-market-value estimate uses accepted commission-basis revenue, not
+the 5% pool. It is a technical, non-binding virtual-company indicator; it is
+not a purchase price, payout instruction, or contractual valuation.
 Trailing-twelve-month basis is the sum for `M-11` through `M`.
 
 Three consecutive three-month averages are calculated with integer division:
@@ -125,6 +127,9 @@ effective_multiplier_bps =
 indicative_network_value_minor =
     floor(TTM_commission_basis_minor * effective_multiplier_bps / 10000)
 ```
+
+`indicative_network_value_minor` is retained as the v1 wire-field name for
+protocol compatibility; its UI meaning is the indicative company market value.
 
 The default base multiplier is `30000` basis points (3x), configurable with
 `REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS`. For the default, the bounded

@@ -154,11 +154,7 @@ CREATE TABLE global_identity_presence_batches (
     event_index                 INTEGER NOT NULL UNIQUE REFERENCES global_identity_events(event_index),
     accepted_at                 TEXT NOT NULL,
     UNIQUE (deployment_id, period, revision),
-    CHECK (reported_qmau_count = linked_observation_count + unlinked_qmau_count),
-    CHECK (
-        (revision = 1 AND supersedes_batch_id = '')
-        OR (revision > 1 AND supersedes_batch_id <> '')
-    )
+    CHECK (reported_qmau_count = linked_observation_count + unlinked_qmau_count)
 );
 
 CREATE INDEX global_identity_presence_batches_current_idx

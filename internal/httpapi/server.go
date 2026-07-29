@@ -115,6 +115,33 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		if requireMethod(response, request, http.MethodGet) {
 			api.identity(response, request)
 		}
+	case request.URL.Path == protocol.GlobalIdentityVOPRFKeyPath:
+		if requireMethod(response, request, http.MethodGet) {
+			api.globalIdentityVOPRFKey(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityEvaluatePath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityEvaluate(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityLinkPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityLink(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityLinkActionPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityLinkAction(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityPresenceBatchPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityPresenceBatch(response, request)
+		}
+	case strings.HasPrefix(
+		request.URL.Path,
+		protocol.GlobalIdentityDedupPathPrefix,
+	):
+		if requireMethod(response, request, http.MethodGet) {
+			api.globalIdentityDedup(response, request)
+		}
 	case request.URL.Path == protocol.BatchPath:
 		if requireMethod(response, request, http.MethodPost) {
 			api.submitBatch(response, request)
@@ -417,6 +444,139 @@ func parseOptionalLimit(value string) int {
 
 func (api *API) identity(response http.ResponseWriter, request *http.Request) {
 	result, err := api.service.Identity(request.Context())
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) globalIdentityVOPRFKey(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	result, err := api.service.CurrentGlobalIdentityVOPRFKey(request.Context())
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) globalIdentityEvaluate(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var evaluation protocol.GlobalIdentityEvaluationRequest
+	if err := api.decodeJSON(response, request, &evaluation); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.EvaluateGlobalIdentity(
+		request.Context(),
+		evaluation,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityLink(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var link protocol.GlobalIdentityLinkRequest
+	if err := api.decodeJSON(response, request, &link); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.LinkGlobalIdentity(request.Context(), link)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityLinkAction(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var action protocol.GlobalIdentityLinkActionRequest
+	if err := api.decodeJSON(response, request, &action); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.ApplyGlobalIdentityLinkAction(
+		request.Context(),
+		action,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityPresenceBatch(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var batch protocol.GlobalIdentityPresenceBatchRequest
+	if err := api.decodeJSON(response, request, &batch); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.SubmitGlobalIdentityPresenceBatch(
+		request.Context(),
+		batch,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityDedup(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	period := strings.TrimPrefix(
+		request.URL.Path,
+		protocol.GlobalIdentityDedupPathPrefix,
+	)
+	if period == "" || strings.Contains(period, "/") {
+		writeError(
+			response,
+			http.StatusNotFound,
+			"not_found",
+			"endpoint not found",
+		)
+		return
+	}
+	result, err := api.service.GlobalIdentityDedupSnapshot(
+		request.Context(),
+		period,
+	)
 	if err != nil {
 		api.writeServiceError(response, err)
 		return
@@ -783,6 +943,11 @@ func requestErrorStatus(code string) int {
 		"operator_claim_not_found",
 		"merkle_proof_not_found":
 		return http.StatusNotFound
+	case "global_identity_snapshot_not_found":
+		return http.StatusNotFound
+	case "global_identity_link_not_found",
+		"qmau_source_not_found":
+		return http.StatusNotFound
 	case "idempotency_conflict",
 		"replay_conflict",
 		"announcement_conflict",
@@ -794,6 +959,11 @@ func requestErrorStatus(code string) int {
 		"deployment_inactive",
 		"operator_action_conflict":
 		return http.StatusConflict
+	case "global_identity_link_conflict",
+		"global_identity_presence_conflict":
+		return http.StatusConflict
+	case "global_identity_rate_limited":
+		return http.StatusTooManyRequests
 	case "revenue_revision_conflict",
 		"qmau_revision_conflict",
 		"revenue_aggregate_overflow":
@@ -803,6 +973,8 @@ func requestErrorStatus(code string) int {
 		"registry_clock_before_announcement_head",
 		"registry_clock_before_identity",
 		"registry_integrity_unavailable":
+		return http.StatusServiceUnavailable
+	case "global_identity_unavailable":
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusBadRequest
