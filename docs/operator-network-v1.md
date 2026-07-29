@@ -158,7 +158,10 @@ a leaderboard snapshot boundary, or invalidate a cursor. Leaderboard
 presentation selects an active, currently claimed group profile and uses the
 direct claim status only when it matches that deployment's exact profile-claim
 boundary. Structured profiles therefore expose `pending-review` or `approved`;
-legacy profiles retain their signed `claimed` state.
+legacy profiles retain their signed `claimed` state. A pending profile remains
+visible with its measured weight, but it has zero eligible sort/allocation
+weight and zero share. Approval makes that exact claim boundary eligible
+without changing its immutable measured ledger rows.
 
 ## Other signed operator actions
 
@@ -464,8 +467,10 @@ contribution is fixed at 100,000 units and founder share is:
 max(10%, 100000 / (100000 + measured_network_weight))
 ```
 
-The remaining pool is divided among claimed operator groups. Pending-review
-claims are intentionally provisional claimed members; approval does not change
-their weight or share. Protocol v1 currently accepts only zero-count
-installation-test MAU batches, so production weight remains zero until the
-qualified-MAU protocol is introduced.
+The remaining pool is divided among eligible claimed operator groups.
+Pending-review claims are intentionally provisional claimed members: their
+measured weight remains visible, while `claimed_weight`, share, share ordering,
+and allocation exclude them until registry approval. Approval changes
+eligibility, not the immutable measured ledger rows. Protocol v1 currently
+accepts only zero-count installation-test MAU batches, so production weight
+remains zero until the qualified-MAU protocol is introduced.

@@ -625,6 +625,7 @@ func (registry *Service) Leaderboard(
 				ClaimState:      "founder",
 				DeploymentCount: 0,
 				Weight:          protocol.FounderContributionUnits * operatorWeightMonths,
+				SortWeight:      protocol.FounderContributionUnits * operatorWeightMonths,
 			})
 		}
 	} else {
@@ -654,7 +655,7 @@ func (registry *Service) Leaderboard(
 		share := registry.leaderboardShare(
 			view,
 			record.ClaimState,
-			record.Weight,
+			record.SortWeight,
 			totals,
 			snapshot,
 		)
@@ -676,7 +677,7 @@ func (registry *Service) Leaderboard(
 	nextCursor := ""
 	if hasMore && len(records) > 0 {
 		last := records[len(records)-1]
-		state.AfterWeight = last.Weight
+		state.AfterWeight = last.SortWeight
 		state.AfterID = last.RowID
 		nextCursor, err = registry.encodeLeaderboardCursor(state)
 		if err != nil {
@@ -763,7 +764,7 @@ func (registry *Service) LeaderboardDeployments(
 		share := registry.leaderboardShare(
 			"claimed",
 			record.ClaimState,
-			record.Weight,
+			record.SortWeight,
 			totals,
 			snapshot,
 		)
@@ -781,7 +782,7 @@ func (registry *Service) LeaderboardDeployments(
 	nextCursor := ""
 	if hasMore && len(records) > 0 {
 		last := records[len(records)-1]
-		state.AfterWeight = last.Weight
+		state.AfterWeight = last.SortWeight
 		state.AfterID = last.DeploymentID
 		nextCursor, err = registry.encodeLeaderboardCursor(state)
 		if err != nil {

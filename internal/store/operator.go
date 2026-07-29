@@ -170,6 +170,7 @@ type LeaderboardRecord struct {
 	ClaimState      string
 	DeploymentCount int64
 	Weight          int64
+	SortWeight      int64
 }
 
 type LeaderboardDeploymentRecord struct {
@@ -178,6 +179,7 @@ type LeaderboardDeploymentRecord struct {
 	ClaimState      string
 	MembershipState string
 	Weight          int64
+	SortWeight      int64
 }
 
 type LeaderboardQuery struct {

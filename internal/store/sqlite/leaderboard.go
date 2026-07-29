@@ -196,37 +196,61 @@ func (sqliteStore *Store) LeaderboardRows(
 	switch query.View {
 	case "claimed":
 		statement = leaderboardStateCTE + `
+			,
+			claimed_rows AS (
 				SELECT
+					membership.group_id AS row_id,
+					COALESCE(
+						NULLIF(profile.operator_name, ''),
+						membership.group_id
+					) AS label,
+					COALESCE(profile.operator_avatar_url, '') AS avatar_url,
+					COALESCE(
+						NULLIF(profile.claim_state, ''),
+						'claimed'
+					) AS claim_state,
+					COUNT(*) AS deployment_count,
+					COALESCE(SUM(membership.measured_weight), 0) AS weight,
+					CASE
+						WHEN COALESCE(
+							NULLIF(profile.claim_state, ''),
+							'claimed'
+						) = 'pending-review'
+							THEN 0
+						ELSE COALESCE(SUM(membership.eligible_weight), 0)
+					END AS sort_weight
+				FROM weighted_memberships membership
+				LEFT JOIN group_profiles profile
+				  ON profile.group_id = membership.group_id
+				WHERE membership.active = 1
+				  AND membership.claimed = 1
+				  AND membership.group_id <> ''
+				GROUP BY
 					membership.group_id,
-					'claimed',
-					membership.group_id,
-					COALESCE(NULLIF(profile.operator_name, ''), membership.group_id),
-					COALESCE(profile.operator_avatar_url, ''),
-					COALESCE(NULLIF(profile.claim_state, ''), 'claimed'),
-				COUNT(*),
-				COALESCE(SUM(membership.measured_weight), 0)
-			FROM weighted_memberships membership
-			LEFT JOIN group_profiles profile
-			  ON profile.group_id = membership.group_id
-			WHERE membership.active = 1
-			  AND membership.claimed = 1
-			  AND membership.group_id <> ''
-			GROUP BY
-				membership.group_id,
 					profile.operator_name,
 					profile.operator_avatar_url,
 					profile.claim_state
-			HAVING (
+			)
+			SELECT
+				row_id,
+				'claimed',
+				row_id,
+				label,
+				avatar_url,
+				claim_state,
+				deployment_count,
+				weight,
+				sort_weight
+			FROM claimed_rows
+			WHERE (
 				? = 0
-				OR COALESCE(SUM(membership.measured_weight), 0) < ?
+				OR sort_weight < ?
 				OR (
-					COALESCE(SUM(membership.measured_weight), 0) = ?
-					AND membership.group_id > ?
+					sort_weight = ?
+					AND row_id > ?
 				)
 			)
-			ORDER BY
-				COALESCE(SUM(membership.measured_weight), 0) DESC,
-				membership.group_id
+			ORDER BY sort_weight DESC, row_id
 			LIMIT ?`
 	case "unclaimed":
 		statement = leaderboardStateCTE + `
@@ -238,6 +262,7 @@ func (sqliteStore *Store) LeaderboardRows(
 				'',
 				'unclaimed',
 				1,
+				membership.measured_weight,
 				membership.measured_weight
 			FROM weighted_memberships membership
 			WHERE membership.active = 1
@@ -290,6 +315,7 @@ func (sqliteStore *Store) LeaderboardRows(
 			&record.ClaimState,
 			&record.DeploymentCount,
 			&record.Weight,
+			&record.SortWeight,
 		); err != nil {
 			return nil, fmt.Errorf("scan leaderboard row: %w", err)
 		}
@@ -315,25 +341,26 @@ func (sqliteStore *Store) LeaderboardDeployments(
 		SELECT
 			membership.deployment_id,
 			membership.group_id,
-				membership.claim_state,
+			membership.claim_state,
 			CASE
 				WHEN membership.link_id = '' THEN 'owner'
 				ELSE 'linked'
 			END,
-			membership.measured_weight
+			membership.measured_weight,
+			membership.eligible_weight
 		FROM weighted_memberships membership
 		WHERE membership.active = 1
 		  AND membership.claimed = 1
 		  AND membership.group_id = ?
 		  AND (
 			? = 0
-			OR membership.measured_weight < ?
+			OR membership.eligible_weight < ?
 			OR (
-				membership.measured_weight = ?
+				membership.eligible_weight = ?
 				AND membership.deployment_id > ?
 			)
 		  )
-		ORDER BY membership.measured_weight DESC, membership.deployment_id
+		ORDER BY membership.eligible_weight DESC, membership.deployment_id
 		LIMIT ?`,
 		query.ThroughAuditIndex,
 		query.ThroughLedgerIndex,
@@ -360,6 +387,7 @@ func (sqliteStore *Store) LeaderboardDeployments(
 			&record.ClaimState,
 			&record.MembershipState,
 			&record.Weight,
+			&record.SortWeight,
 		); err != nil {
 			return nil, fmt.Errorf("scan leaderboard group deployment: %w", err)
 		}
