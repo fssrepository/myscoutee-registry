@@ -74,7 +74,7 @@ func (registry *Service) PublishAnnouncement(
 	if err != nil {
 		return protocol.AnnouncementPublishResult{}, err
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error(
 			"refusing local announcement publication while registry integrity verification fails",
 			"error",
@@ -186,7 +186,7 @@ func (registry *Service) AnnouncementFeed(
 	); err != nil {
 		return protocol.AnnouncementPage{}, err
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error(
 			"refusing announcement feed while registry integrity verification fails",
 			"error",

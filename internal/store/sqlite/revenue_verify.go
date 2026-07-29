@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"crypto/ed25519"
-	"fmt"
 	"time"
 
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"

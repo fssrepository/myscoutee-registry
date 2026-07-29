@@ -150,7 +150,7 @@ func (registry *Service) ApplyOperatorAction(
 			"operator action signature verification failed",
 		)
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error(
 			"refusing operator action while registry integrity verification fails",
 			"error",
@@ -586,7 +586,7 @@ func (registry *Service) Leaderboard(
 	if err != nil {
 		return protocol.LeaderboardPageDto{}, err
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error("refusing leaderboard read while registry integrity verification fails", "error", err)
 		return protocol.LeaderboardPageDto{}, requestError(
 			"registry_integrity_unavailable",
@@ -713,7 +713,7 @@ func (registry *Service) LeaderboardDeployments(
 	if err != nil {
 		return protocol.LeaderboardDeploymentPageDto{}, err
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		return protocol.LeaderboardDeploymentPageDto{}, requestError(
 			"registry_integrity_unavailable",
 			"registry integrity verification failed; leaderboard is temporarily unavailable",

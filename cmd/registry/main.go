@@ -18,6 +18,7 @@ import (
 	"github.com/fssrepository/myscoutee-registry/internal/announcementfile"
 	"github.com/fssrepository/myscoutee-registry/internal/app"
 	"github.com/fssrepository/myscoutee-registry/internal/config"
+	"github.com/fssrepository/myscoutee-registry/internal/demoseed"
 	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
 	"github.com/fssrepository/myscoutee-registry/internal/service"
 )
@@ -29,6 +30,8 @@ func main() {
 		err = runHealthcheck()
 	} else if len(os.Args) == 2 && os.Args[1] == "initialize" {
 		err = runInitialize(logger)
+	} else if len(os.Args) == 2 && os.Args[1] == "start-demo" {
+		err = runDemoServer(logger)
 	} else if len(os.Args) >= 2 && os.Args[1] == "publish-announcement" {
 		err = runPublishAnnouncement(
 			os.Args[2:],
@@ -45,9 +48,17 @@ func main() {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
 		err = runRevenue(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "merkle-proof" {
+		err = runMerkleProof(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "merkle-consistency" {
+		err = runMerkleConsistency(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "verify-merkle-proof" {
+		err = runVerifyMerkleProof(os.Args[2:], os.Stdin, os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "verify-merkle-consistency" {
+		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|leaderboard|revenue]",
+			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|leaderboard|revenue|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {
@@ -504,7 +515,50 @@ func runServer(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	if cfg.DemoSeedEnabled {
+		return errors.New(
+			"REGISTRY_DEMO_SEED=true is accepted only by the explicit start-demo command",
+		)
+	}
+	return serveRegistry(logger, cfg)
+}
 
+func runDemoServer(logger *slog.Logger) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	seedContext, cancelSeed := context.WithTimeout(
+		context.Background(),
+		2*time.Minute,
+	)
+	defer cancelSeed()
+	summary, err := demoseed.Seed(seedContext, cfg, logger)
+	if err != nil {
+		return fmt.Errorf("seed isolated demo registry: %w", err)
+	}
+	refresh, err := demoseed.RefreshQualifiedMAU(
+		seedContext,
+		cfg,
+		logger,
+		time.Now(),
+	)
+	if err != nil {
+		return fmt.Errorf("refresh isolated demo QMAU window: %w", err)
+	}
+	logger.Info(
+		"isolated demo registry is ready",
+		"registry_scope", summary.RegistryScope,
+		"seed_version", summary.SeedVersion,
+		"already_seeded", summary.AlreadySeeded,
+		"ledger_entries", summary.LedgerEntries,
+		"qmau_through_period", refresh.ThroughPeriod,
+		"qmau_snapshots_added", refresh.AddedSnapshots,
+	)
+	return serveRegistry(logger, cfg)
+}
+
+func serveRegistry(logger *slog.Logger, cfg config.Config) error {
 	rootContext, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,

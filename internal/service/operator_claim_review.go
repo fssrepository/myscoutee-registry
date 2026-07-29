@@ -55,7 +55,7 @@ func (registry *Service) ApproveOperatorClaim(
 	if err := validateToken("idempotency_key", approval.IdempotencyKey); err != nil {
 		return protocol.OperatorClaimReviewResult{}, err
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
 			"registry integrity verification failed before claim approval: %w",
 			err,
@@ -140,7 +140,7 @@ func (registry *Service) OperatorClaimStatus(
 			"deployment_id is malformed",
 		)
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		return protocol.OperatorClaimStatusResponse{}, requestError(
 			"registry_integrity_unavailable",
 			"registry integrity verification failed; claim status is temporarily unavailable",

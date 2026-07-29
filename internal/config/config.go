@@ -14,6 +14,7 @@ type Config struct {
 	DatabasePath        string
 	SigningKeyPath      string
 	GenerateSigningKey  bool
+	DemoSeedEnabled     bool
 	TimestampSkew       time.Duration
 	MaxRequestBodyBytes int64
 	CheckpointInterval  time.Duration
@@ -28,6 +29,7 @@ func Load() (Config, error) {
 		DatabasePath:        envOrDefault("REGISTRY_DATABASE_PATH", "/data/registry.db"),
 		SigningKeyPath:      envOrDefault("REGISTRY_SIGNING_KEY_PATH", "/data/registry-signing-key.pem"),
 		GenerateSigningKey:  true,
+		DemoSeedEnabled:     false,
 		TimestampSkew:       5 * time.Minute,
 		MaxRequestBodyBytes: 64 * 1024,
 		CheckpointInterval:  time.Minute,
@@ -37,6 +39,9 @@ func Load() (Config, error) {
 
 	var err error
 	if cfg.GenerateSigningKey, err = envBool("REGISTRY_GENERATE_SIGNING_KEY", cfg.GenerateSigningKey); err != nil {
+		return Config{}, err
+	}
+	if cfg.DemoSeedEnabled, err = envBool("REGISTRY_DEMO_SEED", cfg.DemoSeedEnabled); err != nil {
 		return Config{}, err
 	}
 	if cfg.TimestampSkew, err = envDuration("REGISTRY_TIMESTAMP_SKEW", cfg.TimestampSkew); err != nil {

@@ -25,6 +25,9 @@ const (
 	InstallationTestKind    = "installation-test"
 	InstallationTestRuleset = "installation-test-v1"
 	InstallationEntryType   = "INSTALLATION_TEST_BATCH_ACCEPTED"
+	QualifiedMAUKind        = "monthly-qmau"
+	QualifiedMAURuleset     = "qmau-v1"
+	QualifiedMAUEntryType   = "QMAU_BATCH_ACCEPTED"
 
 	ZeroHash = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 )
@@ -79,6 +82,8 @@ type BatchRequest struct {
 	RulesetVersion    string `json:"ruleset_version"`
 	QualifiedMAUCount int64  `json:"qualified_mau_count"`
 	CommitmentHash    string `json:"commitment_hash"`
+	Revision          int64  `json:"revision,omitempty"`
+	SupersedesBatchID string `json:"supersedes_batch_id,omitempty"`
 	PayloadHash       string `json:"payload_hash"`
 	Signature         string `json:"signature"`
 }
@@ -92,6 +97,9 @@ type MAUReceipt struct {
 	Period            string `json:"period"`
 	RulesetVersion    string `json:"ruleset_version"`
 	QualifiedMAUCount int64  `json:"qualified_mau_count"`
+	CommitmentHash    string `json:"commitment_hash,omitempty"`
+	Revision          int64  `json:"revision,omitempty"`
+	SupersedesBatchID string `json:"supersedes_batch_id,omitempty"`
 	AcceptedAt        string `json:"accepted_at"`
 	CheckpointDate    string `json:"checkpoint_date"`
 	RegistryScope     string `json:"registry_scope"`
@@ -234,6 +242,26 @@ func BatchPayload(
 	)
 }
 
+func QualifiedMAUPayload(
+	period string,
+	rulesetVersion string,
+	qualifiedMAUCount int64,
+	commitmentHash string,
+	revision int64,
+	supersedesBatchID string,
+) []byte {
+	return canonical(
+		"myscoutee-registry-qmau-batch-payload-v1",
+		QualifiedMAUKind,
+		period,
+		rulesetVersion,
+		strconv.FormatInt(qualifiedMAUCount, 10),
+		commitmentHash,
+		strconv.FormatInt(revision, 10),
+		supersedesBatchID,
+	)
+}
+
 func LedgerEntryMessage(entry LedgerEntry) []byte {
 	return canonical(
 		"myscoutee-registry-ledger-entry-v1",
@@ -284,6 +312,48 @@ func MAUReceiptMessage(
 		period,
 		rulesetVersion,
 		strconv.FormatInt(qualifiedMAUCount, 10),
+		acceptedAt,
+		checkpointDate,
+		registryKeyID,
+	)
+}
+
+func QualifiedMAUReceiptMessage(
+	protocolVersion string,
+	registryScope string,
+	batchID string,
+	deploymentID string,
+	ledgerIndex int64,
+	entryHash string,
+	previousEntryHash string,
+	batchHash string,
+	period string,
+	rulesetVersion string,
+	qualifiedMAUCount int64,
+	commitmentHash string,
+	revision int64,
+	supersedesBatchID string,
+	acceptedAt string,
+	checkpointDate string,
+	registryKeyID string,
+) []byte {
+	return canonical(
+		"myscoutee-registry-qmau-receipt-v1",
+		protocolVersion,
+		registryScope,
+		batchID,
+		deploymentID,
+		strconv.FormatInt(ledgerIndex, 10),
+		entryHash,
+		previousEntryHash,
+		batchHash,
+		QualifiedMAUKind,
+		period,
+		rulesetVersion,
+		strconv.FormatInt(qualifiedMAUCount, 10),
+		commitmentHash,
+		strconv.FormatInt(revision, 10),
+		supersedesBatchID,
 		acceptedAt,
 		checkpointDate,
 		registryKeyID,

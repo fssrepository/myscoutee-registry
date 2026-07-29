@@ -244,6 +244,8 @@ func (sqliteStore *Store) verifyBatches(
 			b.ruleset_version,
 			b.qualified_mau_count,
 			b.commitment_hash,
+			b.revision,
+			b.supersedes_batch_id,
 			b.payload_hash,
 			b.accepted_at,
 			b.receipt_signature,
@@ -285,6 +287,8 @@ func (sqliteStore *Store) verifyBatches(
 			&batch.record.RulesetVersion,
 			&batch.record.QualifiedMAUCount,
 			&batch.record.CommitmentHash,
+			&batch.record.Revision,
+			&batch.record.SupersedesBatchID,
 			&batch.record.PayloadHash,
 			&batch.record.AcceptedAt,
 			&batch.record.ReceiptSignature,
@@ -326,8 +330,9 @@ func (sqliteStore *Store) verifyBatches(
 	var ledgerCount int
 	if err := sqliteStore.db.QueryRowContext(
 		ctx,
-		"SELECT COUNT(*) FROM ledger_entries WHERE entry_type = ?",
+		"SELECT COUNT(*) FROM ledger_entries WHERE entry_type IN (?, ?)",
 		protocol.InstallationEntryType,
+		protocol.QualifiedMAUEntryType,
 	).Scan(&ledgerCount); err != nil {
 		return nil, inconsistent("count ledger entries for batch verification", err)
 	}
@@ -349,7 +354,8 @@ func (sqliteStore *Store) verifyBatches(
 		if !validHexID(batchID, "batch_", 32) ||
 			entry.ProtocolVersion != protocol.Version ||
 			entry.RegistryScope != registryScope ||
-			entry.EntryType != protocol.InstallationEntryType ||
+			(entry.EntryType != protocol.InstallationEntryType &&
+				entry.EntryType != protocol.QualifiedMAUEntryType) ||
 			entry.DeploymentID != record.DeploymentID ||
 			entry.BatchID != record.BatchID ||
 			entry.Kind != record.Kind ||
@@ -360,20 +366,43 @@ func (sqliteStore *Store) verifyBatches(
 			entry.AcceptedAt != record.AcceptedAt {
 			return nil, inconsistentMessage("batch %s does not match its ledger entry", batchID)
 		}
-		expectedCommitment := protocol.Digest(protocol.InstallationTestCommitment(
-			record.DeploymentID,
-			record.IdempotencyKey,
-		))
-		if record.CommitmentHash != expectedCommitment {
-			return nil, inconsistentMessage("batch %s commitment verification failed", batchID)
+		var expectedPayload string
+		switch record.Kind {
+		case protocol.InstallationTestKind:
+			expectedCommitment := protocol.Digest(protocol.InstallationTestCommitment(
+				record.DeploymentID,
+				record.IdempotencyKey,
+			))
+			if record.CommitmentHash != expectedCommitment ||
+				record.Revision != 0 ||
+				record.SupersedesBatchID != "" ||
+				entry.EntryType != protocol.InstallationEntryType {
+				return nil, inconsistentMessage("batch %s installation commitment verification failed", batchID)
+			}
+			expectedPayload = protocol.Digest(protocol.BatchPayload(
+				record.Kind,
+				record.Period,
+				record.RulesetVersion,
+				record.QualifiedMAUCount,
+				record.CommitmentHash,
+			))
+		case protocol.QualifiedMAUKind:
+			if record.RulesetVersion != protocol.QualifiedMAURuleset ||
+				record.Revision < 1 ||
+				entry.EntryType != protocol.QualifiedMAUEntryType {
+				return nil, inconsistentMessage("batch %s has invalid QMAU metadata", batchID)
+			}
+			expectedPayload = protocol.Digest(protocol.QualifiedMAUPayload(
+				record.Period,
+				record.RulesetVersion,
+				record.QualifiedMAUCount,
+				record.CommitmentHash,
+				record.Revision,
+				record.SupersedesBatchID,
+			))
+		default:
+			return nil, inconsistentMessage("batch %s has unsupported kind %q", batchID, record.Kind)
 		}
-		expectedPayload := protocol.Digest(protocol.BatchPayload(
-			record.Kind,
-			record.Period,
-			record.RulesetVersion,
-			record.QualifiedMAUCount,
-			record.CommitmentHash,
-		))
 		if record.PayloadHash != expectedPayload {
 			return nil, inconsistentMessage("batch %s payload hash verification failed", batchID)
 		}
@@ -395,28 +424,98 @@ func (sqliteStore *Store) verifyBatches(
 		if !ed25519.Verify(deployment.publicKey, requestMessage, batch.requestSignature) {
 			return nil, inconsistentMessage("batch %s deployment proof verification failed", batchID)
 		}
-		receiptMessage := protocol.MAUReceiptMessage(
-			protocol.Version,
-			registryScope,
-			record.BatchID,
-			record.DeploymentID,
-			entry.LedgerIndex,
-			entry.EntryHash,
-			entry.PreviousEntryHash,
-			entry.BatchHash,
-			record.Kind,
-			record.Period,
-			record.RulesetVersion,
-			record.QualifiedMAUCount,
-			record.AcceptedAt,
-			record.AcceptedAt[:len("2006-01-02")],
-			registryKeyID,
-		)
+		var receiptMessage []byte
+		if record.Kind == protocol.QualifiedMAUKind {
+			receiptMessage = protocol.QualifiedMAUReceiptMessage(
+				protocol.Version,
+				registryScope,
+				record.BatchID,
+				record.DeploymentID,
+				entry.LedgerIndex,
+				entry.EntryHash,
+				entry.PreviousEntryHash,
+				entry.BatchHash,
+				record.Period,
+				record.RulesetVersion,
+				record.QualifiedMAUCount,
+				record.CommitmentHash,
+				record.Revision,
+				record.SupersedesBatchID,
+				record.AcceptedAt,
+				record.AcceptedAt[:len("2006-01-02")],
+				registryKeyID,
+			)
+		} else {
+			receiptMessage = protocol.MAUReceiptMessage(
+				protocol.Version,
+				registryScope,
+				record.BatchID,
+				record.DeploymentID,
+				entry.LedgerIndex,
+				entry.EntryHash,
+				entry.PreviousEntryHash,
+				entry.BatchHash,
+				record.Kind,
+				record.Period,
+				record.RulesetVersion,
+				record.QualifiedMAUCount,
+				record.AcceptedAt,
+				record.AcceptedAt[:len("2006-01-02")],
+				registryKeyID,
+			)
+		}
 		if !ed25519.Verify(registryPublicKey, receiptMessage, record.ReceiptSignature) {
 			return nil, inconsistentMessage("batch %s central receipt verification failed", batchID)
 		}
 	}
+	if err := sqliteStore.verifyQualifiedMAURevisions(ctx); err != nil {
+		return nil, err
+	}
 	return verified, nil
+}
+
+func (sqliteStore *Store) verifyQualifiedMAURevisions(ctx context.Context) error {
+	rows, err := sqliteStore.db.QueryContext(ctx, `
+		SELECT deployment_id, period, batch_id, revision, supersedes_batch_id
+		FROM mau_batches
+		WHERE kind = ?
+		ORDER BY deployment_id, period, revision`,
+		protocol.QualifiedMAUKind,
+	)
+	if err != nil {
+		return inconsistent("read QMAU revisions", err)
+	}
+	defer rows.Close()
+	var previousDeployment, previousPeriod, previousBatch string
+	var previousRevision int64
+	for rows.Next() {
+		var deploymentID, period, batchID, supersedes string
+		var revision int64
+		if err := rows.Scan(
+			&deploymentID,
+			&period,
+			&batchID,
+			&revision,
+			&supersedes,
+		); err != nil {
+			return inconsistent("scan QMAU revision", err)
+		}
+		if deploymentID != previousDeployment || period != previousPeriod {
+			if revision != 1 || supersedes != "" {
+				return inconsistentMessage("QMAU revision chain for %s/%s has no canonical root", deploymentID, period)
+			}
+		} else if revision != previousRevision+1 || supersedes != previousBatch {
+			return inconsistentMessage("QMAU revision chain for %s/%s branches at revision %d", deploymentID, period, revision)
+		}
+		previousDeployment = deploymentID
+		previousPeriod = period
+		previousBatch = batchID
+		previousRevision = revision
+	}
+	if err := rows.Err(); err != nil {
+		return inconsistent("iterate QMAU revisions", err)
+	}
+	return nil
 }
 
 func (sqliteStore *Store) verifyIdempotencyRecords(

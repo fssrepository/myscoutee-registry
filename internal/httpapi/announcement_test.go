@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fssrepository/myscoutee-registry/internal/app"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 	_ "modernc.org/sqlite"
 )
@@ -241,6 +242,49 @@ func TestSignedAnnouncementFeedPaginationExpiryAndTamperDetection(t *testing.T) 
 		http.StatusServiceUnavailable,
 		"registry_integrity_unavailable",
 	)
+}
+
+func TestLiveCLIStyleCommitUsesBoundedOperationalBoundary(t *testing.T) {
+	fixture := newOperatorAPIFixture(t)
+	fullAudits := fixture.runtime.Service.FullVerificationRuns()
+
+	cliRuntime, err := app.Bootstrap(
+		context.Background(),
+		fixture.cfg,
+		app.Options{Now: fixture.clock.Now},
+	)
+	if err != nil {
+		t.Fatalf("open independent CLI-style registry runtime: %v", err)
+	}
+	draft := announcementDraft(
+		"publication_external_cli_boundary",
+		protocol.AnnouncementKindGeneral,
+		protocol.AnnouncementSeverityNotice,
+		"2026-07-28T11:00:00Z",
+		"",
+	)
+	if _, err := cliRuntime.Service.PublishAnnouncement(
+		context.Background(),
+		draft,
+	); err != nil {
+		cliRuntime.Close()
+		t.Fatalf("publish through independent CLI-style connection: %v", err)
+	}
+	if err := cliRuntime.Close(); err != nil {
+		t.Fatalf("close independent CLI-style registry runtime: %v", err)
+	}
+
+	page := fetchAnnouncements(t, fixture, "limit=20")
+	if len(page.Items) != 1 ||
+		page.Items[0].PublicationID != draft.PublicationID {
+		t.Fatalf("primary runtime did not accept bounded external commit: %+v", page.Items)
+	}
+	if got := fixture.runtime.Service.FullVerificationRuns(); got != fullAudits {
+		t.Fatalf(
+			"external CLI-style commit caused %d request-path full audits",
+			got-fullAudits,
+		)
+	}
 }
 
 func announcementDraft(

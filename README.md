@@ -5,9 +5,15 @@ provides:
 
 - proof-of-possession deployment registration with Ed25519;
 - zero-count `installation-test` MAU batches that never affect weight;
+- signed `monthly-qmau` aggregate snapshots with linear immutable correction
+  revisions, opaque evidence commitments, and six-complete-month leaderboard
+  weighting;
 - signed daily aggregate revenue snapshots and immutable correction revisions,
   separated by ISO-4217 settlement currency;
 - a SQLite WAL append-only, hash-linked ledger;
+- a compact RFC 9162 Certificate-Transparency-style Merkle Tree Hash index,
+  signed tree heads, and inclusion/consistency proofs without duplicating
+  ledger leaves;
 - directly maintained leaderboard weight and revenue query rows, written in
   the same SQLite transaction as their authoritative ledger/source records;
 - signed registration and batch receipts plus completed-UTC-day checkpoints;
@@ -22,12 +28,12 @@ provides:
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
-It does not yet implement global user deduplication, production MAU
-qualification, Firebase migration, beneficial-owner due diligence, document
-upload/review, or share-weighted revenue allocation. Company claims have an
-explicit local administrative approval boundary. With protocol-v1 accepting
-only zero-count installation tests, a real registry's measured deployment
-weights remain zero until the production MAU ruleset is introduced. Revenue
+It does not implement global-human deduplication, Firebase migration,
+beneficial-owner due diligence, document upload/review, or a legal
+share-weighted revenue payout. The QMAU protocol accepts a deployment-signed
+aggregate and an opaque evidence commitment; the deployment remains
+responsible for applying `qmau-v1` to its private activity evidence. Company
+claims have an explicit local administrative approval boundary. Revenue
 receipts and the technical 5% network-pool calculation do not establish a
 legal payout or valuation.
 
@@ -38,16 +44,21 @@ client-code grouping, audit, and leaderboard behavior is documented in
 The local publication boundary, signed pull feed, and independently
 package-signed update manifest are documented in
 [`docs/announcements-v1.md`](docs/announcements-v1.md).
+Automated gates, the Explore production-package boundary, and the remaining
+release drills are tracked in
+[`docs/production-qualification.md`](docs/production-qualification.md).
 
-## Local development quick start
+## Isolated Explore/demo registry
 
-The local Compose setup creates a persistent volume, atomically creates the
-central Ed25519 key only on the first pristine start, and runs as numeric
-non-root UID/GID `65532`. A registry scope must be chosen explicitly:
+The local Compose setup runs the real Go service with a dedicated demo
+database, signing key, identity, and persistent volume. `start-demo` is
+explicitly gated by `REGISTRY_DEMO_SEED=true`, a `demo:` scope, and database
+and key filenames containing `demo`. It seeds through the normal signed
+registration, QMAU, revenue, claim, review, client-code, and announcement
+service paths. It does not insert domain fixtures with SQL.
 
 ```bash
 cp .env.example .env
-# Edit REGISTRY_SCOPE in .env for this independently governed instance.
 docker compose up --build
 curl http://127.0.0.1:8081/healthz
 ```
@@ -59,10 +70,29 @@ The health endpoint is `GET /healthz`. Another Compose service should use
 `http://registry:8080`; a host-side Java test should use
 `http://127.0.0.1:8081`.
 
-This loopback HTTP mapping is for local development. Production uses the
-separate TLS edge described below.
+The baseline has four genuine signed deployments, six complete QMAU months
+for each deployment, a two-deployment approved operator group created through
+a temporary client code, one pending claim, one unclaimed deployment, daily
+revenue, a completed-day checkpoint, two signed announcements, and a matching
+Merkle index. Seeding is resumable and idempotent after interruption. Once the
+baseline is marked complete, later interactive demo writes are preserved on
+restart. On each guarded `start-demo`, the service also appends only the
+missing QMAU snapshots needed to keep all four deterministic deployments
+populated through the latest six complete UTC months. Existing snapshots,
+claims, announcements, and interactive records are not re-created or read back
+through a browser database.
 
-An empty registry returns health JSON shaped like:
+A server-backed Explore workspace may run the same optimized image internally
+with no host port, `command: ["start-demo"]`, and its own demo volume. Browser
+local data is only an offline fallback. A real central registry is a separate
+deployment using ordinary startup (no command and
+`REGISTRY_DEMO_SEED=false`), a non-demo scope, and a different
+database/key/volume. It is never seeded. The production package uses the same
+stripped, non-root, scratch-based registry image for Explore, tagged
+`myscoutee-registry:<version>-prod`; only its guarded command, demo identity,
+and isolated volumes differ from an ordinary registry deployment.
+
+An ordinary empty central registry returns health JSON shaped like:
 
 ```json
 {
@@ -232,6 +262,8 @@ follow the signing-key lifecycle rules below.
 | `POST` | `/v1/revenue/batches` | `201` appended daily aggregate, `200` idempotent duplicate |
 | `GET` | `/v1/revenue/batches/{revbatch_id}/receipt` | Stored signed revenue receipt |
 | `GET` | `/v1/ledger/checkpoints/{YYYY-MM-DD}` | Completed UTC day checkpoint |
+| `GET` | `/v1/ledger/merkle/inclusion/{tree_size}/{ledger_index}` | Registry-signed RFC 9162-style inclusion proof |
+| `GET` | `/v1/ledger/merkle/consistency/{old_tree_size}/{new_tree_size}` | Registry-signed RFC 9162-style append-only consistency proof |
 | `POST` | `/v1/operator/actions` | Signed claim, client-token/group-link, or deployment-state action |
 | `GET` | `/v1/operator/claims/{deployment_id}` | Direct registry-signed company-verification status |
 | `GET` | `/v1/leaderboard?view=founder\|claimed\|unclaimed` | Signed snapshot-bound cursor page |
@@ -336,6 +368,12 @@ docker compose exec -T registry \
 docker compose exec -T registry \
   /registry revenue --period 2026-07-27 --currency EUR \
   --group-id opg_0123456789abcdef0123456789abcdef
+
+docker compose exec -T registry \
+  /registry merkle-proof --ledger-index 1
+
+docker compose exec -T registry \
+  /registry merkle-consistency --old-tree-size 32 --new-tree-size 64
 ```
 
 Commands emit JSON. An exact approval retry exits `0` with `duplicate: true`;
@@ -369,14 +407,15 @@ behavior are in
 | `REGISTRY_DATABASE_PATH` | `/data/registry.db` | SQLite database |
 | `REGISTRY_SIGNING_KEY_PATH` | `/data/registry-signing-key.pem` | PKCS#8 Ed25519 PEM |
 | `REGISTRY_GENERATE_SIGNING_KEY` | `true` | Allow key creation only for a pristine first start |
+| `REGISTRY_DEMO_SEED` | `false` | Guard accepted only with the explicit `start-demo` command |
 | `REGISTRY_TIMESTAMP_SKEW` | `5m` | Signed-request clock window |
 | `REGISTRY_MAX_REQUEST_BODY_BYTES` | `65536` | JSON body limit, 1 KiB-1 MiB |
 | `REGISTRY_CHECKPOINT_INTERVAL` | `1m` | Background completed-day finalization |
 | `REGISTRY_SHUTDOWN_TIMEOUT` | `10s` | HTTP graceful shutdown timeout |
 | `REGISTRY_HEALTHCHECK_URL` | `http://127.0.0.1:8080/healthz` | Binary healthcheck target |
 
-Copy `.env.example` to `.env` and replace its example scope before starting
-Compose; the service intentionally has no scope default.
+`compose.yaml` supplies the isolated demo scope and paths. An ordinary central
+registry intentionally has no scope default and must never set the demo guard.
 
 ## Central signing key lifecycle
 
@@ -433,11 +472,34 @@ leaderboard query rows, operator audit events, private claim submissions,
 claim reviews, versioned operator-network rows, announcements, and
 checkpoints.
 
-The accounting ledger is a linear SHA-256 hash chain, not a Merkle tree. Each
-entry commits to its canonical contents and the previous entry hash. Signed,
-hash-linked daily checkpoints commit to the completed-day ledger head. This
-provides full replay/tamper verification; it does not claim Merkle inclusion
-proofs.
+The authoritative accounting ledger remains a linear SHA-256 hash chain: each
+entry commits to its canonical contents and the previous entry hash. In the
+same append transaction, the registry stores only the newly completed internal
+nodes of an RFC 9162 Certificate-Transparency-style Merkle Tree Hash index.
+Ledger hashes are the leaves and are not duplicated in the Merkle table. For
+`n` ledger entries it stores exactly `n - popcount(n)` internal nodes (fewer
+than one stored node per entry), performs one leaf hash plus an amortized one
+parent hash per append, and produces `O(log n)` inclusion and consistency
+proofs. Registry-signed tree heads bind the scope, registry key, tree size,
+root, and generation time. The existing linear chain and signed daily
+checkpoints remain authoritative and independently verified.
+
+The complete operational state and Merkle index are audited at bootstrap,
+health checks, checkpoint finalization, and explicit verification commands.
+That successful audit establishes the immutable trusted prefix. Ordinary reads
+and writes compare SQLite's connection-local `data_version`, an `O(1)`
+operation. While it is unchanged, all commits came through the serialized,
+transactionally checked Store methods. When another connection (normally the
+local CLI) commits, the next request verifies the configured identity,
+required append-only triggers, cryptographic chain heads and predecessors,
+source/query boundary rows, signatures, and only the newly completed Merkle
+frontier before trusting the new revision. That boundary work is constant
+except for the `O(log n)` Merkle frontier. A failed complete audit latches the
+service fail-closed until a later complete audit succeeds.
+
+Generated inclusion and consistency proofs are also verified in-process before
+they are returned. Ordinary append and read paths therefore do not rebuild the
+ledger, receipt, operator, announcement, or Merkle history.
 
 `ledger_weight_rows` and `revenue_query_rows` are not asynchronous projections
 and are never repaired from the ledger. An installation-test acceptance writes
@@ -453,12 +515,14 @@ On every restart and health check, the registry validates:
 - the central key/scope identity;
 - deployment public-key fingerprints, original request proofs, payload hashes,
   and central registration receipts;
-- MAU request proofs, commitments, batch-to-ledger fields, ledger hashes,
+- installation/QMAU request proofs, commitments, immutable linear QMAU
+  revision links, batch-to-ledger fields, direct weight rows, ledger hashes,
   receipt signatures, idempotency links, and initial nonce links;
 - revenue request proofs, canonical currency aggregates, immutable revision
   links, direct query rows, ledger entries, receipts, nonces, idempotency
   links, and bounded active aggregates;
-- ledger index/hash/timestamp monotonicity and the full checkpoint chain;
+- ledger index/hash/timestamp monotonicity, every compact Merkle internal node,
+  and the full checkpoint chain;
 - exact ledger/query-row cardinality and field equality;
 - the operator action hash chain, deployment signatures, replay/idempotency
   records, registry-signed action receipts, private claim-record hashes,
@@ -467,10 +531,12 @@ On every restart and health check, the registry validates:
 - the announcement hash chain, normalized nested-content hashes, publication
   idempotency hashes, registry signatures, and stored canonical JSON.
 
-Registration, MAU/revenue batch, operator-action,
-announcement-publication, and signed read-model operations fail closed when
-this verification fails. New ledger timestamps cannot precede registry
-creation, the current ledger head, or an already finalized day.
+Registration, MAU/revenue batch, operator-action, announcement-publication,
+and signed read-model operations fail closed when their operational integrity
+verification fails. Full Merkle failures additionally fail startup, health,
+checkpoint finalization, proof verification, and explicit audit commands.
+New ledger timestamps cannot precede registry creation, the current ledger
+head, or an already finalized day.
 
 Protocol v1 does not define recovery aliasing for a lost local installation
 idempotency key: that key is included in the commitment and therefore in the

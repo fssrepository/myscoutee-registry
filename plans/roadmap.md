@@ -107,8 +107,13 @@ Deliverables:
   publishes HTTP-to-HTTPS redirect and bounded HTTPS proxy traffic;
 - the canonical Java development Docker Compose stack includes a
   disposable/persistent local Go registry for operator and failure testing;
-  production Java packaging never includes that local registry, and direct
-  plain HTTP is permitted only inside this explicit development topology;
+  production never bundles or silently selects a real/operator registry, but
+  the production Explore workspace packages the stripped
+  `myscoutee-registry:<version>-prod` image as an internal-only seeded demo
+  registry, started by the guarded `start-demo` command with its own demo
+  scope, identity, SQLite/key volume, and Java-client state volume; it has no
+  host port, cannot share production/operator registry state, and direct plain
+  HTTP is confined to these explicit internal development/Explore networks;
 - SQLite in WAL mode on a persistent volume;
 - atomic nonce/idempotency enforcement;
 - append-only, hash-linked ledger;

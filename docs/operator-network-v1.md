@@ -480,6 +480,7 @@ The remaining pool is divided among eligible claimed operator groups.
 Pending-review claims are intentionally provisional claimed members: their
 measured weight remains visible, while `claimed_weight`, share, share ordering,
 and allocation exclude them until registry approval. Approval changes
-eligibility, not the immutable measured ledger rows. Protocol v1 currently
-accepts only zero-count installation-test MAU batches, so production weight
-remains zero until the qualified-MAU protocol is introduced.
+eligibility, not the immutable measured ledger rows. Protocol v1 accepts
+deployment-signed `monthly-qmau` snapshots and immutable linear corrections
+under `qmau-v1`; measured weight is their latest-revision arithmetic mean over
+the fixed six-month window, with missing months contributing zero.

@@ -120,7 +120,7 @@ func (registry *Service) SubmitRevenueBatch(
 			"revenue batch payload_hash does not match the canonical payload",
 		)
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error(
 			"refusing revenue batch while registry integrity verification fails",
 			"error",
@@ -372,7 +372,7 @@ func (registry *Service) RevenueSummary(
 			"deployment_id and group_id are mutually exclusive",
 		)
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		return protocol.RevenueSummary{}, requestError(
 			"registry_integrity_unavailable",
 			"registry integrity verification failed; revenue query is temporarily unavailable",

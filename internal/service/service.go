@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -41,6 +43,12 @@ type Service struct {
 	now           func() time.Time
 	newID         func(prefix string) (string, error)
 	logger        *slog.Logger
+
+	integrityMutex             sync.Mutex
+	trustedOperationalRevision store.OperationalRevision
+	operationalRevisionTrusted bool
+	integrityFailure           error
+	fullVerificationRuns       atomic.Uint64
 }
 
 func New(registryStore store.Store, signingKey *identity.SigningKey, options Options) *Service {
@@ -135,7 +143,7 @@ func (registry *Service) RegisterDeployment(
 	if request.PayloadHash != expectedPayloadHash {
 		return protocol.RegistrationResponse{}, requestError("invalid_payload_hash", "registration payload_hash does not match the canonical payload")
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error("refusing deployment registration while registry integrity verification fails", "error", err)
 		return protocol.RegistrationResponse{}, requestError(
 			"registry_integrity_unavailable",
@@ -249,38 +257,67 @@ func (registry *Service) SubmitBatch(
 		)
 	}
 
-	if request.Kind != protocol.InstallationTestKind ||
-		request.RulesetVersion != protocol.InstallationTestRuleset ||
-		request.QualifiedMAUCount != 0 {
-		return protocol.BatchResponse{}, requestError(
-			"invalid_installation_test",
-			"protocol v1 accepts only installation-test / installation-test-v1 with qualified_mau_count 0",
-		)
-	}
 	if !periodPattern.MatchString(request.Period) {
 		return protocol.BatchResponse{}, requestError("invalid_request", "period must use YYYY-MM")
 	}
 	if !protocol.IsDigest(request.CommitmentHash) {
 		return protocol.BatchResponse{}, requestError("invalid_request", "commitment_hash must be a lowercase sha256 digest")
 	}
-	expectedCommitment := protocol.Digest(protocol.InstallationTestCommitment(
-		request.DeploymentID,
-		request.IdempotencyKey,
-	))
-	if request.CommitmentHash != expectedCommitment {
-		return protocol.BatchResponse{}, requestError("invalid_commitment", "installation-test commitment_hash is invalid")
+	var expectedPayloadHash string
+	switch request.Kind {
+	case protocol.InstallationTestKind:
+		if request.RulesetVersion != protocol.InstallationTestRuleset ||
+			request.QualifiedMAUCount != 0 ||
+			request.Revision != 0 ||
+			request.SupersedesBatchID != "" {
+			return protocol.BatchResponse{}, requestError(
+				"invalid_installation_test",
+				"installation tests require installation-test-v1, zero count, revision 0, and no superseded batch",
+			)
+		}
+		expectedCommitment := protocol.Digest(protocol.InstallationTestCommitment(
+			request.DeploymentID,
+			request.IdempotencyKey,
+		))
+		if request.CommitmentHash != expectedCommitment {
+			return protocol.BatchResponse{}, requestError("invalid_commitment", "installation-test commitment_hash is invalid")
+		}
+		expectedPayloadHash = protocol.Digest(protocol.BatchPayload(
+			request.Kind,
+			request.Period,
+			request.RulesetVersion,
+			request.QualifiedMAUCount,
+			request.CommitmentHash,
+		))
+	case protocol.QualifiedMAUKind:
+		if request.RulesetVersion != protocol.QualifiedMAURuleset ||
+			request.QualifiedMAUCount < 0 ||
+			request.Revision < 1 ||
+			(request.Revision == 1 && request.SupersedesBatchID != "") ||
+			(request.Revision > 1 && !batchIDPattern.MatchString(request.SupersedesBatchID)) {
+			return protocol.BatchResponse{}, requestError(
+				"invalid_qmau_snapshot",
+				"monthly QMAU requires qmau-v1, a non-negative count, and a linear revision/supersedes pair",
+			)
+		}
+		expectedPayloadHash = protocol.Digest(protocol.QualifiedMAUPayload(
+			request.Period,
+			request.RulesetVersion,
+			request.QualifiedMAUCount,
+			request.CommitmentHash,
+			request.Revision,
+			request.SupersedesBatchID,
+		))
+	default:
+		return protocol.BatchResponse{}, requestError(
+			"invalid_batch_kind",
+			"kind must be installation-test or monthly-qmau",
+		)
 	}
-	expectedPayloadHash := protocol.Digest(protocol.BatchPayload(
-		request.Kind,
-		request.Period,
-		request.RulesetVersion,
-		request.QualifiedMAUCount,
-		request.CommitmentHash,
-	))
 	if request.PayloadHash != expectedPayloadHash {
 		return protocol.BatchResponse{}, requestError("invalid_payload_hash", "MAU batch payload_hash does not match the canonical payload")
 	}
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error("refusing MAU batch while registry integrity verification fails", "error", err)
 		return protocol.BatchResponse{}, requestError(
 			"registry_integrity_unavailable",
@@ -313,10 +350,33 @@ func (registry *Service) SubmitBatch(
 			RulesetVersion:      request.RulesetVersion,
 			QualifiedMAUCount:   request.QualifiedMAUCount,
 			CommitmentHash:      request.CommitmentHash,
+			Revision:            request.Revision,
+			SupersedesBatchID:   request.SupersedesBatchID,
 			AcceptedAt:          acceptedAt,
 			CheckpointDate:      checkpointDate,
 		},
 		func(entry protocol.LedgerEntry, date string) ([]byte, error) {
+			if request.Kind == protocol.QualifiedMAUKind {
+				return registry.signingKey.Sign(protocol.QualifiedMAUReceiptMessage(
+					protocol.Version,
+					registry.registryScope,
+					entry.BatchID,
+					entry.DeploymentID,
+					entry.LedgerIndex,
+					entry.EntryHash,
+					entry.PreviousEntryHash,
+					entry.BatchHash,
+					entry.Period,
+					entry.RulesetVersion,
+					entry.QualifiedMAUCount,
+					request.CommitmentHash,
+					request.Revision,
+					request.SupersedesBatchID,
+					entry.AcceptedAt,
+					date,
+					registry.signingKey.KeyID(),
+				)), nil
+			}
 			return registry.signingKey.Sign(protocol.MAUReceiptMessage(
 				protocol.Version,
 				registry.registryScope,
@@ -357,7 +417,7 @@ func (registry *Service) Receipt(ctx context.Context, batchID string) (protocol.
 }
 
 func (registry *Service) Identity(ctx context.Context) (protocol.RegistryIdentity, error) {
-	if err := registry.VerifyState(ctx); err != nil {
+	if err := registry.verifyOperationalState(ctx); err != nil {
 		registry.logger.Error("refusing registry identity preflight while integrity verification fails", "error", err)
 		return protocol.RegistryIdentity{}, requestError(
 			"registry_integrity_unavailable",
@@ -429,6 +489,90 @@ func (registry *Service) FinalizeCompletedCheckpoints(ctx context.Context) error
 }
 
 func (registry *Service) VerifyState(ctx context.Context) error {
+	registry.integrityMutex.Lock()
+	defer registry.integrityMutex.Unlock()
+	registry.fullVerificationRuns.Add(1)
+
+	before, err := registry.store.OperationalRevision(ctx)
+	if err != nil {
+		registry.integrityFailure = err
+		return err
+	}
+	if err := registry.verifyCompleteOperationalState(ctx); err != nil {
+		registry.integrityFailure = err
+		return err
+	}
+	if err := registry.store.VerifyMerkleTree(ctx); err != nil {
+		registry.integrityFailure = fmt.Errorf("verify ledger Merkle tree: %w", err)
+		return registry.integrityFailure
+	}
+	after, err := registry.store.OperationalRevision(ctx)
+	if err != nil {
+		registry.integrityFailure = err
+		return err
+	}
+	if before != after {
+		registry.integrityFailure = fmt.Errorf(
+			"%w: registry data changed through another connection during full verification",
+			store.ErrInconsistentState,
+		)
+		return registry.integrityFailure
+	}
+	registry.trustedOperationalRevision = after
+	registry.operationalRevisionTrusted = true
+	registry.integrityFailure = nil
+	return nil
+}
+
+// verifyOperationalState keeps ordinary HTTP work on a bounded fast path. A
+// complete bootstrap audit establishes the immutable prefix. While SQLite's
+// connection-local data_version is unchanged, all writes came through this
+// process's transactionally checked Store methods. When a second connection
+// (normally the local registry CLI) commits, the cryptographic chain heads,
+// source/projection boundary rows, and newly completed Merkle frontier are
+// checked before the new revision becomes trusted.
+func (registry *Service) verifyOperationalState(ctx context.Context) error {
+	registry.integrityMutex.Lock()
+	defer registry.integrityMutex.Unlock()
+
+	if registry.integrityFailure != nil {
+		return fmt.Errorf(
+			"registry remains fail-closed after a failed complete integrity audit: %w",
+			registry.integrityFailure,
+		)
+	}
+	before, err := registry.store.OperationalRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if registry.operationalRevisionTrusted &&
+		before == registry.trustedOperationalRevision {
+		return nil
+	}
+	if err := registry.store.VerifyOperationalBoundary(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify operational trust boundary: %w", err)
+	}
+	after, err := registry.store.OperationalRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if before != after {
+		return fmt.Errorf(
+			"%w: registry data changed through another connection during boundary verification",
+			store.ErrInconsistentState,
+		)
+	}
+	registry.trustedOperationalRevision = after
+	registry.operationalRevisionTrusted = true
+	return nil
+}
+
+func (registry *Service) verifyCompleteOperationalState(ctx context.Context) error {
 	if err := registry.store.VerifyLedger(ctx); err != nil {
 		return fmt.Errorf("verify ledger: %w", err)
 	}
@@ -470,6 +614,13 @@ func (registry *Service) VerifyState(ctx context.Context) error {
 	return nil
 }
 
+// FullVerificationRuns exposes an integrity diagnostic used by qualification
+// tests and operators. Ordinary request handling must not increase it; startup,
+// health/readiness, checkpoint finalization, and explicit verification do.
+func (registry *Service) FullVerificationRuns() uint64 {
+	return registry.fullVerificationRuns.Load()
+}
+
 func (registry *Service) Health(ctx context.Context) (store.LedgerHead, error) {
 	if err := registry.store.Ping(ctx); err != nil {
 		return store.LedgerHead{}, err
@@ -508,7 +659,7 @@ func (registry *Service) RegistryScope() string {
 
 func (registry *Service) batchResponse(record store.BatchRecord, duplicate bool) protocol.BatchResponse {
 	entry := record.LedgerEntry
-	return protocol.BatchResponse{
+	response := protocol.BatchResponse{
 		ProtocolVersion: protocol.Version,
 		RegistryScope:   registry.registryScope,
 		BatchID:         record.BatchID,
@@ -532,6 +683,12 @@ func (registry *Service) batchResponse(record store.BatchRecord, duplicate bool)
 			Signature:         protocol.EncodeSignature(record.ReceiptSignature),
 		},
 	}
+	if record.Kind == protocol.QualifiedMAUKind {
+		response.Receipt.CommitmentHash = record.CommitmentHash
+		response.Receipt.Revision = record.Revision
+		response.Receipt.SupersedesBatchID = record.SupersedesBatchID
+	}
+	return response
 }
 
 func (registry *Service) checkpointResponse(record store.CheckpointRecord) protocol.Checkpoint {
@@ -614,6 +771,11 @@ func mapStoreError(err error) error {
 		return requestError(
 			"registry_clock_before_identity",
 			"registry clock is before this registry identity's creation time",
+		)
+	case errors.Is(err, store.ErrQualifiedMAURevisionConflict):
+		return requestError(
+			"qmau_revision_conflict",
+			"revision must increment and supersede the current active QMAU snapshot for this deployment and period",
 		)
 	default:
 		return err
