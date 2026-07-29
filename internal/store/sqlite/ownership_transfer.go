@@ -215,6 +215,24 @@ func (sqliteStore *Store) PrepareOwnershipTransfer(
 		return store.OwnershipTransferEvent{}, store.OwnershipTransfer{}, false,
 			store.ErrOwnershipTransferConflict
 	}
+	var finalAllocationID string
+	allocationErr := tx.QueryRowContext(ctx, `
+		SELECT allocation_id
+		FROM exit_allocations
+		WHERE exit_review_id = ?`,
+		input.ExitReviewID,
+	).Scan(&finalAllocationID)
+	if allocationErr == nil {
+		return store.OwnershipTransferEvent{}, store.OwnershipTransfer{}, false,
+			store.ErrOwnershipTransferConflict
+	}
+	if !errors.Is(allocationErr, sql.ErrNoRows) {
+		return store.OwnershipTransferEvent{}, store.OwnershipTransfer{}, false,
+			fmt.Errorf(
+				"inspect final exit allocation before transfer prepare: %w",
+				allocationErr,
+			)
+	}
 	legalName, err := currentOwnershipTransferClaimTx(
 		ctx,
 		tx,

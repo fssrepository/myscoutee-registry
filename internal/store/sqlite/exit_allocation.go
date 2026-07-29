@@ -122,29 +122,29 @@ const exitAllocationStateSelect = `
 	FROM exit_allocation_state_rows`
 
 type exitAllocationState struct {
-	EventIndex               int64
-	EventHash                string
-	AllocationID             string
-	Status                   string
-	DecisionMode             string
-	BeneficiaryType          string
-	BeneficiaryID            string
-	ExitReviewID             string
-	TargetDeploymentID       string
-	ClaimActionID            string
-	SourceGroupID            string
-	OwnershipTransferID      string
-	SettlementSourceCount    int64
-	SettlementSourceHash     string
-	CurrencyAllocationCount  int64
-	CurrencyAllocationHash   string
-	RecordHash               string
-	LatestAction             string
-	LatestActorRole          string
-	LatestActorID            string
-	LatestReference          string
-	LatestEvidenceHash       string
-	LatestAcceptedAt         string
+	EventIndex              int64
+	EventHash               string
+	AllocationID            string
+	Status                  string
+	DecisionMode            string
+	BeneficiaryType         string
+	BeneficiaryID           string
+	ExitReviewID            string
+	TargetDeploymentID      string
+	ClaimActionID           string
+	SourceGroupID           string
+	OwnershipTransferID     string
+	SettlementSourceCount   int64
+	SettlementSourceHash    string
+	CurrencyAllocationCount int64
+	CurrencyAllocationHash  string
+	RecordHash              string
+	LatestAction            string
+	LatestActorRole         string
+	LatestActorID           string
+	LatestReference         string
+	LatestEvidenceHash      string
+	LatestAcceptedAt        string
 }
 
 func (sqliteStore *Store) CreateExitAllocation(
@@ -253,14 +253,14 @@ func (sqliteStore *Store) CreateExitAllocation(
 	}
 	beneficiaryType, beneficiaryID, transferEventIndex, transferEventHash,
 		err := resolveExitAllocationDecisionTx(
-			ctx,
-			tx,
-			review,
-			input.DecisionMode,
-			input.OwnershipTransferID,
-			input.OwnershipTransferCompletionEventHash,
-			input.BeneficiaryID,
-		)
+		ctx,
+		tx,
+		review,
+		input.DecisionMode,
+		input.OwnershipTransferID,
+		input.OwnershipTransferCompletionEventHash,
+		input.BeneficiaryID,
+	)
 	if err != nil {
 		return store.ExitAllocationEvent{}, store.ExitAllocation{}, false, err
 	}
@@ -286,28 +286,28 @@ func (sqliteStore *Store) CreateExitAllocation(
 	}
 
 	record := store.ExitAllocationRecord{
-		AllocationID: input.CandidateAllocationID,
-		RulesetVersion: protocol.ExitAllocationRulesetVersion,
-		ExitReviewID: review.Record.ReviewID,
-		TargetDeploymentID: review.Record.TargetDeploymentID,
-		ClaimActionID: review.Record.ClaimActionID,
-		SourceGroupID: review.Record.GroupID,
-		ExitRecordHash: review.Record.RecordHash,
-		ExitVerificationEventIndex: exitEvent.EventIndex,
-		ExitVerificationEventHash: exitEvent.EventHash,
-		ExitEvidenceHash: exitEvent.EvidenceHash,
-		DecisionMode: input.DecisionMode,
-		OwnershipTransferID: input.OwnershipTransferID,
+		AllocationID:                          input.CandidateAllocationID,
+		RulesetVersion:                        protocol.ExitAllocationRulesetVersion,
+		ExitReviewID:                          review.Record.ReviewID,
+		TargetDeploymentID:                    review.Record.TargetDeploymentID,
+		ClaimActionID:                         review.Record.ClaimActionID,
+		SourceGroupID:                         review.Record.GroupID,
+		ExitRecordHash:                        review.Record.RecordHash,
+		ExitVerificationEventIndex:            exitEvent.EventIndex,
+		ExitVerificationEventHash:             exitEvent.EventHash,
+		ExitEvidenceHash:                      exitEvent.EvidenceHash,
+		DecisionMode:                          input.DecisionMode,
+		OwnershipTransferID:                   input.OwnershipTransferID,
 		OwnershipTransferCompletionEventIndex: transferEventIndex,
-		OwnershipTransferCompletionEventHash: transferEventHash,
-		ThroughOwnershipTransferEventIndex: transferHead.EventIndex,
-		OwnershipTransferHeadHash: transferHead.EventHash,
-		BeneficiaryType: beneficiaryType,
-		BeneficiaryID: beneficiaryID,
-		ContractReference: input.ContractReference,
-		ContractTermsHash: input.ContractTermsHash,
-		EvidenceHash: input.EvidenceHash,
-		SettlementSourceCount: int64(len(sources)),
+		OwnershipTransferCompletionEventHash:  transferEventHash,
+		ThroughOwnershipTransferEventIndex:    transferHead.EventIndex,
+		OwnershipTransferHeadHash:             transferHead.EventHash,
+		BeneficiaryType:                       beneficiaryType,
+		BeneficiaryID:                         beneficiaryID,
+		ContractReference:                     input.ContractReference,
+		ContractTermsHash:                     input.ContractTermsHash,
+		EvidenceHash:                          input.EvidenceHash,
+		SettlementSourceCount:                 int64(len(sources)),
 		SettlementSourceHash: protocol.ExitAllocationSettlementSourceHash(
 			exitAllocationProtocolSources(sources),
 		),
@@ -315,10 +315,10 @@ func (sqliteStore *Store) CreateExitAllocation(
 		CurrencyAllocationHash: protocol.ExitAllocationCurrencyHash(
 			exitAllocationProtocolCurrencies(currencies),
 		),
-		CreatedAt: input.AcceptedAt,
-		RegistryScope: input.RegistryScope,
-		RegistryKeyID: input.RegistryKeyID,
-		SettlementSources: sources,
+		CreatedAt:           input.AcceptedAt,
+		RegistryScope:       input.RegistryScope,
+		RegistryKeyID:       input.RegistryKeyID,
+		SettlementSources:   sources,
 		CurrencyAllocations: currencies,
 	}
 	record.RecordHash = protocol.Digest(
@@ -327,22 +327,22 @@ func (sqliteStore *Store) CreateExitAllocation(
 		),
 	)
 	event := store.ExitAllocationEvent{
-		EventIndex: head.EventIndex + 1,
-		EventID: input.CandidateEventID,
-		AllocationID: record.AllocationID,
-		Action: protocol.ExitAllocationActionCreate,
-		ResultingStatus: protocol.ExitAllocationStatusRecorded,
-		ActorRole: protocol.ExitAllocationActorAllocator,
-		ActorID: input.ActorID,
-		Reference: input.ContractReference,
-		EvidenceHash: input.EvidenceHash,
-		IdempotencyKey: input.IdempotencyKey,
-		RecordHash: record.RecordHash,
-		AcceptedAt: input.AcceptedAt,
-		PreviousEventHash: head.EventHash,
+		EventIndex:                  head.EventIndex + 1,
+		EventID:                     input.CandidateEventID,
+		AllocationID:                record.AllocationID,
+		Action:                      protocol.ExitAllocationActionCreate,
+		ResultingStatus:             protocol.ExitAllocationStatusRecorded,
+		ActorRole:                   protocol.ExitAllocationActorAllocator,
+		ActorID:                     input.ActorID,
+		Reference:                   input.ContractReference,
+		EvidenceHash:                input.EvidenceHash,
+		IdempotencyKey:              input.IdempotencyKey,
+		RecordHash:                  record.RecordHash,
+		AcceptedAt:                  input.AcceptedAt,
+		PreviousEventHash:           head.EventHash,
 		PreviousAllocationEventHash: protocol.ExitAllocationZeroHash,
-		RegistryScope: input.RegistryScope,
-		RegistryKeyID: input.RegistryKeyID,
+		RegistryScope:               input.RegistryScope,
+		RegistryKeyID:               input.RegistryKeyID,
 	}
 	event.PayloadHash = protocol.Digest(
 		protocol.ExitAllocationEventPayloadMessage(
@@ -528,23 +528,23 @@ func (sqliteStore *Store) VerifyExitAllocation(
 			store.ErrExitAllocationConservation
 	}
 	event := store.ExitAllocationEvent{
-		EventIndex: head.EventIndex + 1,
-		EventID: input.CandidateEventID,
-		AllocationID: current.Record.AllocationID,
-		Action: protocol.ExitAllocationActionVerify,
-		ResultingStatus: protocol.ExitAllocationStatusVerifiedFinal,
-		ActorRole: protocol.ExitAllocationActorVerifier,
-		ActorID: input.ActorID,
-		Reference: input.Reference,
-		EvidenceHash: input.EvidenceHash,
-		IdempotencyKey: input.IdempotencyKey,
-		PayloadHash: input.PayloadHash,
-		RecordHash: current.Record.RecordHash,
-		AcceptedAt: input.AcceptedAt,
-		PreviousEventHash: head.EventHash,
+		EventIndex:                  head.EventIndex + 1,
+		EventID:                     input.CandidateEventID,
+		AllocationID:                current.Record.AllocationID,
+		Action:                      protocol.ExitAllocationActionVerify,
+		ResultingStatus:             protocol.ExitAllocationStatusVerifiedFinal,
+		ActorRole:                   protocol.ExitAllocationActorVerifier,
+		ActorID:                     input.ActorID,
+		Reference:                   input.Reference,
+		EvidenceHash:                input.EvidenceHash,
+		IdempotencyKey:              input.IdempotencyKey,
+		PayloadHash:                 input.PayloadHash,
+		RecordHash:                  current.Record.RecordHash,
+		AcceptedAt:                  input.AcceptedAt,
+		PreviousEventHash:           head.EventHash,
 		PreviousAllocationEventHash: current.LatestEventHash,
-		RegistryScope: input.RegistryScope,
-		RegistryKeyID: input.RegistryKeyID,
+		RegistryScope:               input.RegistryScope,
+		RegistryKeyID:               input.RegistryKeyID,
 	}
 	event.EventHash = protocol.Digest(
 		protocol.ExitAllocationEventHashMessage(
@@ -1060,8 +1060,8 @@ func deriveExitAllocationRowsTx(
 			!protocol.SettlementMinorAmountIsSafe(allocationMinor) {
 			return nil, nil, store.ErrExitAllocationConservation
 		}
-		current := totals[source.CurrencyCode]
-		if current.minor != 0 &&
+		current, currencyExists := totals[source.CurrencyCode]
+		if currencyExists &&
 			current.fractionDigits != source.FractionDigits {
 			return nil, nil, store.ErrExitAllocationConservation
 		}
@@ -1083,13 +1083,13 @@ func deriveExitAllocationRowsTx(
 	for index, code := range codes {
 		value := totals[code]
 		currencies = append(currencies, store.ExitAllocationCurrency{
-			AllocationOrder: int64(index),
-			CurrencyCode: code,
-			FractionDigits: value.fractionDigits,
+			AllocationOrder:    int64(index),
+			CurrencyCode:       code,
+			FractionDigits:     value.fractionDigits,
 			DistributableMinor: value.minor,
-			AllocatedMinor: value.minor,
-			BeneficiaryType: beneficiaryType,
-			BeneficiaryID: beneficiaryID,
+			AllocatedMinor:     value.minor,
+			BeneficiaryType:    beneficiaryType,
+			BeneficiaryID:      beneficiaryID,
 		})
 	}
 	return sources, currencies, nil
@@ -1488,29 +1488,29 @@ func exitAllocationStateFromEvent(
 	event store.ExitAllocationEvent,
 ) exitAllocationState {
 	return exitAllocationState{
-		EventIndex: event.EventIndex,
-		EventHash: event.EventHash,
-		AllocationID: record.AllocationID,
-		Status: event.ResultingStatus,
-		DecisionMode: record.DecisionMode,
-		BeneficiaryType: record.BeneficiaryType,
-		BeneficiaryID: record.BeneficiaryID,
-		ExitReviewID: record.ExitReviewID,
-		TargetDeploymentID: record.TargetDeploymentID,
-		ClaimActionID: record.ClaimActionID,
-		SourceGroupID: record.SourceGroupID,
-		OwnershipTransferID: record.OwnershipTransferID,
-		SettlementSourceCount: record.SettlementSourceCount,
-		SettlementSourceHash: record.SettlementSourceHash,
+		EventIndex:              event.EventIndex,
+		EventHash:               event.EventHash,
+		AllocationID:            record.AllocationID,
+		Status:                  event.ResultingStatus,
+		DecisionMode:            record.DecisionMode,
+		BeneficiaryType:         record.BeneficiaryType,
+		BeneficiaryID:           record.BeneficiaryID,
+		ExitReviewID:            record.ExitReviewID,
+		TargetDeploymentID:      record.TargetDeploymentID,
+		ClaimActionID:           record.ClaimActionID,
+		SourceGroupID:           record.SourceGroupID,
+		OwnershipTransferID:     record.OwnershipTransferID,
+		SettlementSourceCount:   record.SettlementSourceCount,
+		SettlementSourceHash:    record.SettlementSourceHash,
 		CurrencyAllocationCount: record.CurrencyAllocationCount,
-		CurrencyAllocationHash: record.CurrencyAllocationHash,
-		RecordHash: record.RecordHash,
-		LatestAction: event.Action,
-		LatestActorRole: event.ActorRole,
-		LatestActorID: event.ActorID,
-		LatestReference: event.Reference,
-		LatestEvidenceHash: event.EvidenceHash,
-		LatestAcceptedAt: event.AcceptedAt,
+		CurrencyAllocationHash:  record.CurrencyAllocationHash,
+		RecordHash:              record.RecordHash,
+		LatestAction:            event.Action,
+		LatestActorRole:         event.ActorRole,
+		LatestActorID:           event.ActorID,
+		LatestReference:         event.Reference,
+		LatestEvidenceHash:      event.EvidenceHash,
+		LatestAcceptedAt:        event.AcceptedAt,
 	}
 }
 
@@ -1519,16 +1519,16 @@ func exitAllocationFromState(
 	state exitAllocationState,
 ) store.ExitAllocation {
 	return store.ExitAllocation{
-		Record: record,
-		Status: state.Status,
-		LatestEventIndex: state.EventIndex,
-		LatestEventHash: state.EventHash,
-		LatestAction: state.LatestAction,
-		LatestActorRole: state.LatestActorRole,
-		LatestActorID: state.LatestActorID,
-		LatestReference: state.LatestReference,
+		Record:             record,
+		Status:             state.Status,
+		LatestEventIndex:   state.EventIndex,
+		LatestEventHash:    state.EventHash,
+		LatestAction:       state.LatestAction,
+		LatestActorRole:    state.LatestActorRole,
+		LatestActorID:      state.LatestActorID,
+		LatestReference:    state.LatestReference,
 		LatestEvidenceHash: state.LatestEvidenceHash,
-		LatestAcceptedAt: state.LatestAcceptedAt,
+		LatestAcceptedAt:   state.LatestAcceptedAt,
 	}
 }
 
@@ -1589,17 +1589,17 @@ func exitAllocationProtocolSources(
 	result := make([]protocol.ExitAllocationSettlementSource, 0, len(sources))
 	for _, source := range sources {
 		result = append(result, protocol.ExitAllocationSettlementSource{
-			BoundaryOrder: source.BoundaryOrder,
-			SettlementID: source.SettlementID,
-			Period: source.Period,
-			CurrencyCode: source.CurrencyCode,
-			FractionDigits: source.FractionDigits,
-			Revision: source.Revision,
-			LedgerIndex: source.LedgerIndex,
-			SettlementHash: source.SettlementHash,
-			SourceFingerprint: source.SourceFingerprint,
+			BoundaryOrder:            source.BoundaryOrder,
+			SettlementID:             source.SettlementID,
+			Period:                   source.Period,
+			CurrencyCode:             source.CurrencyCode,
+			FractionDigits:           source.FractionDigits,
+			Revision:                 source.Revision,
+			LedgerIndex:              source.LedgerIndex,
+			SettlementHash:           source.SettlementHash,
+			SourceFingerprint:        source.SourceFingerprint,
 			SettlementAllocationHash: source.SettlementAllocationHash,
-			DistributableMinor: source.DistributableMinor,
+			DistributableMinor:       source.DistributableMinor,
 		})
 	}
 	return result
@@ -1611,13 +1611,13 @@ func exitAllocationProtocolCurrencies(
 	result := make([]protocol.ExitAllocationCurrency, 0, len(allocations))
 	for _, allocation := range allocations {
 		result = append(result, protocol.ExitAllocationCurrency{
-			AllocationOrder: allocation.AllocationOrder,
-			CurrencyCode: allocation.CurrencyCode,
-			FractionDigits: allocation.FractionDigits,
+			AllocationOrder:    allocation.AllocationOrder,
+			CurrencyCode:       allocation.CurrencyCode,
+			FractionDigits:     allocation.FractionDigits,
 			DistributableMinor: allocation.DistributableMinor,
-			AllocatedMinor: allocation.AllocatedMinor,
-			BeneficiaryType: allocation.BeneficiaryType,
-			BeneficiaryID: allocation.BeneficiaryID,
+			AllocatedMinor:     allocation.AllocatedMinor,
+			BeneficiaryType:    allocation.BeneficiaryType,
+			BeneficiaryID:      allocation.BeneficiaryID,
 		})
 	}
 	return result
@@ -1627,35 +1627,35 @@ func exitAllocationProtocolRecord(
 	record store.ExitAllocationRecord,
 ) protocol.ExitAllocationRecord {
 	return protocol.ExitAllocationRecord{
-		AllocationID: record.AllocationID,
-		RulesetVersion: record.RulesetVersion,
-		ExitReviewID: record.ExitReviewID,
-		TargetDeploymentID: record.TargetDeploymentID,
-		ClaimActionID: record.ClaimActionID,
-		SourceGroupID: record.SourceGroupID,
-		ExitRecordHash: record.ExitRecordHash,
-		ExitVerificationEventIndex: record.ExitVerificationEventIndex,
-		ExitVerificationEventHash: record.ExitVerificationEventHash,
-		ExitEvidenceHash: record.ExitEvidenceHash,
-		DecisionMode: record.DecisionMode,
-		OwnershipTransferID: record.OwnershipTransferID,
+		AllocationID:                          record.AllocationID,
+		RulesetVersion:                        record.RulesetVersion,
+		ExitReviewID:                          record.ExitReviewID,
+		TargetDeploymentID:                    record.TargetDeploymentID,
+		ClaimActionID:                         record.ClaimActionID,
+		SourceGroupID:                         record.SourceGroupID,
+		ExitRecordHash:                        record.ExitRecordHash,
+		ExitVerificationEventIndex:            record.ExitVerificationEventIndex,
+		ExitVerificationEventHash:             record.ExitVerificationEventHash,
+		ExitEvidenceHash:                      record.ExitEvidenceHash,
+		DecisionMode:                          record.DecisionMode,
+		OwnershipTransferID:                   record.OwnershipTransferID,
 		OwnershipTransferCompletionEventIndex: record.OwnershipTransferCompletionEventIndex,
-		OwnershipTransferCompletionEventHash: record.OwnershipTransferCompletionEventHash,
-		ThroughOwnershipTransferEventIndex: record.ThroughOwnershipTransferEventIndex,
-		OwnershipTransferHeadHash: record.OwnershipTransferHeadHash,
-		BeneficiaryType: record.BeneficiaryType,
-		BeneficiaryID: record.BeneficiaryID,
-		ContractReference: record.ContractReference,
-		ContractTermsHash: record.ContractTermsHash,
-		EvidenceHash: record.EvidenceHash,
-		SettlementSourceCount: record.SettlementSourceCount,
-		SettlementSourceHash: record.SettlementSourceHash,
-		CurrencyAllocationCount: record.CurrencyAllocationCount,
-		CurrencyAllocationHash: record.CurrencyAllocationHash,
-		CreatedAt: record.CreatedAt,
-		RecordHash: record.RecordHash,
-		RegistryScope: record.RegistryScope,
-		RegistryKeyID: record.RegistryKeyID,
+		OwnershipTransferCompletionEventHash:  record.OwnershipTransferCompletionEventHash,
+		ThroughOwnershipTransferEventIndex:    record.ThroughOwnershipTransferEventIndex,
+		OwnershipTransferHeadHash:             record.OwnershipTransferHeadHash,
+		BeneficiaryType:                       record.BeneficiaryType,
+		BeneficiaryID:                         record.BeneficiaryID,
+		ContractReference:                     record.ContractReference,
+		ContractTermsHash:                     record.ContractTermsHash,
+		EvidenceHash:                          record.EvidenceHash,
+		SettlementSourceCount:                 record.SettlementSourceCount,
+		SettlementSourceHash:                  record.SettlementSourceHash,
+		CurrencyAllocationCount:               record.CurrencyAllocationCount,
+		CurrencyAllocationHash:                record.CurrencyAllocationHash,
+		CreatedAt:                             record.CreatedAt,
+		RecordHash:                            record.RecordHash,
+		RegistryScope:                         record.RegistryScope,
+		RegistryKeyID:                         record.RegistryKeyID,
 		SettlementSources: exitAllocationProtocolSources(
 			record.SettlementSources,
 		),
@@ -1669,23 +1669,23 @@ func exitAllocationProtocolEvent(
 	event store.ExitAllocationEvent,
 ) protocol.ExitAllocationEvent {
 	return protocol.ExitAllocationEvent{
-		EventIndex: event.EventIndex,
-		EventID: event.EventID,
-		AllocationID: event.AllocationID,
-		Action: event.Action,
-		ResultingStatus: event.ResultingStatus,
-		ActorRole: event.ActorRole,
-		ActorID: event.ActorID,
-		Reference: event.Reference,
-		EvidenceHash: event.EvidenceHash,
-		IdempotencyKey: event.IdempotencyKey,
-		PayloadHash: event.PayloadHash,
-		RecordHash: event.RecordHash,
-		AcceptedAt: event.AcceptedAt,
-		PreviousEventHash: event.PreviousEventHash,
+		EventIndex:                  event.EventIndex,
+		EventID:                     event.EventID,
+		AllocationID:                event.AllocationID,
+		Action:                      event.Action,
+		ResultingStatus:             event.ResultingStatus,
+		ActorRole:                   event.ActorRole,
+		ActorID:                     event.ActorID,
+		Reference:                   event.Reference,
+		EvidenceHash:                event.EvidenceHash,
+		IdempotencyKey:              event.IdempotencyKey,
+		PayloadHash:                 event.PayloadHash,
+		RecordHash:                  event.RecordHash,
+		AcceptedAt:                  event.AcceptedAt,
+		PreviousEventHash:           event.PreviousEventHash,
 		PreviousAllocationEventHash: event.PreviousAllocationEventHash,
-		EventHash: event.EventHash,
-		RegistryScope: event.RegistryScope,
-		RegistryKeyID: event.RegistryKeyID,
+		EventHash:                   event.EventHash,
+		RegistryScope:               event.RegistryScope,
+		RegistryKeyID:               event.RegistryKeyID,
 	}
 }

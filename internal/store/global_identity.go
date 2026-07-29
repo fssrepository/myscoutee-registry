@@ -28,12 +28,12 @@ type GlobalIdentityEvaluationInput struct {
 	BlindedElement   []byte
 	PublicKey        []byte
 	EvaluatedElement []byte
-	Proof             []byte
-	ResponseHash      string
-	EvaluatedAt       string
+	Proof            []byte
+	ResponseHash     string
+	EvaluatedAt      string
 	ReceiptSignature []byte
 	RateWindowStart  string
-	RateLimit         int64
+	RateLimit        int64
 }
 
 type GlobalIdentityEvaluationRecord struct {
@@ -94,29 +94,29 @@ type GlobalIdentityEvent struct {
 }
 
 type GlobalIdentityLink struct {
-	LinkID                     string
-	DeploymentID               string
-	GlobalIdentityID           string
-	Status                     string
-	KeyVersion                 int64
-	Suite                      string
-	NetworkIdentityCommitment  string
-	ConsentVersion             string
-	ConsentEvidenceCommitment  string
-	VerifiedAt                 string
-	ActiveFromPeriod           string
-	InactiveFromPeriod         string
-	LatestEventIndex           int64
-	LatestEventHash            string
+	LinkID                    string
+	DeploymentID              string
+	GlobalIdentityID          string
+	Status                    string
+	KeyVersion                int64
+	Suite                     string
+	NetworkIdentityCommitment string
+	ConsentVersion            string
+	ConsentEvidenceCommitment string
+	VerifiedAt                string
+	ActiveFromPeriod          string
+	InactiveFromPeriod        string
+	LatestEventIndex          int64
+	LatestEventHash           string
 }
 
 type GlobalIdentityPresenceInput struct {
 	DeploymentID             string
 	IdempotencyKey           string
 	Nonce                    string
-	RequestTimestamp        string
-	RequestHash             string
-	RequestSignature        []byte
+	RequestTimestamp         string
+	RequestHash              string
+	RequestSignature         []byte
 	PayloadHash              string
 	CandidateEventID         string
 	CandidateBatchID         string

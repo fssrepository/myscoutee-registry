@@ -43,6 +43,10 @@ provides:
 - a two-phase registry-signed ownership-transfer rail that pins an exact
   approved/eligible claim and verified exit decision, then changes effective
   group membership only on an immutable manager completion boundary;
+- a registry-local final exit allocation rail that pins the verified exit,
+  completed-transfer or explicit no-transfer beneficiary, contractual/evidence
+  commitments, and exact JavaScript-safe conserved minor units per currency,
+  without payment execution;
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
@@ -73,6 +77,9 @@ documented in
 The non-payment prepare/approve/complete ownership-transfer rail is documented
 in
 [`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
+The non-payment contractual allocation, frozen settlement-source, and exact
+per-currency conservation rail is documented in
+[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
 The technical monthly allocation, bounded valuation, private signed history
 query, and revision rules are documented in
 [`docs/settlements-v1.md`](docs/settlements-v1.md).
@@ -354,6 +361,13 @@ signature, correction, key-rotation, rate-limit, and privacy rules.
 The resulting deduplicated snapshot changes only the audited network total:
 it neither redistributes activity/weight between deployments nor changes
 leaderboard shares or payout inputs.
+Presence is delivered as independently signed, idempotent chunks. The Go
+limits of 4096 commitments per chunk and 4096 chunks per submission are
+memory/DoS safety bounds, not deployment or user limits. The Java sender uses
+512-item chunks under the default HTTP body limit, for a current interoperable
+ceiling of 2,097,152 commitments per deployment/period/revision submission.
+Partial submissions stay in audited append-only staging and cannot affect the
+current dedup snapshot.
 
 ```bash
 docker compose exec -T registry \
@@ -633,10 +647,53 @@ docker compose exec -T registry \
 
 Completed membership is snapshot-pinned: old leaderboard cursors retain the
 source group, while new snapshots use the target group's own verified profile
-label. This rail sends no money and does not yet record a final contractual
-exit allocation. Full transition, idempotency, stale-target, privacy, and
-remaining allocation-boundary rules are in
+label. This rail sends no money. A completed transfer can be pinned by the
+separate final allocation rail. Full transition, idempotency, stale-target,
+privacy, and allocation-boundary rules are in
 [`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
+
+## Final exit allocation CLI
+
+A final allocation copies only the exact settlement revisions already frozen
+inside a current verified-eligible exit. It allocates the exiting source
+group's technical network-pool amounts to either the exact completed-transfer
+target group or an explicit opaque no-transfer contract beneficiary.
+Currencies remain separate; every amount and per-currency sum is a
+non-negative JavaScript-safe integer, and allocated minor units must equal the
+frozen distributable total exactly.
+
+```bash
+docker compose exec -T registry \
+  /registry create-exit-allocation \
+  --exit-review-id exr_0123456789abcdef0123456789abcdef \
+  --exit-verification-event-hash sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --decision-mode completed-transfer \
+  --ownership-transfer-id otf_0123456789abcdef0123456789abcdef \
+  --ownership-transfer-completion-event-hash sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789 \
+  --contract-reference exit-contract:2026-0042 \
+  --contract-terms-hash sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+  --evidence-hash sha256:2222222222222222222222222222222222222222222222222222222222222222 \
+  --allocator-id registry-contract-manager \
+  --idempotency-key create-exit-allocation-2026-0042
+
+docker compose exec -T registry \
+  /registry verify-exit-allocation \
+  --allocation-id xal_0123456789abcdef0123456789abcdef \
+  --verifier-id registry-allocation-verifier \
+  --reference allocation-verification:2026-0042 \
+  --evidence-hash sha256:3333333333333333333333333333333333333333333333333333333333333333 \
+  --idempotency-key verify-exit-allocation-2026-0042
+```
+
+Use `--decision-mode no-transfer --beneficiary-id OPAQUE_ID` instead of the
+two ownership-transfer flags for an explicit no-transfer beneficiary.
+`show-exit-allocation` returns the full signed record and sources;
+`list-exit-allocations` reads the immutable direct state rows.
+
+This is contractual allocation evidence, not payout execution. It stores no
+bank details, invoice state, tax data, or payment-provider instruction. Exact
+commands, hashes, conservation rules, and verification semantics are in
+[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
 
 ## Configuration
 
@@ -789,6 +846,10 @@ On every restart and health check, the registry validates:
 - ownership-transfer claim/exit/target-group boundaries, record/event/
   membership hashes, registry signatures, global and per-transfer chains,
   transition/idempotency rules, and exact same-transaction query rows.
+- final exit allocation verified-exit/ownership boundaries, exact frozen
+  settlement revisions, contractual/evidence commitments, JavaScript-safe
+  per-currency conservation, registry signatures, global/per-record chains,
+  and exact same-transaction query rows.
 
 Registration, MAU/revenue batch, operator-action, announcement-publication,
 and signed read-model operations fail closed when their operational integrity

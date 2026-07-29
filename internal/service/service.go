@@ -542,10 +542,11 @@ func (registry *Service) VerifyState(ctx context.Context) error {
 // process's transactionally checked Store methods. When a second connection
 // (normally the local registry CLI) commits, the cryptographic chain heads,
 // source/projection boundary rows, newly completed Merkle frontier, and the
-// complete low-volume administrator case and exit-review chains are checked
-// before the new revision becomes trusted. Those two verification paths
-// deliberately remain full replays in v1 because their direct query rows
-// otherwise have no safe bounded trust boundary.
+// complete low-volume administrator case, exit-review, ownership-transfer,
+// and final-allocation chains are checked before the new revision becomes
+// trusted. Those verification paths deliberately remain full replays in v1
+// because their direct query rows otherwise have no safe bounded trust
+// boundary.
 func (registry *Service) verifyOperationalState(ctx context.Context) error {
 	registry.integrityMutex.Lock()
 	defer registry.integrityMutex.Unlock()
@@ -595,6 +596,14 @@ func (registry *Service) verifyOperationalState(ctx context.Context) error {
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify ownership transfer boundary: %w", err)
+	}
+	if err := registry.store.VerifyExitAllocations(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify final exit allocation boundary: %w", err)
 	}
 	after, err := registry.store.OperationalRevision(ctx)
 	if err != nil {
@@ -681,6 +690,14 @@ func (registry *Service) verifyCompleteOperationalState(ctx context.Context) err
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify ownership transfers: %w", err)
+	}
+	if err := registry.store.VerifyExitAllocations(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify final exit allocations: %w", err)
 	}
 	if err := registry.store.VerifyGlobalIdentities(
 		ctx,

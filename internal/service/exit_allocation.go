@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	exitAllocationIDPattern = regexp.MustCompile(`^xal_[0-9a-f]{32}$`)
+	exitAllocationIDPattern      = regexp.MustCompile(`^xal_[0-9a-f]{32}$`)
 	exitAllocationEventIDPattern = regexp.MustCompile(
 		`^xae_[0-9a-f]{32}$`,
 	)
@@ -43,10 +43,10 @@ type ExitAllocationCreate struct {
 }
 
 type ExitAllocationVerification struct {
-	AllocationID  string
-	VerifierID    string
-	Reference     string
-	EvidenceHash  string
+	AllocationID   string
+	VerifierID     string
+	Reference      string
+	EvidenceHash   string
 	IdempotencyKey string
 }
 
@@ -158,22 +158,22 @@ func (registry *Service) CreateExitAllocation(
 		registry.store.CreateExitAllocation(
 			ctx,
 			store.ExitAllocationCreateInput{
-				ExitReviewID: input.ExitReviewID,
-				ExitVerificationEventHash: input.ExitVerificationEventHash,
-				DecisionMode: input.DecisionMode,
-				OwnershipTransferID: input.OwnershipTransferID,
+				ExitReviewID:                         input.ExitReviewID,
+				ExitVerificationEventHash:            input.ExitVerificationEventHash,
+				DecisionMode:                         input.DecisionMode,
+				OwnershipTransferID:                  input.OwnershipTransferID,
 				OwnershipTransferCompletionEventHash: input.OwnershipTransferCompletionEventHash,
-				BeneficiaryID: input.BeneficiaryID,
-				ContractReference: input.ContractReference,
-				ContractTermsHash: input.ContractTermsHash,
-				EvidenceHash: input.EvidenceHash,
-				ActorID: input.AllocatorID,
-				IdempotencyKey: input.IdempotencyKey,
-				CandidateAllocationID: allocationID,
-				CandidateEventID: eventID,
-				AcceptedAt: registry.canonicalNow().Format(time.RFC3339),
-				RegistryScope: registry.registryScope,
-				RegistryKeyID: registry.signingKey.KeyID(),
+				BeneficiaryID:                        input.BeneficiaryID,
+				ContractReference:                    input.ContractReference,
+				ContractTermsHash:                    input.ContractTermsHash,
+				EvidenceHash:                         input.EvidenceHash,
+				ActorID:                              input.AllocatorID,
+				IdempotencyKey:                       input.IdempotencyKey,
+				CandidateAllocationID:                allocationID,
+				CandidateEventID:                     eventID,
+				AcceptedAt:                           registry.canonicalNow().Format(time.RFC3339),
+				RegistryScope:                        registry.registryScope,
+				RegistryKeyID:                        registry.signingKey.KeyID(),
 			},
 			registry.signExitAllocationEvent,
 		)
@@ -182,9 +182,9 @@ func (registry *Service) CreateExitAllocation(
 			mapExitAllocationStoreError(err)
 	}
 	return protocol.ExitAllocationMutationResult{
-		Duplicate: duplicate,
+		Duplicate:  duplicate,
 		Allocation: exitAllocationProtocolAllocation(allocation),
-		Event: exitAllocationServiceProtocolEvent(event),
+		Event:      exitAllocationServiceProtocolEvent(event),
 	}, nil
 }
 
@@ -235,14 +235,14 @@ func (registry *Service) VerifyExitAllocation(
 			)
 	}
 	unsigned := protocol.ExitAllocationEvent{
-		AllocationID: current.Record.AllocationID,
-		Action: protocol.ExitAllocationActionVerify,
+		AllocationID:    current.Record.AllocationID,
+		Action:          protocol.ExitAllocationActionVerify,
 		ResultingStatus: protocol.ExitAllocationStatusVerifiedFinal,
-		ActorRole: protocol.ExitAllocationActorVerifier,
-		ActorID: input.VerifierID,
-		Reference: input.Reference,
-		EvidenceHash: input.EvidenceHash,
-		RecordHash: current.Record.RecordHash,
+		ActorRole:       protocol.ExitAllocationActorVerifier,
+		ActorID:         input.VerifierID,
+		Reference:       input.Reference,
+		EvidenceHash:    input.EvidenceHash,
+		RecordHash:      current.Record.RecordHash,
 	}
 	payloadHash := protocol.Digest(
 		protocol.ExitAllocationEventPayloadMessage(unsigned),
@@ -251,16 +251,16 @@ func (registry *Service) VerifyExitAllocation(
 		registry.store.VerifyExitAllocation(
 			ctx,
 			store.ExitAllocationVerifyInput{
-				AllocationID: input.AllocationID,
-				ActorID: input.VerifierID,
-				Reference: input.Reference,
-				EvidenceHash: input.EvidenceHash,
-				IdempotencyKey: input.IdempotencyKey,
-				PayloadHash: payloadHash,
+				AllocationID:     input.AllocationID,
+				ActorID:          input.VerifierID,
+				Reference:        input.Reference,
+				EvidenceHash:     input.EvidenceHash,
+				IdempotencyKey:   input.IdempotencyKey,
+				PayloadHash:      payloadHash,
 				CandidateEventID: eventID,
-				AcceptedAt: registry.canonicalNow().Format(time.RFC3339),
-				RegistryScope: registry.registryScope,
-				RegistryKeyID: registry.signingKey.KeyID(),
+				AcceptedAt:       registry.canonicalNow().Format(time.RFC3339),
+				RegistryScope:    registry.registryScope,
+				RegistryKeyID:    registry.signingKey.KeyID(),
 			},
 			registry.signExitAllocationEvent,
 		)
@@ -269,9 +269,9 @@ func (registry *Service) VerifyExitAllocation(
 			mapExitAllocationStoreError(err)
 	}
 	return protocol.ExitAllocationMutationResult{
-		Duplicate: duplicate,
+		Duplicate:  duplicate,
 		Allocation: exitAllocationProtocolAllocation(allocation),
-		Event: exitAllocationServiceProtocolEvent(event),
+		Event:      exitAllocationServiceProtocolEvent(event),
 	}, nil
 }
 
@@ -338,9 +338,9 @@ func (registry *Service) ExitAllocations(
 	page, err := registry.store.ExitAllocations(
 		ctx,
 		store.ExitAllocationQuery{
-			Status: status,
-			DecisionMode: decisionMode,
-			Limit: limit,
+			Status:           status,
+			DecisionMode:     decisionMode,
+			Limit:            limit,
 			BeforeEventIndex: beforeEventIndex,
 		},
 	)
@@ -352,7 +352,7 @@ func (registry *Service) ExitAllocations(
 		items = append(items, exitAllocationProtocolAllocation(item))
 	}
 	return protocol.ExitAllocationPage{
-		Items: items,
+		Items:          items,
 		NextEventIndex: page.NextEventIndex,
 	}, nil
 }
@@ -415,24 +415,24 @@ func exitAllocationServiceProtocolEvent(
 	event store.ExitAllocationEvent,
 ) protocol.ExitAllocationEvent {
 	result := protocol.ExitAllocationEvent{
-		EventIndex: event.EventIndex,
-		EventID: event.EventID,
-		AllocationID: event.AllocationID,
-		Action: event.Action,
-		ResultingStatus: event.ResultingStatus,
-		ActorRole: event.ActorRole,
-		ActorID: event.ActorID,
-		Reference: event.Reference,
-		EvidenceHash: event.EvidenceHash,
-		IdempotencyKey: event.IdempotencyKey,
-		PayloadHash: event.PayloadHash,
-		RecordHash: event.RecordHash,
-		AcceptedAt: event.AcceptedAt,
-		PreviousEventHash: event.PreviousEventHash,
+		EventIndex:                  event.EventIndex,
+		EventID:                     event.EventID,
+		AllocationID:                event.AllocationID,
+		Action:                      event.Action,
+		ResultingStatus:             event.ResultingStatus,
+		ActorRole:                   event.ActorRole,
+		ActorID:                     event.ActorID,
+		Reference:                   event.Reference,
+		EvidenceHash:                event.EvidenceHash,
+		IdempotencyKey:              event.IdempotencyKey,
+		PayloadHash:                 event.PayloadHash,
+		RecordHash:                  event.RecordHash,
+		AcceptedAt:                  event.AcceptedAt,
+		PreviousEventHash:           event.PreviousEventHash,
 		PreviousAllocationEventHash: event.PreviousAllocationEventHash,
-		EventHash: event.EventHash,
-		RegistryScope: event.RegistryScope,
-		RegistryKeyID: event.RegistryKeyID,
+		EventHash:                   event.EventHash,
+		RegistryScope:               event.RegistryScope,
+		RegistryKeyID:               event.RegistryKeyID,
 	}
 	if len(event.Signature) > 0 {
 		result.Signature = base64.StdEncoding.EncodeToString(event.Signature)
@@ -448,17 +448,17 @@ func exitAllocationProtocolAllocation(
 		events = append(events, exitAllocationServiceProtocolEvent(event))
 	}
 	return protocol.ExitAllocation{
-		Record: exitAllocationServiceProtocolRecord(item.Record),
-		Status: item.Status,
-		LatestEventIndex: item.LatestEventIndex,
-		LatestEventHash: item.LatestEventHash,
-		LatestAction: item.LatestAction,
-		LatestActorRole: item.LatestActorRole,
-		LatestActorID: item.LatestActorID,
-		LatestReference: item.LatestReference,
+		Record:             exitAllocationServiceProtocolRecord(item.Record),
+		Status:             item.Status,
+		LatestEventIndex:   item.LatestEventIndex,
+		LatestEventHash:    item.LatestEventHash,
+		LatestAction:       item.LatestAction,
+		LatestActorRole:    item.LatestActorRole,
+		LatestActorID:      item.LatestActorID,
+		LatestReference:    item.LatestReference,
 		LatestEvidenceHash: item.LatestEvidenceHash,
-		LatestAcceptedAt: item.LatestAcceptedAt,
-		Events: events,
+		LatestAcceptedAt:   item.LatestAcceptedAt,
+		Events:             events,
 	}
 }
 
@@ -472,17 +472,17 @@ func exitAllocationServiceProtocolRecord(
 	)
 	for _, source := range record.SettlementSources {
 		sources = append(sources, protocol.ExitAllocationSettlementSource{
-			BoundaryOrder: source.BoundaryOrder,
-			SettlementID: source.SettlementID,
-			Period: source.Period,
-			CurrencyCode: source.CurrencyCode,
-			FractionDigits: source.FractionDigits,
-			Revision: source.Revision,
-			LedgerIndex: source.LedgerIndex,
-			SettlementHash: source.SettlementHash,
-			SourceFingerprint: source.SourceFingerprint,
+			BoundaryOrder:            source.BoundaryOrder,
+			SettlementID:             source.SettlementID,
+			Period:                   source.Period,
+			CurrencyCode:             source.CurrencyCode,
+			FractionDigits:           source.FractionDigits,
+			Revision:                 source.Revision,
+			LedgerIndex:              source.LedgerIndex,
+			SettlementHash:           source.SettlementHash,
+			SourceFingerprint:        source.SourceFingerprint,
 			SettlementAllocationHash: source.SettlementAllocationHash,
-			DistributableMinor: source.DistributableMinor,
+			DistributableMinor:       source.DistributableMinor,
 		})
 	}
 	currencies := make(
@@ -492,46 +492,46 @@ func exitAllocationServiceProtocolRecord(
 	)
 	for _, allocation := range record.CurrencyAllocations {
 		currencies = append(currencies, protocol.ExitAllocationCurrency{
-			AllocationOrder: allocation.AllocationOrder,
-			CurrencyCode: allocation.CurrencyCode,
-			FractionDigits: allocation.FractionDigits,
+			AllocationOrder:    allocation.AllocationOrder,
+			CurrencyCode:       allocation.CurrencyCode,
+			FractionDigits:     allocation.FractionDigits,
 			DistributableMinor: allocation.DistributableMinor,
-			AllocatedMinor: allocation.AllocatedMinor,
-			BeneficiaryType: allocation.BeneficiaryType,
-			BeneficiaryID: allocation.BeneficiaryID,
+			AllocatedMinor:     allocation.AllocatedMinor,
+			BeneficiaryType:    allocation.BeneficiaryType,
+			BeneficiaryID:      allocation.BeneficiaryID,
 		})
 	}
 	return protocol.ExitAllocationRecord{
-		AllocationID: record.AllocationID,
-		RulesetVersion: record.RulesetVersion,
-		ExitReviewID: record.ExitReviewID,
-		TargetDeploymentID: record.TargetDeploymentID,
-		ClaimActionID: record.ClaimActionID,
-		SourceGroupID: record.SourceGroupID,
-		ExitRecordHash: record.ExitRecordHash,
-		ExitVerificationEventIndex: record.ExitVerificationEventIndex,
-		ExitVerificationEventHash: record.ExitVerificationEventHash,
-		ExitEvidenceHash: record.ExitEvidenceHash,
-		DecisionMode: record.DecisionMode,
-		OwnershipTransferID: record.OwnershipTransferID,
+		AllocationID:                          record.AllocationID,
+		RulesetVersion:                        record.RulesetVersion,
+		ExitReviewID:                          record.ExitReviewID,
+		TargetDeploymentID:                    record.TargetDeploymentID,
+		ClaimActionID:                         record.ClaimActionID,
+		SourceGroupID:                         record.SourceGroupID,
+		ExitRecordHash:                        record.ExitRecordHash,
+		ExitVerificationEventIndex:            record.ExitVerificationEventIndex,
+		ExitVerificationEventHash:             record.ExitVerificationEventHash,
+		ExitEvidenceHash:                      record.ExitEvidenceHash,
+		DecisionMode:                          record.DecisionMode,
+		OwnershipTransferID:                   record.OwnershipTransferID,
 		OwnershipTransferCompletionEventIndex: record.OwnershipTransferCompletionEventIndex,
-		OwnershipTransferCompletionEventHash: record.OwnershipTransferCompletionEventHash,
-		ThroughOwnershipTransferEventIndex: record.ThroughOwnershipTransferEventIndex,
-		OwnershipTransferHeadHash: record.OwnershipTransferHeadHash,
-		BeneficiaryType: record.BeneficiaryType,
-		BeneficiaryID: record.BeneficiaryID,
-		ContractReference: record.ContractReference,
-		ContractTermsHash: record.ContractTermsHash,
-		EvidenceHash: record.EvidenceHash,
-		SettlementSourceCount: record.SettlementSourceCount,
-		SettlementSourceHash: record.SettlementSourceHash,
-		CurrencyAllocationCount: record.CurrencyAllocationCount,
-		CurrencyAllocationHash: record.CurrencyAllocationHash,
-		CreatedAt: record.CreatedAt,
-		RecordHash: record.RecordHash,
-		RegistryScope: record.RegistryScope,
-		RegistryKeyID: record.RegistryKeyID,
-		SettlementSources: sources,
-		CurrencyAllocations: currencies,
+		OwnershipTransferCompletionEventHash:  record.OwnershipTransferCompletionEventHash,
+		ThroughOwnershipTransferEventIndex:    record.ThroughOwnershipTransferEventIndex,
+		OwnershipTransferHeadHash:             record.OwnershipTransferHeadHash,
+		BeneficiaryType:                       record.BeneficiaryType,
+		BeneficiaryID:                         record.BeneficiaryID,
+		ContractReference:                     record.ContractReference,
+		ContractTermsHash:                     record.ContractTermsHash,
+		EvidenceHash:                          record.EvidenceHash,
+		SettlementSourceCount:                 record.SettlementSourceCount,
+		SettlementSourceHash:                  record.SettlementSourceHash,
+		CurrencyAllocationCount:               record.CurrencyAllocationCount,
+		CurrencyAllocationHash:                record.CurrencyAllocationHash,
+		CreatedAt:                             record.CreatedAt,
+		RecordHash:                            record.RecordHash,
+		RegistryScope:                         record.RegistryScope,
+		RegistryKeyID:                         record.RegistryKeyID,
+		SettlementSources:                     sources,
+		CurrencyAllocations:                   currencies,
 	}
 }

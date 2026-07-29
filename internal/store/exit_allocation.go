@@ -25,16 +25,16 @@ type ExitAllocationCreateInput struct {
 }
 
 type ExitAllocationVerifyInput struct {
-	AllocationID    string
-	ActorID         string
-	Reference       string
-	EvidenceHash    string
-	IdempotencyKey  string
-	PayloadHash     string
+	AllocationID     string
+	ActorID          string
+	Reference        string
+	EvidenceHash     string
+	IdempotencyKey   string
+	PayloadHash      string
 	CandidateEventID string
-	AcceptedAt      string
-	RegistryScope   string
-	RegistryKeyID   string
+	AcceptedAt       string
+	RegistryScope    string
+	RegistryKeyID    string
 }
 
 type ExitAllocationSettlementSource struct {

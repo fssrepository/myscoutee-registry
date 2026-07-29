@@ -3,12 +3,12 @@ package protocol
 import "strconv"
 
 const (
-	GlobalIdentityVOPRFKeyPath       = "/v1/global-identities/voprf-keys/current"
-	GlobalIdentityEvaluatePath       = "/v1/global-identities/evaluate"
-	GlobalIdentityLinkPath           = "/v1/global-identities/links"
-	GlobalIdentityLinkActionPath     = "/v1/global-identities/link-actions"
-	GlobalIdentityPresenceBatchPath  = "/v1/global-identities/presence-batches"
-	GlobalIdentityDedupPathPrefix    = "/v1/global-identities/dedup/"
+	GlobalIdentityVOPRFKeyPath      = "/v1/global-identities/voprf-keys/current"
+	GlobalIdentityEvaluatePath      = "/v1/global-identities/evaluate"
+	GlobalIdentityLinkPath          = "/v1/global-identities/links"
+	GlobalIdentityLinkActionPath    = "/v1/global-identities/link-actions"
+	GlobalIdentityPresenceBatchPath = "/v1/global-identities/presence-batches"
+	GlobalIdentityDedupPathPrefix   = "/v1/global-identities/dedup/"
 
 	GlobalIdentityVOPRFSuite = "P256-SHA256"
 	GlobalIdentityVOPRFMode  = "VOPRF"
@@ -19,11 +19,11 @@ const (
 	GlobalIdentityKeyActive  = "ACTIVE"
 	GlobalIdentityKeyRetired = "RETIRED"
 
-	GlobalIdentityActionLink       = "LINK"
-	GlobalIdentityActionUnlink     = "UNLINK"
-	GlobalIdentityActionCorrect    = "CORRECT"
-	GlobalIdentityActionPresence   = "QUALIFIED_PRESENCE"
-	GlobalIdentityActionSnapshot   = "PERIOD_SNAPSHOT"
+	GlobalIdentityActionLink     = "LINK"
+	GlobalIdentityActionUnlink   = "UNLINK"
+	GlobalIdentityActionCorrect  = "CORRECT"
+	GlobalIdentityActionPresence = "QUALIFIED_PRESENCE"
+	GlobalIdentityActionSnapshot = "PERIOD_SNAPSHOT"
 
 	GlobalIdentityLinkActive   = "ACTIVE"
 	GlobalIdentityLinkUnlinked = "UNLINKED"
@@ -68,14 +68,14 @@ type GlobalIdentityEvaluationResponse struct {
 	Suite             string `json:"suite"`
 	PublicKey         string `json:"public_key"`
 	EvaluatedElement  string `json:"evaluated_element"`
-	Proof              string `json:"proof"`
-	RequestHash        string `json:"request_hash"`
-	ResponseHash       string `json:"response_hash"`
-	EvaluatedAt        string `json:"evaluated_at"`
-	RegistryKeyID      string `json:"registry_key_id"`
-	RegistryPublicKey  string `json:"registry_public_key"`
-	ReceiptSignature   string `json:"receipt_signature"`
-	Duplicate          bool   `json:"duplicate"`
+	Proof             string `json:"proof"`
+	RequestHash       string `json:"request_hash"`
+	ResponseHash      string `json:"response_hash"`
+	EvaluatedAt       string `json:"evaluated_at"`
+	RegistryKeyID     string `json:"registry_key_id"`
+	RegistryPublicKey string `json:"registry_public_key"`
+	ReceiptSignature  string `json:"receipt_signature"`
+	Duplicate         bool   `json:"duplicate"`
 }
 
 // GlobalIdentityLinkRequest accepts only an opaque commitment derived from an
@@ -100,38 +100,38 @@ type GlobalIdentityLinkRequest struct {
 }
 
 type GlobalIdentityLinkActionRequest struct {
-	ProtocolVersion             string `json:"protocol_version"`
-	RegistryScope               string `json:"registry_scope"`
-	DeploymentID                string `json:"deployment_id"`
-	Timestamp                   string `json:"timestamp"`
-	Nonce                       string `json:"nonce"`
-	IdempotencyKey              string `json:"idempotency_key"`
-	Action                      string `json:"action"`
-	LinkID                      string `json:"link_id"`
-	ReplacementKeyVersion       int64  `json:"replacement_key_version,omitempty"`
-	ReplacementSuite            string `json:"replacement_suite,omitempty"`
-	ReplacementCommitment       string `json:"replacement_commitment,omitempty"`
-	ConsentVersion              string `json:"consent_version,omitempty"`
-	ConsentEvidenceCommitment   string `json:"consent_evidence_commitment,omitempty"`
-	VerifiedAt                  string `json:"verified_at,omitempty"`
-	EffectivePeriod             string `json:"effective_period"`
-	ReasonCommitment            string `json:"reason_commitment"`
-	PayloadHash                 string `json:"payload_hash"`
-	Signature                   string `json:"signature"`
+	ProtocolVersion           string `json:"protocol_version"`
+	RegistryScope             string `json:"registry_scope"`
+	DeploymentID              string `json:"deployment_id"`
+	Timestamp                 string `json:"timestamp"`
+	Nonce                     string `json:"nonce"`
+	IdempotencyKey            string `json:"idempotency_key"`
+	Action                    string `json:"action"`
+	LinkID                    string `json:"link_id"`
+	ReplacementKeyVersion     int64  `json:"replacement_key_version,omitempty"`
+	ReplacementSuite          string `json:"replacement_suite,omitempty"`
+	ReplacementCommitment     string `json:"replacement_commitment,omitempty"`
+	ConsentVersion            string `json:"consent_version,omitempty"`
+	ConsentEvidenceCommitment string `json:"consent_evidence_commitment,omitempty"`
+	VerifiedAt                string `json:"verified_at,omitempty"`
+	EffectivePeriod           string `json:"effective_period"`
+	ReasonCommitment          string `json:"reason_commitment"`
+	PayloadHash               string `json:"payload_hash"`
+	Signature                 string `json:"signature"`
 }
 
 type GlobalIdentityLink struct {
-	LinkID            string `json:"link_id"`
-	DeploymentID      string `json:"deployment_id"`
-	Status            string `json:"status"`
-	KeyVersion        int64  `json:"key_version"`
-	Suite             string `json:"suite"`
-	ActiveFromPeriod  string `json:"active_from_period"`
+	LinkID             string `json:"link_id"`
+	DeploymentID       string `json:"deployment_id"`
+	Status             string `json:"status"`
+	KeyVersion         int64  `json:"key_version"`
+	Suite              string `json:"suite"`
+	ActiveFromPeriod   string `json:"active_from_period"`
 	InactiveFromPeriod string `json:"inactive_from_period,omitempty"`
-	ConsentVersion    string `json:"consent_version"`
-	VerifiedAt        string `json:"verified_at"`
-	LatestEventIndex  int64  `json:"latest_event_index"`
-	LatestEventHash   string `json:"latest_event_hash"`
+	ConsentVersion     string `json:"consent_version"`
+	VerifiedAt         string `json:"verified_at"`
+	LatestEventIndex   int64  `json:"latest_event_index"`
+	LatestEventHash    string `json:"latest_event_hash"`
 }
 
 // GlobalIdentityEvent is the public privacy ledger view. Identity
@@ -220,21 +220,21 @@ type GlobalIdentityPresenceBatchResponse struct {
 }
 
 type GlobalIdentityDedupSnapshot struct {
-	ProtocolVersion             string `json:"protocol_version"`
-	RegistryScope               string `json:"registry_scope"`
-	Period                      string `json:"period"`
-	Revision                    int64  `json:"revision"`
-	ReportedQMAUCount           int64  `json:"reported_qmau_count"`
-	LinkedObservationCount      int64  `json:"linked_observation_count"`
-	GloballyUniqueLinkedCount   int64  `json:"globally_unique_linked_count"`
-	UnlinkedQMAUCount           int64  `json:"unlinked_qmau_count"`
-	DeduplicatedNetworkQMAU     int64  `json:"deduplicated_network_qmau"`
-	DuplicateReduction          int64  `json:"duplicate_reduction"`
-	CoveredDeploymentCount      int64  `json:"covered_deployment_count"`
-	AggregateCommitment         string `json:"aggregate_commitment"`
-	ThroughEventIndex           int64  `json:"through_event_index"`
-	ThroughEventHash            string `json:"through_event_hash"`
-	GeneratedAt                 string `json:"generated_at"`
+	ProtocolVersion           string `json:"protocol_version"`
+	RegistryScope             string `json:"registry_scope"`
+	Period                    string `json:"period"`
+	Revision                  int64  `json:"revision"`
+	ReportedQMAUCount         int64  `json:"reported_qmau_count"`
+	LinkedObservationCount    int64  `json:"linked_observation_count"`
+	GloballyUniqueLinkedCount int64  `json:"globally_unique_linked_count"`
+	UnlinkedQMAUCount         int64  `json:"unlinked_qmau_count"`
+	DeduplicatedNetworkQMAU   int64  `json:"deduplicated_network_qmau"`
+	DuplicateReduction        int64  `json:"duplicate_reduction"`
+	CoveredDeploymentCount    int64  `json:"covered_deployment_count"`
+	AggregateCommitment       string `json:"aggregate_commitment"`
+	ThroughEventIndex         int64  `json:"through_event_index"`
+	ThroughEventHash          string `json:"through_event_hash"`
+	GeneratedAt               string `json:"generated_at"`
 }
 
 func GlobalIdentityVOPRFKeyMessage(key GlobalIdentityVOPRFKey) []byte {

@@ -28,66 +28,66 @@ const (
 // distributable network-pool amount. It is a technical allocation source, not
 // a payment or invoice.
 type ExitAllocationSettlementSource struct {
-	BoundaryOrder             int64  `json:"boundary_order"`
-	SettlementID              string `json:"settlement_id"`
-	Period                    string `json:"period"`
-	CurrencyCode              string `json:"currency_code"`
-	FractionDigits            int64  `json:"fraction_digits"`
-	Revision                  int64  `json:"revision"`
-	LedgerIndex               int64  `json:"ledger_index"`
-	SettlementHash            string `json:"settlement_hash"`
-	SourceFingerprint         string `json:"source_fingerprint"`
-	SettlementAllocationHash  string `json:"settlement_allocation_hash"`
-	DistributableMinor        int64  `json:"distributable_minor"`
+	BoundaryOrder            int64  `json:"boundary_order"`
+	SettlementID             string `json:"settlement_id"`
+	Period                   string `json:"period"`
+	CurrencyCode             string `json:"currency_code"`
+	FractionDigits           int64  `json:"fraction_digits"`
+	Revision                 int64  `json:"revision"`
+	LedgerIndex              int64  `json:"ledger_index"`
+	SettlementHash           string `json:"settlement_hash"`
+	SourceFingerprint        string `json:"source_fingerprint"`
+	SettlementAllocationHash string `json:"settlement_allocation_hash"`
+	DistributableMinor       int64  `json:"distributable_minor"`
 }
 
 // ExitAllocationCurrency is the conserved per-currency result. V1 has exactly
 // one beneficiary per allocation, so allocated_minor must equal
 // distributable_minor independently for every currency.
 type ExitAllocationCurrency struct {
-	AllocationOrder  int64  `json:"allocation_order"`
-	CurrencyCode     string `json:"currency_code"`
-	FractionDigits   int64  `json:"fraction_digits"`
-	DistributableMinor int64 `json:"distributable_minor"`
-	AllocatedMinor   int64  `json:"allocated_minor"`
-	BeneficiaryType  string `json:"beneficiary_type"`
-	BeneficiaryID    string `json:"beneficiary_id"`
+	AllocationOrder    int64  `json:"allocation_order"`
+	CurrencyCode       string `json:"currency_code"`
+	FractionDigits     int64  `json:"fraction_digits"`
+	DistributableMinor int64  `json:"distributable_minor"`
+	AllocatedMinor     int64  `json:"allocated_minor"`
+	BeneficiaryType    string `json:"beneficiary_type"`
+	BeneficiaryID      string `json:"beneficiary_id"`
 }
 
 // ExitAllocationRecord is registry-local contractual evidence. It deliberately
 // has no payment execution, bank-account, tax, or invoicing fields.
 type ExitAllocationRecord struct {
-	AllocationID                         string `json:"allocation_id"`
-	RulesetVersion                       string `json:"ruleset_version"`
-	ExitReviewID                         string `json:"exit_review_id"`
-	TargetDeploymentID                   string `json:"target_deployment_id"`
-	ClaimActionID                        string `json:"claim_action_id"`
-	SourceGroupID                        string `json:"source_group_id"`
-	ExitRecordHash                       string `json:"exit_record_hash"`
-	ExitVerificationEventIndex           int64  `json:"exit_verification_event_index"`
-	ExitVerificationEventHash            string `json:"exit_verification_event_hash"`
-	ExitEvidenceHash                     string `json:"exit_evidence_hash"`
-	DecisionMode                         string `json:"decision_mode"`
-	OwnershipTransferID                  string `json:"ownership_transfer_id,omitempty"`
-	OwnershipTransferCompletionEventIndex int64 `json:"ownership_transfer_completion_event_index"`
-	OwnershipTransferCompletionEventHash string `json:"ownership_transfer_completion_event_hash"`
-	ThroughOwnershipTransferEventIndex   int64  `json:"through_ownership_transfer_event_index"`
-	OwnershipTransferHeadHash            string `json:"ownership_transfer_head_hash"`
-	BeneficiaryType                      string `json:"beneficiary_type"`
-	BeneficiaryID                        string `json:"beneficiary_id"`
-	ContractReference                    string `json:"contract_reference"`
-	ContractTermsHash                    string `json:"contract_terms_hash"`
-	EvidenceHash                         string `json:"evidence_hash"`
-	SettlementSourceCount                int64  `json:"settlement_source_count"`
-	SettlementSourceHash                 string `json:"settlement_source_hash"`
-	CurrencyAllocationCount              int64  `json:"currency_allocation_count"`
-	CurrencyAllocationHash               string `json:"currency_allocation_hash"`
-	CreatedAt                            string `json:"created_at"`
-	RecordHash                           string `json:"record_hash"`
-	RegistryScope                        string `json:"registry_scope"`
-	RegistryKeyID                        string `json:"registry_key_id"`
-	SettlementSources                    []ExitAllocationSettlementSource `json:"settlement_sources"`
-	CurrencyAllocations                  []ExitAllocationCurrency `json:"currency_allocations"`
+	AllocationID                          string                           `json:"allocation_id"`
+	RulesetVersion                        string                           `json:"ruleset_version"`
+	ExitReviewID                          string                           `json:"exit_review_id"`
+	TargetDeploymentID                    string                           `json:"target_deployment_id"`
+	ClaimActionID                         string                           `json:"claim_action_id"`
+	SourceGroupID                         string                           `json:"source_group_id"`
+	ExitRecordHash                        string                           `json:"exit_record_hash"`
+	ExitVerificationEventIndex            int64                            `json:"exit_verification_event_index"`
+	ExitVerificationEventHash             string                           `json:"exit_verification_event_hash"`
+	ExitEvidenceHash                      string                           `json:"exit_evidence_hash"`
+	DecisionMode                          string                           `json:"decision_mode"`
+	OwnershipTransferID                   string                           `json:"ownership_transfer_id,omitempty"`
+	OwnershipTransferCompletionEventIndex int64                            `json:"ownership_transfer_completion_event_index"`
+	OwnershipTransferCompletionEventHash  string                           `json:"ownership_transfer_completion_event_hash"`
+	ThroughOwnershipTransferEventIndex    int64                            `json:"through_ownership_transfer_event_index"`
+	OwnershipTransferHeadHash             string                           `json:"ownership_transfer_head_hash"`
+	BeneficiaryType                       string                           `json:"beneficiary_type"`
+	BeneficiaryID                         string                           `json:"beneficiary_id"`
+	ContractReference                     string                           `json:"contract_reference"`
+	ContractTermsHash                     string                           `json:"contract_terms_hash"`
+	EvidenceHash                          string                           `json:"evidence_hash"`
+	SettlementSourceCount                 int64                            `json:"settlement_source_count"`
+	SettlementSourceHash                  string                           `json:"settlement_source_hash"`
+	CurrencyAllocationCount               int64                            `json:"currency_allocation_count"`
+	CurrencyAllocationHash                string                           `json:"currency_allocation_hash"`
+	CreatedAt                             string                           `json:"created_at"`
+	RecordHash                            string                           `json:"record_hash"`
+	RegistryScope                         string                           `json:"registry_scope"`
+	RegistryKeyID                         string                           `json:"registry_key_id"`
+	SettlementSources                     []ExitAllocationSettlementSource `json:"settlement_sources"`
+	CurrencyAllocations                   []ExitAllocationCurrency         `json:"currency_allocations"`
 }
 
 type ExitAllocationEvent struct {
@@ -113,16 +113,16 @@ type ExitAllocationEvent struct {
 }
 
 type ExitAllocation struct {
-	Record             ExitAllocationRecord `json:"record"`
-	Status             string               `json:"status"`
-	LatestEventIndex   int64                `json:"latest_event_index"`
-	LatestEventHash    string               `json:"latest_event_hash"`
-	LatestAction       string               `json:"latest_action"`
-	LatestActorRole    string               `json:"latest_actor_role"`
-	LatestActorID      string               `json:"latest_actor_id"`
-	LatestReference    string               `json:"latest_reference"`
-	LatestEvidenceHash string               `json:"latest_evidence_hash"`
-	LatestAcceptedAt   string               `json:"latest_accepted_at"`
+	Record             ExitAllocationRecord  `json:"record"`
+	Status             string                `json:"status"`
+	LatestEventIndex   int64                 `json:"latest_event_index"`
+	LatestEventHash    string                `json:"latest_event_hash"`
+	LatestAction       string                `json:"latest_action"`
+	LatestActorRole    string                `json:"latest_actor_role"`
+	LatestActorID      string                `json:"latest_actor_id"`
+	LatestReference    string                `json:"latest_reference"`
+	LatestEvidenceHash string                `json:"latest_evidence_hash"`
+	LatestAcceptedAt   string                `json:"latest_accepted_at"`
 	Events             []ExitAllocationEvent `json:"events,omitempty"`
 }
 

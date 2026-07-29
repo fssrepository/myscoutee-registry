@@ -18,6 +18,7 @@ CREATE TABLE global_identity_presence_submissions (
     total_commitment_count       INTEGER NOT NULL CHECK (
         total_commitment_count >= 0
         AND total_commitment_count <= reported_qmau_count
+        AND total_commitment_count <= chunk_count * 4096
     ),
     commitment_set_hash          TEXT NOT NULL,
     created_at                   TEXT NOT NULL,

@@ -82,6 +82,14 @@ func main() {
 		err = runListOwnershipTransfers(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "show-ownership-transfer" {
 		err = runShowOwnershipTransfer(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "create-exit-allocation" {
+		err = runCreateExitAllocation(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "verify-exit-allocation" {
+		err = runVerifyExitAllocation(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-exit-allocations" {
+		err = runListExitAllocations(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-exit-allocation" {
+		err = runShowExitAllocation(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "leaderboard" {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
@@ -110,7 +118,7 @@ func main() {
 		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|prepare-ownership-transfer|decide-ownership-transfer|cancel-ownership-transfer|complete-ownership-transfer|list-ownership-transfers|show-ownership-transfer|leaderboard|revenue|global-identity-dedup|rotate-global-identity-key|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
+			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|prepare-ownership-transfer|decide-ownership-transfer|cancel-ownership-transfer|complete-ownership-transfer|list-ownership-transfers|show-ownership-transfer|create-exit-allocation|verify-exit-allocation|list-exit-allocations|show-exit-allocation|leaderboard|revenue|global-identity-dedup|rotate-global-identity-key|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {

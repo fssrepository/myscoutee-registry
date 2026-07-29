@@ -116,7 +116,7 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 	ctx context.Context,
 ) error {
-	const expectedTriggers = 86
+	const expectedTriggers = 104
 	var triggerCount int
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -191,6 +191,16 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'ownership_transfer_state_rows_no_delete',
 			'ownership_transfer_memberships_no_update',
 			'ownership_transfer_memberships_no_delete',
+			'exit_allocations_no_update',
+			'exit_allocations_no_delete',
+			'exit_allocation_settlement_sources_no_update',
+			'exit_allocation_settlement_sources_no_delete',
+			'exit_allocation_currency_allocations_no_update',
+			'exit_allocation_currency_allocations_no_delete',
+			'exit_allocation_events_no_update',
+			'exit_allocation_events_no_delete',
+			'exit_allocation_state_rows_no_update',
+			'exit_allocation_state_rows_no_delete',
 			'global_identity_voprf_keys_no_update',
 			'global_identity_voprf_keys_no_delete',
 			'global_identity_evaluations_no_update',
@@ -205,6 +215,14 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'global_identity_presence_batches_no_delete',
 			'global_identity_presence_items_no_update',
 			'global_identity_presence_items_no_delete',
+			'global_identity_presence_submissions_no_update',
+			'global_identity_presence_submissions_no_delete',
+			'global_identity_presence_chunks_no_update',
+			'global_identity_presence_chunks_no_delete',
+			'global_identity_presence_chunk_items_no_update',
+			'global_identity_presence_chunk_items_no_delete',
+			'global_identity_presence_completions_no_update',
+			'global_identity_presence_completions_no_delete',
 			'global_identity_dedup_snapshots_no_update',
 			'global_identity_dedup_snapshots_no_delete',
 			'demo_seed_metadata_guard_update',

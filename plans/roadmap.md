@@ -437,45 +437,65 @@ Exit criteria:
 Goal: measure globally linked people only where identity and consent evidence
 actually support that claim.
 
+Status: implemented at the VOPRF link/unlink, immutable history, signed chunked
+presence, aggregate snapshot, direct-query, verifier, and member-consent
+boundaries. Independent privacy/security review and stronger separation of the
+registry VOPRF secret from restricted commitment storage remain release
+hardening work.
+
 Deliverables:
 
-- separate central identity-linking store, not part of the public ledger;
-- network identity IDs mapped to scoped source identities
-  `(provider, issuer, subject)`;
-- opt-in link flows using reauthentication or provider-issued proof;
-- configurable central-token-validation versus deployment-validated evidence;
-- registered/approved issuer configuration for each deployment;
-- collision queues for shared email/phone, recycled identities, split accounts,
-  and provider changes;
-- user-confirmed merge/split operations with complete audit history;
-- deduplicated accounting snapshots that reference an identity-linking ruleset;
-- simultaneous reporting of deployment-level QMAU and globally linked unique
-  users so the distinction remains visible;
-- exportable source-to-target mappings for a future buyer identity migration.
+- a separate restricted identity-linking store, distinct from local profiles,
+  public ledger data, QMAU evidence, claims, and leaderboard rows;
+- explicit member consent plus locally verified, deployment-scoped
+  `(provider, issuer, subject)` input;
+- RFC 9497 `P256-SHA256` VOPRF evaluation so the registry receives no raw
+  email, Firebase UID, phone number, profile ID, or plain identifier hash;
+- immutable, period-effective link/correct/unlink history, local purge intent,
+  key rotation, exact idempotent retry, and atomic rate limiting;
+- durable Java presence outbox with independently signed 512-item chunks;
+  incomplete submissions remain append-only staging, and the final chunk
+  atomically produces one aggregate event and directly queryable snapshot;
+- simultaneous reporting of deployment QMAU, linked observations, globally
+  unique linked people, unlinked QMAU, and the deduplicated network total;
+- full verification of deployment signatures, registry receipts, chunk
+  manifests, restricted link history, aggregate events, snapshots, and
+  persisted query rows.
+
+The Go safety bounds of 4096 commitments per chunk and 4096 chunks per
+deployment/period/revision submission are memory/DoS controls, not deployment
+or network-size limits. With Java's 512-item chunks, the current interoperable
+ceiling is 2,097,152 linked commitments in one deployment-period submission.
 
 Exit criteria:
 
-- no accounts merge solely because names match;
-- verified email/phone creates a candidate, not an automatic irreversible merge;
-- every global deduplication decision is explainable and reversible by an
-  append-only correction;
+- no identity links solely because names match, and linking remains explicit
+  and reversible through append-only correction/unlink;
 - users/deployments outside the opt-in linking scope remain deployment-level
-  counts and are labeled accordingly.
+  counts and are labeled accordingly;
+- the registry can reproduce the deduplicated total without reconstructing
+  local profiles or exporting raw identifiers;
+- production review accepts the single-registry threat boundary: an operator
+  controlling both the VOPRF secret and restricted commitments can
+  dictionary-test likely low-entropy identifiers. This version is therefore
+  not described as anonymous PSI; threshold or separately governed/HSM-backed
+  OPRF remains an optional hardening path.
 
 ## Milestone 8 — resilience, sovereign parent domains, and exit readiness
 
 Goal: make the system operable across regions and auditable at contractual
 scale.
 
-Status: the first fraud-review foundation is implemented as a
-registry-signed, hash-linked anomaly/case rail with local flag/clear/list/show
-CLI commands, typed existing-subject checks, and same-transaction query rows.
-It records observations only and deliberately does not infer suspension,
-eligibility, payout, or legal-exit decisions. A separate signed review action
-can now reject one pending claim generation with a bounded non-personal reason
-code; rejection makes that claim share-ineligible without deactivating the
-deployment or inferring a suspension/exit decision. The remaining deliverables
-below are still open unless an earlier milestone explicitly implements them.
+Status: the fraud case rail, claim reject/suspend/reinstate decisions,
+exit-record freeze and buyer/auditor decisions, two-phase ownership transfer,
+and final exit allocation are implemented as immutable, registry-signed
+records with same-transaction direct query rows and full verification. Final
+allocation pins exact frozen settlement revisions and conserves
+JavaScript-safe minor units independently per currency; it is contractual
+allocation evidence, not payment execution. Host/topology drills,
+cross-registry federation, public checkpoint witnessing, PostgreSQL, and
+identity/application-data migration remain open unless an earlier milestone
+explicitly implements them.
 
 Deliverables:
 
@@ -505,10 +525,10 @@ Deliverables:
 - PostgreSQL storage implementation behind the same store interface when
   single-node SQLite limits are reached;
 - optional read replicas/reporting stores without changing ledger semantics;
-- exit record-date freeze, participation election, legal agreement state, and
-  signed final allocation export;
+- exit record-date freeze, participation election, legal agreement state,
+  ownership transfer, and signed final allocation record/export;
 - separate append-only exit-review records, controlled only by authorized
-  buyer/auditor roles, with effective-dated `not-reviewed`, `review-pending`,
+  buyer/auditor roles, with effective-dated `review-pending`,
   `verified-eligible`, `rejected`, `disputed`, and `withdrawn` states;
 - documented exit due diligence covering operator identity and authority,
   deployment/server and software-tamper inspection, reconciliation of signed
@@ -535,16 +555,19 @@ Exit criteria:
 
 ## Decisions deliberately deferred until their milestone
 
-- the production QMAU ruleset;
-- whether central token validation is required for every counted identity;
-- the global-link consent and privacy model;
+- changes to the implemented `qmau-v1` production qualification rules;
+- whether a future identity-link protocol additionally requires central
+  provider-token validation instead of the current deployment-validated,
+  explicitly consented VOPRF evidence;
+- threshold/HSM separation for the global-link VOPRF key and restricted
+  commitments;
 - contractual changes to the versioned technical six-month weight window,
   founder minimum, operator-group allocation, or non-binding valuation formula;
-- payment execution and final legal settlement. The immutable
+- payment execution, tax treatment, and buyer-side legal enforcement. The
+  final exit allocation, immutable
   `share-weighted-settlement-v1` technical allocation and bounded
-  `three-month-acceleration-valuation-v1` estimate now exist, but they do not
-  define contractual entitlement, tax treatment, exit record date,
-  buyer/auditor approval, or final payout;
+  `three-month-acceleration-valuation-v1` estimate now exist, but none executes
+  a bank/provider payout or determines tax treatment;
 - claim retroactivity and transfer terms;
 - the preferred external operator/company identity provider;
 - the forum provider;

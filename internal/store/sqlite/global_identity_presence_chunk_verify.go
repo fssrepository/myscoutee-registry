@@ -202,6 +202,8 @@ func (sqliteStore *Store) verifyGlobalIdentityPresenceSubmission(
 		submission.chunkCount > 4096 ||
 		submission.totalCommitmentCount < 0 ||
 		submission.totalCommitmentCount > submission.reportedQMAUCount ||
+		submission.totalCommitmentCount >
+			submission.chunkCount*4096 ||
 		submission.chunkCount >
 			maxPresenceAuditInt64(1, submission.totalCommitmentCount) ||
 		!protocol.IsDigest(submission.commitmentSetHash) ||

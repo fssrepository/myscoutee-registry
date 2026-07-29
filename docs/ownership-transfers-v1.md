@@ -163,17 +163,14 @@ SQLite connection commits verify:
 Back up the SQLite database, registry signing key, and registry identity
 together.
 
-## Deliberate final-allocation boundary
+## Final-allocation boundary
 
-This v1 finishes auditable membership ownership transfer. It does not create a
-final contractual exit allocation. A separately versioned allocation rail
-still needs to pin one verified exit review and one completed transfer (or an
-explicit no-transfer beneficiary), select exact latest settlement revisions
-only inside that exit's frozen settlement boundary, record contractual input
-commitments, store allocated minor units separately for every ISO-4217
-currency, enforce non-negative JavaScript-safe integers and exact per-currency
-conservation, and append signed decision/query rows in one transaction.
+This v1 finishes auditable membership ownership transfer. A completed transfer
+can then be pinned as the beneficiary decision by the separately versioned
+[final exit allocation rail](final-exit-allocations-v1.md). That rail can also
+record an explicit no-transfer beneficiary, copies only settlement revisions
+inside the verified exit's frozen boundary, and enforces JavaScript-safe exact
+minor-unit conservation independently for every ISO currency.
 
-That future record must remain non-payment: no bank details, payout
-instructions, invoice state, or money movement may be inferred or executed by
-the registry.
+Both rails remain non-payment: no bank details, payout instructions, invoice
+state, or money movement may be inferred or executed by the registry.

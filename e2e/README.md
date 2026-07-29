@@ -29,6 +29,9 @@ The tests cover:
 - registry receipt and ledger-hash verification by a signed client using the
   shared wire-protocol helpers;
 - fail-closed scope/key identity binding;
+- two simultaneously running registries with distinct scopes, signing keys,
+  SQLite files, receipts, and ledger state, including rejection of requests
+  addressed to the other registry;
 - concurrent local announcement publication through the real CLI and retrieval
   through the real HTTP server.
 
@@ -37,3 +40,7 @@ registry database, signing key, Docker volume, or Java state is touched.
 No SQLite file has to be provisioned before the run: the harness assigns a
 fresh `registry.db` through `REGISTRY_DATABASE_PATH`, the registry initializes
 its schema, and Go removes the temporary directory after the case.
+
+The isolation case is process-level evidence only. Public TLS routing,
+certificate renewal, independently hosted storage/backup, and cross-host
+outage drills remain release qualification work.

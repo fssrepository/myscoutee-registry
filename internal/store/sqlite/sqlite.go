@@ -217,6 +217,11 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM ownership_transfer_events) +
 			(SELECT COUNT(*) FROM ownership_transfer_state_rows) +
 			(SELECT COUNT(*) FROM ownership_transfer_memberships) +
+			(SELECT COUNT(*) FROM exit_allocations) +
+			(SELECT COUNT(*) FROM exit_allocation_settlement_sources) +
+			(SELECT COUNT(*) FROM exit_allocation_currency_allocations) +
+			(SELECT COUNT(*) FROM exit_allocation_events) +
+			(SELECT COUNT(*) FROM exit_allocation_state_rows) +
 			(SELECT COUNT(*) FROM global_identity_voprf_keys) +
 			(SELECT COUNT(*) FROM global_identity_evaluations) +
 			(SELECT COUNT(*) FROM global_identities) +
@@ -224,9 +229,13 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM global_identity_events) +
 			(SELECT COUNT(*) FROM global_identity_links) +
 			(SELECT COUNT(*) FROM global_identity_link_history) +
-			(SELECT COUNT(*) FROM global_identity_presence_batches) +
-			(SELECT COUNT(*) FROM global_identity_presence_items) +
-			(SELECT COUNT(*) FROM global_identity_dedup_snapshots) +
+				(SELECT COUNT(*) FROM global_identity_presence_batches) +
+				(SELECT COUNT(*) FROM global_identity_presence_items) +
+				(SELECT COUNT(*) FROM global_identity_presence_submissions) +
+				(SELECT COUNT(*) FROM global_identity_presence_chunks) +
+				(SELECT COUNT(*) FROM global_identity_presence_chunk_items) +
+				(SELECT COUNT(*) FROM global_identity_presence_completions) +
+				(SELECT COUNT(*) FROM global_identity_dedup_snapshots) +
 			(SELECT COUNT(*) FROM demo_seed_metadata)`).Scan(&recordCount); err != nil {
 		return false, fmt.Errorf("inspect registry persistent state: %w", err)
 	}

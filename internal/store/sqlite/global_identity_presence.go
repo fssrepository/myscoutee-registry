@@ -130,7 +130,7 @@ func (sqliteStore *Store) AcceptGlobalIdentityPresenceBatch(
 		}
 		if !active {
 			return store.GlobalIdentityPresenceRecord{}, false,
-			store.ErrGlobalIdentityLinkConflict
+				store.ErrGlobalIdentityLinkConflict
 		}
 	}
 	if err := ensureAcceptedAtAfterRegistryCreation(

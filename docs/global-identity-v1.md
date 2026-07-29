@@ -281,7 +281,7 @@ Both endpoints return:
 The link response deliberately omits the internal global identity ID, network
 commitment, and consent-evidence commitment.
 
-## Qualified-presence batch
+## Chunked qualified-presence submission
 
 ```text
 POST /v1/global-identities/presence-batches
@@ -291,33 +291,67 @@ Request-only fields beyond the signed envelope are:
 
 ```json
 {
+  "submission_id": "gipsub_...",
   "period": "2026-07",
   "revision": 3,
   "supersedes_batch_id": "batch_...",
-  "reported_qmau_count": 100,
+  "reported_qmau_count": 100000,
   "key_version": 1,
   "suite": "P256-SHA256",
+  "chunk_index": 0,
+  "chunk_count": 196,
+  "total_commitment_count": 100000,
+  "commitment_set_hash": "sha256:...",
   "network_identity_commitments": ["sha256:...", "sha256:..."]
 }
 ```
 
-Commitments are bytewise non-decreasing. Repetition is permitted because two
-qualified local accounts may collapse to one person. Every commitment must
-already have an active link for the submitting deployment and effective
-period. The payload domain is
-`myscoutee-registry-global-identity-presence-batch-v1`, followed by period,
-revision, superseded batch ID, reported count, key version, suite, commitment
-count, then each commitment.
+The deployment sorts the complete commitment list bytewise, retains duplicate
+values, and assigns one stable `submission_id` to the
+deployment/period/revision. Every chunk repeats the same manifest. Chunks are
+zero-based, accepted in order, independently signed and independently
+idempotent. `commitment_set_hash` is SHA-256 over:
 
-The response contains `protocol_version`, `registry_scope`, `batch_id`,
-`deployment_id`, `period`, `revision`, `linked_count`, `unlinked_count`, the
-public signed `event`, the `snapshot` below, and `duplicate`.
+```text
+myscoutee-registry-global-identity-presence-set-v1
+<total_commitment_count>
+<every globally sorted commitment, including duplicates>
+```
 
-New link, correction, and presence writes must use the active VOPRF key
-version. Retired versions remain evaluable for explicit rotation correction.
-An exact idempotent retry of a mutation or presence batch accepted before a
-rotation returns its original receipt even though its key version is now
-retired; rotation cannot turn a committed success into an ambiguous failure.
+The chunk payload domain is
+`myscoutee-registry-global-identity-presence-chunk-v2`, followed by submission
+ID, period, revision, superseded batch ID, reported count, key version, suite,
+chunk index, chunk count, total commitment count, set hash, this chunk's item
+count, then this chunk's commitments.
+
+Each accepted chunk receives a registry-signed receipt containing the
+submission and chunk coordinates, received-chunk count, full-set metadata,
+request and payload hashes, acceptance time, completion flag, optional
+completed batch/event hash, and registry key ID. An incomplete submission is
+restricted append-only staging: it is not a current presence revision, does
+not append a public event, and does not change a dedup snapshot. Acceptance of
+the final missing chunk atomically writes exactly one aggregate presence
+batch, one public event, and one dedup snapshot. The final response adds
+`batch_id`, `linked_count`, `unlinked_count`, `event`, and `snapshot`.
+
+The Go ingress safety bounds are 4096 commitments per chunk and 4096 chunks
+per deployment/period/revision submission. They are request-size and
+memory/DoS bounds, not a deployment-count, user-count, or network-count product
+limit. The Java sender deliberately uses 512 commitments per chunk to remain
+within the default 65536-byte HTTP body limit, so the current interoperable
+operational ceiling is 2,097,152 commitments in one submission. Raising these
+bounds requires coordinated body-size, memory, and abuse-control review; it
+must not be done by removing validation.
+
+Every commitment must have an audited link for the submitting deployment and
+must be effective for the reported period. A later unlink does not invalidate
+a legitimate late correction for an earlier period. A new submission must use
+the active VOPRF key. Once its first chunk is accepted, the submission pins
+that key version, so remaining chunks may finish after a rotation. Retired
+versions otherwise remain evaluable only for explicit rotation correction.
+An exact idempotent retry returns the originally signed chunk receipt,
+including a retry after the final response was lost or after key rotation;
+rotation cannot turn a committed success into an ambiguous failure.
 
 ## Aggregate query
 
@@ -353,9 +387,12 @@ the snapshot as audited network accounting.
 
 ## Storage, rotation, and recovery
 
-Each link action and presence batch appends its public event and writes its
-restricted direct rows plus immutable snapshot in one SQLite transaction.
-There is no asynchronous projection or repair writer.
+Each link action and completed presence submission appends its public event
+and writes its restricted direct rows plus immutable snapshot in one SQLite
+transaction. Incomplete signed chunks remain in separate append-only staging
+tables and are included in integrity verification, but never in current
+presence or dedup queries. There is no asynchronous projection or repair
+writer.
 
 The VOPRF seed keyring is a mode-`0600`, non-symlink JSON file in the registry
 runtime data volume. It is not SQLite data, an environment secret, a Docker

@@ -489,49 +489,6 @@ func (sqliteStore *Store) globalIdentityEventSource(
 				link.ConsentEvidenceCommitment
 			request.VerifiedAt = link.VerifiedAt
 		}
-		aggregatePayloadHash := protocol.Digest(
-			protocol.GlobalIdentityLegacyPresenceBatchPayload(
-				request.Period,
-				request.Revision,
-				request.SupersedesBatchID,
-				request.ReportedQMAUCount,
-				request.KeyVersion,
-				request.Suite,
-				request.Commitments,
-			),
-		)
-		signedPayload := protocol.GlobalIdentityLegacyPresenceBatchPayload(
-			request.Period,
-			request.Revision,
-			request.SupersedesBatchID,
-			request.ReportedQMAUCount,
-			request.KeyVersion,
-			request.Suite,
-			request.Commitments,
-		)
-		privatePayloadHash := event.PayloadHash
-		chunkRequest, completedAggregateHash, chunked, err :=
-			sqliteStore.globalIdentityCompletedPresenceRequest(
-				ctx,
-				event,
-				batchID,
-				request,
-			)
-		if err != nil {
-			return nil, "", err
-		}
-		if chunked {
-			if completedAggregateHash != aggregatePayloadHash {
-				return nil, "", inconsistentMessage(
-					"global identity presence completion %s has an invalid aggregate payload hash",
-					batchID,
-				)
-			}
-			signedPayload = protocol.GlobalIdentityPresenceBatchPayload(
-				chunkRequest,
-			)
-			privatePayloadHash = completedAggregateHash
-		}
 		privateHash := protocol.Digest(
 			protocol.GlobalIdentityPrivateEventCommitment(
 				event.Action,
@@ -761,6 +718,49 @@ func (sqliteStore *Store) globalIdentityEventSource(
 					batchID,
 				)
 			}
+		}
+		aggregatePayloadHash := protocol.Digest(
+			protocol.GlobalIdentityLegacyPresenceBatchPayload(
+				request.Period,
+				request.Revision,
+				request.SupersedesBatchID,
+				request.ReportedQMAUCount,
+				request.KeyVersion,
+				request.Suite,
+				request.Commitments,
+			),
+		)
+		signedPayload := protocol.GlobalIdentityLegacyPresenceBatchPayload(
+			request.Period,
+			request.Revision,
+			request.SupersedesBatchID,
+			request.ReportedQMAUCount,
+			request.KeyVersion,
+			request.Suite,
+			request.Commitments,
+		)
+		privatePayloadHash := event.PayloadHash
+		chunkRequest, completedAggregateHash, chunked, err :=
+			sqliteStore.globalIdentityCompletedPresenceRequest(
+				ctx,
+				event,
+				batchID,
+				request,
+			)
+		if err != nil {
+			return nil, "", err
+		}
+		if chunked {
+			if completedAggregateHash != aggregatePayloadHash {
+				return nil, "", inconsistentMessage(
+					"global identity presence completion %s has an invalid aggregate payload hash",
+					batchID,
+				)
+			}
+			signedPayload = protocol.GlobalIdentityPresenceBatchPayload(
+				chunkRequest,
+			)
+			privatePayloadHash = completedAggregateHash
 		}
 		privateHash := protocol.Digest(
 			protocol.GlobalIdentityPrivateEventCommitment(

@@ -18,7 +18,7 @@ func (sqliteStore *Store) VerifyExitAllocations(
 	registryKeyID string,
 	registryScope string,
 ) error {
-	tx, err := sqliteStore.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := sqliteStore.db.BeginTx(ctx, nil)
 	if err != nil {
 		return inconsistent("begin final exit allocation verification", err)
 	}
@@ -62,13 +62,28 @@ func verifiedExitAllocationRecords(
 	if err != nil {
 		return nil, inconsistent("read final exit allocation records", err)
 	}
-	defer rows.Close()
-	records := make(map[string]store.ExitAllocationRecord)
+	baseRecords := make([]store.ExitAllocationRecord, 0)
 	for rows.Next() {
-		record, err := scanExitAllocationRecord(rows)
-		if err != nil {
-			return nil, inconsistent("scan final exit allocation record", err)
+		record, scanErr := scanExitAllocationRecord(rows)
+		if scanErr != nil {
+			rows.Close()
+			return nil, inconsistent(
+				"scan final exit allocation record",
+				scanErr,
+			)
 		}
+		baseRecords = append(baseRecords, record)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, inconsistent("iterate final exit allocation records", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, inconsistent("close final exit allocation records", err)
+	}
+	records := make(map[string]store.ExitAllocationRecord)
+	for _, baseRecord := range baseRecords {
+		record := baseRecord
 		record.SettlementSources, err = exitAllocationSourcesByAllocation(
 			ctx,
 			tx,
@@ -196,9 +211,6 @@ func verifiedExitAllocationRecords(
 			)
 		}
 		records[record.AllocationID] = record
-	}
-	if err := rows.Err(); err != nil {
-		return nil, inconsistent("iterate final exit allocation records", err)
 	}
 	return records, nil
 }
@@ -417,6 +429,29 @@ func verifyExitAllocationDecisionBoundary(
 			record.AllocationID,
 		)
 	}
+	var laterTransferCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ownership_transfers transfer
+		JOIN ownership_transfer_events event
+		  ON event.transfer_id = transfer.transfer_id
+		 AND event.action = 'prepare'
+		WHERE transfer.exit_review_id = ?
+		  AND event.event_index > ?`,
+		record.ExitReviewID,
+		record.ThroughOwnershipTransferEventIndex,
+	).Scan(&laterTransferCount); err != nil {
+		return inconsistent(
+			"check transfers after final exit allocation",
+			err,
+		)
+	}
+	if laterTransferCount != 0 {
+		return inconsistentMessage(
+			"final exit allocation %s is followed by a forbidden ownership transfer",
+			record.AllocationID,
+		)
+	}
 	if record.DecisionMode ==
 		protocol.ExitAllocationDecisionNoTransfer {
 		return nil
@@ -519,9 +554,9 @@ func verifiedExitAllocationEvents(
 			(expectedIndex > 1 &&
 				acceptedAt.Before(previousAcceptedAt)) ||
 			seenIdempotency[event.IdempotencyKey] ||
-			!validExitAllocationAuditText(event.ActorID, 120) ||
+			!validExitAllocationBeneficiaryID(event.ActorID) ||
 			!validExitAllocationAuditText(event.Reference, 240) ||
-			event.IdempotencyKey == "" {
+			!validExitAllocationIdempotency(event.IdempotencyKey) {
 			return nil, inconsistentMessage(
 				"final exit allocation event %d has invalid metadata or ordering",
 				event.EventIndex,
@@ -620,6 +655,18 @@ func validExitAllocationAuditText(value string, maximum int) bool {
 	return value != "" &&
 		len(value) <= maximum &&
 		!protocol.HasCanonicalLineBreak(value)
+}
+
+func validExitAllocationIdempotency(value string) bool {
+	if len(value) < 8 || len(value) > 128 {
+		return false
+	}
+	for _, character := range []byte(value) {
+		if character < 0x21 || character > 0x7e {
+			return false
+		}
+	}
+	return true
 }
 
 func verifyExitAllocationStateRows(

@@ -198,9 +198,9 @@ func (registry *Service) EvaluateGlobalIdentity(
 			BlindedElement:   blinded,
 			PublicKey:        publicKey,
 			EvaluatedElement: evaluated,
-			Proof:             proof,
-			ResponseHash:      responseHash,
-			EvaluatedAt:       evaluatedAt,
+			Proof:            proof,
+			ResponseHash:     responseHash,
+			EvaluatedAt:      evaluatedAt,
 			ReceiptSignature: receipt,
 			RateWindowStart:  since,
 			RateLimit:        globalIdentityEvaluationLimitPerMinute,
@@ -266,15 +266,15 @@ func (registry *Service) LinkGlobalIdentity(
 	return registry.applyGlobalIdentityMutation(
 		ctx,
 		store.GlobalIdentityMutationInput{
-			Action:                    protocol.GlobalIdentityActionLink,
-			DeploymentID:              request.DeploymentID,
-			IdempotencyKey:            request.IdempotencyKey,
-			Nonce:                     request.Nonce,
-			RequestTimestamp:          request.Timestamp,
-			RequestHash:               requestHash,
-			RequestSignature:          signature,
-			PayloadHash:               request.PayloadHash,
-			KeyVersion:                request.KeyVersion,
+			Action:           protocol.GlobalIdentityActionLink,
+			DeploymentID:     request.DeploymentID,
+			IdempotencyKey:   request.IdempotencyKey,
+			Nonce:            request.Nonce,
+			RequestTimestamp: request.Timestamp,
+			RequestHash:      requestHash,
+			RequestSignature: signature,
+			PayloadHash:      request.PayloadHash,
+			KeyVersion:       request.KeyVersion,
 			RequiredActiveKeyVersion: registry.globalIdentityKeys.
 				ActivePublicKey().Version,
 			Suite:                     request.Suite,
@@ -422,6 +422,8 @@ func (registry *Service) SubmitGlobalIdentityPresenceBatch(
 		request.TotalCommitmentCount < 0 ||
 		request.TotalCommitmentCount > request.ReportedQMAUCount ||
 		int64(len(request.Commitments)) > request.TotalCommitmentCount ||
+		request.TotalCommitmentCount >
+			request.ChunkCount*globalIdentityMaximumCommitments ||
 		request.ChunkCount > maxInt64(1, request.TotalCommitmentCount) ||
 		(request.TotalCommitmentCount == 0 &&
 			(request.ChunkCount != 1 ||
@@ -505,19 +507,18 @@ func (registry *Service) SubmitGlobalIdentityPresenceBatch(
 				KeyVersion:        request.KeyVersion,
 				RequiredActiveKeyVersion: registry.globalIdentityKeys.
 					ActivePublicKey().Version,
-				Suite:             request.Suite,
-				ChunkIndex:        request.ChunkIndex,
-				ChunkCount:        request.ChunkCount,
-				TotalCommitmentCount:
-					request.TotalCommitmentCount,
-				CommitmentSetHash: request.CommitmentSetHash,
+				Suite:                request.Suite,
+				ChunkIndex:           request.ChunkIndex,
+				ChunkCount:           request.ChunkCount,
+				TotalCommitmentCount: request.TotalCommitmentCount,
+				CommitmentSetHash:    request.CommitmentSetHash,
 				Commitments: append(
 					[]string(nil),
 					request.Commitments...,
 				),
-				AcceptedAt:       acceptedAt,
-				RegistryScope:    registry.registryScope,
-				RegistryKeyID:    registry.signingKey.KeyID(),
+				AcceptedAt:    acceptedAt,
+				RegistryScope: registry.registryScope,
+				RegistryKeyID: registry.signingKey.KeyID(),
 			},
 			registry.signGlobalIdentityEvent,
 			registry.signGlobalIdentityPresenceReceipt,
