@@ -201,6 +201,8 @@ func (sqliteStore *Store) verifyOperatorAuditEvents(
 			event.LinkID,
 			event.TokenID,
 			event.ClientTokenHash,
+			event.SourceClaimActionID,
+			event.SourcePrivateRecordHash,
 			event.TokenExpiresAt,
 			event.PreviousAuditHash,
 		))
@@ -382,6 +384,12 @@ func operatorEventPayloadHash(
 	event store.OperatorAuditEvent,
 	submission store.OperatorClaimSubmission,
 ) (string, bool, error) {
+	hasSourceClaim := event.SourceClaimActionID != ""
+	hasSourceHash := event.SourcePrivateRecordHash != ""
+	if hasSourceClaim != hasSourceHash ||
+		(event.Action != protocol.OperatorActionRedeemClientToken && hasSourceClaim) {
+		return "", false, store.ErrInconsistentState
+	}
 	operatorName := ""
 	operatorAvatarURL := ""
 	clientTokenHash := ""
@@ -391,37 +399,10 @@ func operatorEventPayloadHash(
 	switch event.Action {
 	case protocol.OperatorActionClaim:
 		if event.ClaimState == protocol.OperatorClaimStatePendingReview {
-			if submission.ClaimActionID == "" ||
-				submission.ClaimActionID != event.ActionID ||
-				submission.DeploymentID != event.DeploymentID ||
-				submission.GroupID != event.GroupID ||
-				submission.LegalName != event.OperatorName ||
-				submission.OperatorAvatarURL != event.OperatorAvatarURL ||
-				submission.PayloadHash != event.PayloadHash ||
-				submission.SubmittedAt != event.AcceptedAt ||
-				!submission.AuthorityAttested {
-				return "", false, store.ErrInconsistentState
-			}
-			expectedPrivateHash := protocol.Digest(
-				protocol.OperatorClaimPrivateRecordMessage(
-					submission.ClaimActionID,
-					submission.DeploymentID,
-					submission.GroupID,
-					submission.PayloadHash,
-					submission.LegalName,
-					submission.RegistrationNumber,
-					submission.Jurisdiction,
-					submission.RegisteredAddress,
-					submission.Website,
-					submission.VerificationContactName,
-					submission.VerificationContactRole,
-					submission.VerificationContactEmail,
-					submission.AuthorityAttested,
-					submission.OperatorAvatarURL,
-					submission.SubmittedAt,
-				),
-			)
-			if submission.PrivateRecordHash != expectedPrivateHash {
+			if err := validateOperatorClaimSubmission(
+				event,
+				submission,
+			); err != nil {
 				return "", false, store.ErrInconsistentState
 			}
 			return protocol.Digest(protocol.OperatorClaimPayload(
@@ -448,6 +429,29 @@ func operatorEventPayloadHash(
 	case protocol.OperatorActionRevokeClientToken:
 		tokenID = event.TokenID
 	case protocol.OperatorActionRedeemClientToken:
+		if submission.ClaimActionID != "" {
+			if event.ClaimState != protocol.OperatorClaimStatePendingReview ||
+				event.LinkID != "" ||
+				event.RelatedDeploymentID == "" ||
+				(hasSourceClaim &&
+					(!validHexID(event.SourceClaimActionID, "opa_", 32) ||
+						!protocol.IsDigest(event.SourcePrivateRecordHash))) ||
+				validateOperatorClaimSubmission(event, submission) != nil {
+				return "", false, store.ErrInconsistentState
+			}
+			return protocol.Digest(protocol.OperatorActionPayload(
+				event.Action,
+				"",
+				"",
+				event.ClientTokenHash,
+				0,
+				"",
+				"",
+			)), true, nil
+		}
+		if hasSourceClaim {
+			return "", false, store.ErrInconsistentState
+		}
 		clientTokenHash = event.ClientTokenHash
 	case protocol.OperatorActionRevokeGroupLink:
 		linkID = event.LinkID
@@ -463,27 +467,69 @@ func operatorEventPayloadHash(
 	)), false, nil
 }
 
+func validateOperatorClaimSubmission(
+	event store.OperatorAuditEvent,
+	submission store.OperatorClaimSubmission,
+) error {
+	if submission.ClaimActionID == "" ||
+		submission.ClaimActionID != event.ActionID ||
+		submission.DeploymentID != event.DeploymentID ||
+		submission.GroupID != event.GroupID ||
+		submission.LegalName != event.OperatorName ||
+		submission.OperatorAvatarURL != event.OperatorAvatarURL ||
+		submission.PayloadHash != event.PayloadHash ||
+		submission.SubmittedAt != event.AcceptedAt ||
+		!submission.AuthorityAttested {
+		return store.ErrInconsistentState
+	}
+	expectedPrivateHash := protocol.Digest(
+		protocol.OperatorClaimPrivateRecordMessage(
+			submission.ClaimActionID,
+			submission.DeploymentID,
+			submission.GroupID,
+			submission.PayloadHash,
+			submission.LegalName,
+			submission.RegistrationNumber,
+			submission.Jurisdiction,
+			submission.RegisteredAddress,
+			submission.Website,
+			submission.VerificationContactName,
+			submission.VerificationContactRole,
+			submission.VerificationContactEmail,
+			submission.AuthorityAttested,
+			submission.OperatorAvatarURL,
+			submission.SubmittedAt,
+		),
+	)
+	if submission.PrivateRecordHash != expectedPrivateHash {
+		return store.ErrInconsistentState
+	}
+	return nil
+}
+
 func operatorReceipt(
 	event store.OperatorAuditEvent,
 	registryScope string,
 ) protocol.OperatorActionReceipt {
 	return protocol.OperatorActionReceipt{
-		AuditIndex:          event.AuditIndex,
-		AuditHash:           event.AuditHash,
-		PreviousAuditHash:   event.PreviousAuditHash,
-		ActionID:            event.ActionID,
-		DeploymentID:        event.DeploymentID,
-		SubjectDeploymentID: event.SubjectDeploymentID,
-		RelatedDeploymentID: event.RelatedDeploymentID,
-		Action:              event.Action,
-		AcceptedAt:          event.AcceptedAt,
-		ClaimState:          event.ClaimState,
-		GroupID:             event.GroupID,
-		LinkID:              event.LinkID,
-		TokenID:             event.TokenID,
-		ClientTokenHash:     event.ClientTokenHash,
-		TokenExpiresAt:      event.TokenExpiresAt,
-		RegistryScope:       registryScope,
-		RegistryKeyID:       event.RegistryKeyID,
+		AuditIndex:              event.AuditIndex,
+		AuditHash:               event.AuditHash,
+		PreviousAuditHash:       event.PreviousAuditHash,
+		ActionID:                event.ActionID,
+		DeploymentID:            event.DeploymentID,
+		SubjectDeploymentID:     event.SubjectDeploymentID,
+		RelatedDeploymentID:     event.RelatedDeploymentID,
+		Action:                  event.Action,
+		AcceptedAt:              event.AcceptedAt,
+		ClaimState:              event.ClaimState,
+		GroupID:                 event.GroupID,
+		LinkID:                  event.LinkID,
+		TokenID:                 event.TokenID,
+		ClientTokenHash:         event.ClientTokenHash,
+		SourceClaimActionID:     event.SourceClaimActionID,
+		SourcePrivateRecordHash: event.SourcePrivateRecordHash,
+		TokenExpiresAt:          event.TokenExpiresAt,
+		RegistryScope:           registryScope,
+		RegistryKeyID:           event.RegistryKeyID,
 	}
 }

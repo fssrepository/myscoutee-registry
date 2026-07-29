@@ -184,16 +184,27 @@ func applyOperatorNetworkEvent(
 		state.LinkID = ""
 		state.RelatedDeploymentID = ""
 	case protocol.OperatorActionWithdrawClaim:
-		state.Claimed = false
-		state.ClaimState = protocol.OperatorClaimStateWithdrawn
-		state.ClaimStateAuditIndex = event.AuditIndex
-		state.EffectiveGroupID = ""
-		state.LinkID = ""
-		state.RelatedDeploymentID = ""
+		withdrawOperatorNetworkState(state, event)
 	case protocol.OperatorActionRedeemClientToken:
-		state.EffectiveGroupID = event.GroupID
-		state.LinkID = event.LinkID
-		state.RelatedDeploymentID = event.RelatedDeploymentID
+		if !state.Claimed &&
+			event.ClaimState == protocol.OperatorClaimStatePendingReview &&
+			event.OperatorName != "" &&
+			event.LinkID == "" {
+			state.Claimed = true
+			state.ClaimState = event.ClaimState
+			state.ClaimStateAuditIndex = event.AuditIndex
+			state.ProfileClaimAuditIndex = event.AuditIndex
+			state.ClaimGroupID = event.GroupID
+			state.EffectiveGroupID = event.GroupID
+			state.OperatorName = event.OperatorName
+			state.OperatorAvatarURL = event.OperatorAvatarURL
+			state.ProfileClaimState = event.ClaimState
+			state.RelatedDeploymentID = ""
+		} else {
+			state.EffectiveGroupID = event.GroupID
+			state.LinkID = event.LinkID
+			state.RelatedDeploymentID = event.RelatedDeploymentID
+		}
 	case protocol.OperatorActionRevokeGroupLink:
 		if state.Claimed {
 			state.EffectiveGroupID = state.ClaimGroupID
@@ -204,9 +215,24 @@ func applyOperatorNetworkEvent(
 		state.RelatedDeploymentID = ""
 	case protocol.OperatorActionDeactivateDeployment:
 		state.Active = false
+		if state.Claimed {
+			withdrawOperatorNetworkState(state, event)
+		}
 	case protocol.OperatorActionReactivateDeployment:
 		state.Active = true
 	}
+}
+
+func withdrawOperatorNetworkState(
+	state *operatorNetworkStateRow,
+	event store.OperatorAuditEvent,
+) {
+	state.Claimed = false
+	state.ClaimState = protocol.OperatorClaimStateWithdrawn
+	state.ClaimStateAuditIndex = event.AuditIndex
+	state.EffectiveGroupID = ""
+	state.LinkID = ""
+	state.RelatedDeploymentID = ""
 }
 
 func scanOperatorNetworkState(scanner rowScanner) (operatorNetworkStateRow, error) {

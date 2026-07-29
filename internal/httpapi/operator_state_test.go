@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
+	"github.com/fssrepository/myscoutee-registry/internal/service"
 	"github.com/fssrepository/myscoutee-registry/internal/store"
 	_ "modernc.org/sqlite"
 )
@@ -25,6 +26,20 @@ func TestOperatorNetworkStateRowsAreTransactionalAndHistorical(t *testing.T) {
 		fixture.operatorAction(t, alpha, alphaClaimDraft),
 		http.StatusCreated,
 	)
+	if _, err := fixture.runtime.Service.ApproveOperatorClaim(
+		context.Background(),
+		service.OperatorClaimApproval{
+			DeploymentID:    alpha.id,
+			ClaimActionID:   alphaClaim.Receipt.ActionID,
+			GroupID:         alphaClaim.Receipt.GroupID,
+			LegalName:       alphaClaimDraft.LegalName,
+			ReviewerID:      "network-review-team",
+			ReviewReference: "case:state-alpha",
+			IdempotencyKey:  "approve_state_alpha",
+		},
+	); err != nil {
+		t.Fatalf("approve state alpha operator claim: %v", err)
+	}
 
 	betaClaimDraft := operatorClaimRequest("State Beta Cooperative")
 	betaClaimDraft.Nonce = "nonce_state_beta_claim"

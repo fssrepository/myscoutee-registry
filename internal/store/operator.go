@@ -40,32 +40,34 @@ type OperatorActionInput struct {
 }
 
 type OperatorAuditEvent struct {
-	AuditIndex          int64
-	ActionID            string
-	DeploymentID        string
-	SubjectDeploymentID string
-	RelatedDeploymentID string
-	Action              string
-	RequestTimestamp    string
-	Nonce               string
-	IdempotencyKey      string
-	PayloadHash         string
-	RequestHash         string
-	DeploymentSignature []byte
-	OperatorName        string
-	OperatorAvatarURL   string
-	ClaimState          string
-	GroupID             string
-	LinkID              string
-	TokenID             string
-	ClientTokenHash     string
-	TokenTTLSeconds     int64
-	TokenExpiresAt      string
-	AcceptedAt          string
-	PreviousAuditHash   string
-	AuditHash           string
-	RegistryKeyID       string
-	ReceiptSignature    []byte
+	AuditIndex              int64
+	ActionID                string
+	DeploymentID            string
+	SubjectDeploymentID     string
+	RelatedDeploymentID     string
+	Action                  string
+	RequestTimestamp        string
+	Nonce                   string
+	IdempotencyKey          string
+	PayloadHash             string
+	RequestHash             string
+	DeploymentSignature     []byte
+	OperatorName            string
+	OperatorAvatarURL       string
+	ClaimState              string
+	GroupID                 string
+	LinkID                  string
+	TokenID                 string
+	ClientTokenHash         string
+	SourceClaimActionID     string
+	SourcePrivateRecordHash string
+	TokenTTLSeconds         int64
+	TokenExpiresAt          string
+	AcceptedAt              string
+	PreviousAuditHash       string
+	AuditHash               string
+	RegistryKeyID           string
+	ReceiptSignature        []byte
 }
 
 type OperatorAuditSigner func(OperatorAuditEvent) ([]byte, error)
@@ -154,8 +156,10 @@ type OperatorClaimPage struct {
 type LeaderboardBoundary struct {
 	LedgerIndex int64
 	AuditIndex  int64
+	ReviewIndex int64
 	LedgerHash  string
 	AuditHash   string
+	ReviewHash  string
 	CreatedAt   string
 }
 
@@ -168,6 +172,7 @@ type LeaderboardRecord struct {
 	ClaimState      string
 	DeploymentCount int64
 	Weight          int64
+	SortWeight      int64
 }
 
 type LeaderboardDeploymentRecord struct {
@@ -176,6 +181,7 @@ type LeaderboardDeploymentRecord struct {
 	ClaimState      string
 	MembershipState string
 	Weight          int64
+	SortWeight      int64
 }
 
 type LeaderboardQuery struct {
@@ -184,6 +190,7 @@ type LeaderboardQuery struct {
 	ThroughPeriod      string
 	ThroughLedgerIndex int64
 	ThroughAuditIndex  int64
+	ThroughReviewIndex int64
 	Limit              int
 	AfterWeight        int64
 	AfterID            string
@@ -196,6 +203,7 @@ type LeaderboardDeploymentQuery struct {
 	ThroughPeriod      string
 	ThroughLedgerIndex int64
 	ThroughAuditIndex  int64
+	ThroughReviewIndex int64
 	Limit              int
 	AfterWeight        int64
 	AfterID            string
@@ -227,6 +235,7 @@ type OperatorNetworkStore interface {
 		context.Context,
 		string,
 		string,
+		int64,
 		int64,
 		int64,
 	) (LeaderboardTotals, error)

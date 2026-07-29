@@ -177,6 +177,339 @@ func TestOperatorNetworkStateMigrationBackfillsHistoricalBoundaries(t *testing.T
 	}
 }
 
+func TestDeactivationMigrationWithdrawsAlreadyPersistedClaimState(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "registry.db")
+	database, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatalf("open pre-deactivation-lifecycle database: %v", err)
+	}
+	if _, err := database.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		database.Close()
+		t.Fatalf("enable pre-deactivation-lifecycle foreign keys: %v", err)
+	}
+	if _, err := database.Exec(`
+		CREATE TABLE schema_migrations (
+			version INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		)`); err != nil {
+		database.Close()
+		t.Fatalf("create pre-deactivation-lifecycle migration table: %v", err)
+	}
+	for version, name := range []string{
+		"0001_initial.sql",
+		"0002_operator_network.sql",
+		"0003_announcements.sql",
+		"0004_operator_claim_verification.sql",
+		"0005_operator_network_state_rows.sql",
+		"0006_revenue_batches.sql",
+		"0007_operator_client_code_integrity.sql",
+	} {
+		contents, err := migrationFiles.ReadFile("migrations/" + name)
+		if err != nil {
+			database.Close()
+			t.Fatalf("read migration %s: %v", name, err)
+		}
+		transaction, err := database.Begin()
+		if err != nil {
+			database.Close()
+			t.Fatalf("begin migration %s: %v", name, err)
+		}
+		if _, err := transaction.Exec(string(contents)); err != nil {
+			transaction.Rollback()
+			database.Close()
+			t.Fatalf("apply migration %s: %v", name, err)
+		}
+		if _, err := transaction.Exec(
+			"INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
+			version+1,
+			name,
+		); err != nil {
+			transaction.Rollback()
+			database.Close()
+			t.Fatalf("record migration %s: %v", name, err)
+		}
+		if err := transaction.Commit(); err != nil {
+			database.Close()
+			t.Fatalf("commit migration %s: %v", name, err)
+		}
+	}
+
+	const (
+		deploymentID = "dep_deactivation_migration"
+		groupID      = "opg_deactivation_migration"
+		claimAction  = "opa_deactivation_migration_claim"
+		reviewID     = "opr_deactivation_migration"
+	)
+	insertPreStateDeployment(t, database, deploymentID, "deactivation-migration")
+	insertPreStateOperatorEvent(
+		t,
+		database,
+		1,
+		claimAction,
+		deploymentID,
+		deploymentID,
+		"",
+		"claim",
+		"Migration Cooperative",
+		"pending-review",
+		groupID,
+		"",
+		"sha256:deactivation-migration-claim",
+	)
+	insertPreStateOperatorEvent(
+		t,
+		database,
+		2,
+		"opa_deactivation_migration_deactivate",
+		deploymentID,
+		deploymentID,
+		"",
+		"deactivate-deployment",
+		"",
+		"",
+		"",
+		"",
+		"sha256:deactivation-migration-deactivate",
+	)
+	insertPreStateOperatorEvent(
+		t,
+		database,
+		3,
+		"opa_deactivation_migration_reactivate",
+		deploymentID,
+		deploymentID,
+		"",
+		"reactivate-deployment",
+		"",
+		"",
+		"",
+		"",
+		"sha256:deactivation-migration-reactivate",
+	)
+
+	insertState := func(
+		auditIndex int64,
+		actionID string,
+		active bool,
+		sourceAuditHash string,
+	) {
+		t.Helper()
+		if _, err := database.Exec(`
+			INSERT INTO operator_network_state_rows (
+				audit_index,
+				action_id,
+				deployment_id,
+				claimed,
+				active,
+				claim_state,
+				claim_state_audit_index,
+				profile_claim_audit_index,
+				claim_group_id,
+				effective_group_id,
+				operator_name,
+				operator_avatar_url,
+				profile_claim_state,
+				link_id,
+				related_deployment_id,
+				source_audit_hash,
+				accepted_at
+			) VALUES (?, ?, ?, 1, ?, 'pending-review', 1, 1, ?, ?, ?, '', 'pending-review', '', '', ?, ?)`,
+			auditIndex,
+			actionID,
+			deploymentID,
+			active,
+			groupID,
+			groupID,
+			"Migration Cooperative",
+			sourceAuditHash,
+			"2026-07-28T00:00:01Z",
+		); err != nil {
+			t.Fatalf("insert pre-lifecycle state row %d: %v", auditIndex, err)
+		}
+	}
+	insertState(
+		1,
+		claimAction,
+		true,
+		"sha256:deactivation-migration-claim",
+	)
+	insertState(
+		2,
+		"opa_deactivation_migration_deactivate",
+		false,
+		"sha256:deactivation-migration-deactivate",
+	)
+	insertState(
+		3,
+		"opa_deactivation_migration_reactivate",
+		true,
+		"sha256:deactivation-migration-reactivate",
+	)
+
+	if _, err := database.Exec(`
+		INSERT INTO operator_claim_verification_submissions (
+			claim_action_id,
+			deployment_id,
+			group_id,
+			legal_name,
+			registration_number,
+			jurisdiction,
+			registered_address,
+			website,
+			verification_contact_name,
+			verification_contact_role,
+			verification_contact_email,
+			authority_attested,
+			operator_avatar_url,
+			payload_hash,
+			submitted_at,
+			private_record_hash
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?)`,
+		claimAction,
+		deploymentID,
+		groupID,
+		"Migration Cooperative",
+		"REG-MIGRATION",
+		"Slovakia",
+		"Migration Street 1",
+		"https://migration.example.test",
+		"Migration Reviewer",
+		"Director",
+		"reviewer@migration.example.test",
+		"payload-"+claimAction,
+		"2026-07-28T00:00:01Z",
+		"sha256:deactivation-migration-private",
+	); err != nil {
+		database.Close()
+		t.Fatalf("insert pre-lifecycle private claim: %v", err)
+	}
+	if _, err := database.Exec(`
+		INSERT INTO operator_claim_reviews (
+			review_index,
+			review_id,
+			deployment_id,
+			claim_action_id,
+			group_id,
+			legal_name,
+			decision,
+			reviewer_id,
+			review_reference,
+			idempotency_key,
+			reviewed_at,
+			previous_review_hash,
+			review_hash,
+			registry_key_id,
+			signature
+		) VALUES (1, ?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?, ?, ?, ?, zeroblob(64))`,
+		reviewID,
+		deploymentID,
+		claimAction,
+		groupID,
+		"Migration Cooperative",
+		"migration-reviewer",
+		"case:migration",
+		"approve-deactivation-migration",
+		"2026-07-28T00:00:01Z",
+		"sha256:deactivation-migration-review-zero",
+		"sha256:deactivation-migration-review",
+		"registry-key",
+	); err != nil {
+		database.Close()
+		t.Fatalf("insert pre-lifecycle claim review: %v", err)
+	}
+	if _, err := database.Exec(`
+		INSERT INTO operator_claim_status (
+			deployment_id,
+			claim_action_id,
+			claim_audit_index,
+			claim_audit_hash,
+			group_id,
+			legal_name,
+			verification_state,
+			submitted_at,
+			review_id,
+			review_index,
+			review_hash,
+			approved_at,
+			updated_at,
+			private_record_hash
+		) VALUES (?, ?, 1, ?, ?, ?, 'approved', ?, ?, 1, ?, ?, ?, ?)`,
+		deploymentID,
+		claimAction,
+		"sha256:deactivation-migration-claim",
+		groupID,
+		"Migration Cooperative",
+		"2026-07-28T00:00:01Z",
+		reviewID,
+		"sha256:deactivation-migration-review",
+		"2026-07-28T00:00:01Z",
+		"2026-07-28T00:00:01Z",
+		"sha256:deactivation-migration-private",
+	); err != nil {
+		database.Close()
+		t.Fatalf("insert pre-lifecycle claim status: %v", err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatalf("close pre-deactivation-lifecycle database: %v", err)
+	}
+
+	registryStore, err := Open(databasePath)
+	if err != nil {
+		t.Fatalf("apply deactivation lifecycle migration: %v", err)
+	}
+	defer registryStore.Close()
+
+	state, err := scanOperatorNetworkState(registryStore.db.QueryRow(
+		operatorNetworkStateSelect+`
+		WHERE deployment_id = ?
+		ORDER BY audit_index DESC
+		LIMIT 1`,
+		deploymentID,
+	))
+	if err != nil {
+		t.Fatalf("read migrated current network state: %v", err)
+	}
+	if state.Claimed ||
+		!state.Active ||
+		state.ClaimState != "withdrawn" ||
+		state.ClaimStateAuditIndex != 2 ||
+		state.EffectiveGroupID != "" ||
+		state.LinkID != "" {
+		t.Fatalf("migrated current network state = %+v", state)
+	}
+
+	status, err := scanOperatorClaimStatus(registryStore.db.QueryRow(
+		operatorClaimStatusSelect+" WHERE deployment_id = ?",
+		deploymentID,
+	))
+	if err != nil {
+		t.Fatalf("read migrated current claim status: %v", err)
+	}
+	if status.VerificationState != "withdrawn" ||
+		status.ReviewID != reviewID ||
+		status.ApprovedAt == "" ||
+		status.UpdatedAt != "2026-07-28T00:00:01Z" {
+		t.Fatalf("migrated current claim status = %+v", status)
+	}
+
+	var reviewCount int
+	if err := registryStore.db.QueryRow(
+		"SELECT COUNT(*) FROM operator_claim_reviews WHERE review_id = ?",
+		reviewID,
+	).Scan(&reviewCount); err != nil {
+		t.Fatalf("count preserved claim review: %v", err)
+	}
+	if reviewCount != 1 {
+		t.Fatalf("preserved claim review count = %d, want 1", reviewCount)
+	}
+	if _, err := registryStore.db.Exec(
+		"UPDATE operator_network_state_rows SET active = 0 WHERE audit_index = 3",
+	); err == nil {
+		t.Fatalf("migration did not restore the state-row append-only trigger")
+	}
+}
+
 func insertPreStateDeployment(
 	t *testing.T,
 	database *sql.DB,

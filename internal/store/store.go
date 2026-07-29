@@ -24,6 +24,7 @@ var (
 	ErrOperatorClaimAlreadyReviewed = errors.New("operator claim is not pending review")
 	ErrClientTokenExpired           = errors.New("operator client token is expired")
 	ErrClientTokenRevoked           = errors.New("operator client token is revoked")
+	ErrClientTokenUsed              = errors.New("operator client token is already used")
 	ErrDeploymentInactive           = errors.New("deployment is inactive")
 	ErrAnnouncementConflict         = errors.New("announcement publication ID was already used with different contents")
 	ErrAnnouncementClockBeforeHead  = errors.New("accepted_at is before the current announcement head")
