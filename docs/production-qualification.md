@@ -10,10 +10,18 @@ Run from the registry repository without starting a Compose stack:
 
 ```bash
 go test ./...
+go test -race ./...
+go test -tags=e2e -count=1 -v ./e2e
 go vet ./...
 go build -trimpath -o /tmp/myscoutee-registry ./cmd/registry
 docker build -t myscoutee-registry:qualification .
 ```
+
+The complete untagged Go suite remains mandatory even when the tagged process
+suite and the narrower Java rail gate pass. The process suite includes two
+simultaneously running registries and verifies distinct scopes, signing keys,
+SQLite paths, receipts, and ledger state. Public TLS and cross-host isolation
+remain an external drill.
 
 With the Java backend repository checked out beside this repository, run the
 real cross-language rail gate separately:
@@ -88,6 +96,23 @@ server-backed Explore workspace. That service must use:
 This is not a bundled real registry. A real/operator registry is deployed
 separately with ordinary startup, an explicit non-demo scope, a separate
 database/key/volume, and a TLS edge.
+
+For an immutable release candidate, the backend repository provides a
+read-only artifact preflight:
+
+```bash
+MYSCOUTEE_QUALIFICATION_EVIDENCE_DIR=/absolute/evidence/<version> \
+  bash packaging/scripts/qualify-release-artifacts.sh \
+    /absolute/myscoutee_<candidate>_<arch>.deb \
+    /absolute/myscoutee_<oldest-supported>_<arch>.deb \
+    myscoutee-registry:<candidate>-prod
+```
+
+It inspects the exact package and locally available image, then records
+artifact hashes/IDs and leaves every host-changing drill explicitly `OPEN`.
+The full compatibility matrix, oldest-package procedure, interruption
+boundaries, load evidence, and security evidence requirements are in
+`plans/PRODUCTION_QUALIFICATION.md` in the backend repository.
 
 ## Merkle cost boundary
 

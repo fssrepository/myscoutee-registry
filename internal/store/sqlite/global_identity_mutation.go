@@ -114,6 +114,13 @@ func (sqliteStore *Store) ApplyGlobalIdentityMutation(
 		return store.GlobalIdentityLink{}, store.GlobalIdentityEvent{}, false,
 			store.ErrDeploymentInactive
 	}
+	if (input.Action == protocol.GlobalIdentityActionLink ||
+		input.Action == protocol.GlobalIdentityActionCorrect) &&
+		(input.RequiredActiveKeyVersion < 1 ||
+			input.KeyVersion != input.RequiredActiveKeyVersion) {
+		return store.GlobalIdentityLink{}, store.GlobalIdentityEvent{}, false,
+			store.ErrGlobalIdentityKeyMismatch
+	}
 	if err := ensureAcceptedAtAfterRegistryCreation(
 		ctx,
 		tx,
@@ -133,24 +140,24 @@ func (sqliteStore *Store) ApplyGlobalIdentityMutation(
 	}
 
 	event := store.GlobalIdentityEvent{
-		EventIndex:          head.EventIndex + 1,
-		EventID:             input.CandidateEventID,
-		Action:              input.Action,
-		DeploymentID:        input.DeploymentID,
-		Period:              input.EffectivePeriod,
-		ReportedCount:       0,
-		DeduplicatedCount:   0,
-		AcceptedAt:          input.AcceptedAt,
-		PreviousEventHash:   head.EventHash,
-		RegistryScope:       input.RegistryScope,
-		RegistryKeyID:       input.RegistryKeyID,
-		IdempotencyKey:      input.IdempotencyKey,
-		RequestNonce:        input.Nonce,
-		RequestTimestamp:    input.RequestTimestamp,
-		RequestHash:         input.RequestHash,
-		PayloadHash:         input.PayloadHash,
-		RequestSignature:    append([]byte(nil), input.RequestSignature...),
-		PrivateEventHash:    input.PrivateEventHash,
+		EventIndex:        head.EventIndex + 1,
+		EventID:           input.CandidateEventID,
+		Action:            input.Action,
+		DeploymentID:      input.DeploymentID,
+		Period:            input.EffectivePeriod,
+		ReportedCount:     0,
+		DeduplicatedCount: 0,
+		AcceptedAt:        input.AcceptedAt,
+		PreviousEventHash: head.EventHash,
+		RegistryScope:     input.RegistryScope,
+		RegistryKeyID:     input.RegistryKeyID,
+		IdempotencyKey:    input.IdempotencyKey,
+		RequestNonce:      input.Nonce,
+		RequestTimestamp:  input.RequestTimestamp,
+		RequestHash:       input.RequestHash,
+		PayloadHash:       input.PayloadHash,
+		RequestSignature:  append([]byte(nil), input.RequestSignature...),
+		PrivateEventHash:  input.PrivateEventHash,
 	}
 
 	var link store.GlobalIdentityLink
@@ -330,6 +337,15 @@ func prepareGlobalIdentityCorrection(
 	); err != nil {
 		return store.GlobalIdentityLink{}, err
 	}
+	sourceGlobalID, err := globalIdentityAliasTx(
+		ctx,
+		tx,
+		link.KeyVersion,
+		link.NetworkIdentityCommitment,
+	)
+	if err != nil {
+		return store.GlobalIdentityLink{}, err
+	}
 	targetGlobalID, err := globalIdentityAliasTx(
 		ctx,
 		tx,
@@ -337,7 +353,7 @@ func prepareGlobalIdentityCorrection(
 		input.NetworkIdentityCommitment,
 	)
 	if errors.Is(err, store.ErrNotFound) {
-		targetGlobalID = link.GlobalIdentityID
+		targetGlobalID = sourceGlobalID
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO global_identity_aliases (
 				key_version,
@@ -356,13 +372,13 @@ func prepareGlobalIdentityCorrection(
 	} else if err != nil {
 		return store.GlobalIdentityLink{}, err
 	}
-	if targetGlobalID != link.GlobalIdentityID {
+	if targetGlobalID != sourceGlobalID {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE global_identity_aliases
 			SET global_identity_id = ?
 			WHERE global_identity_id = ?`,
 			targetGlobalID,
-			link.GlobalIdentityID,
+			sourceGlobalID,
 		); err != nil {
 			return store.GlobalIdentityLink{},
 				fmt.Errorf("merge global identity aliases: %w", err)

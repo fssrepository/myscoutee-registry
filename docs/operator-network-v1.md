@@ -551,30 +551,35 @@ docker compose exec -T registry \
 
 Never parse, edit, or combine a cursor with another view/group/period. It is a
 registry-signed opaque value bound to the first page's immutable ledger,
-operator-audit, claim-review, and claim-eligibility boundaries. Cursor v2
-includes `through_eligibility_index` and `eligibility_head_hash`. Old cursor
-versions fail closed; request a new first page instead. The signed snapshot v2
-also exposes `through_review_index`, `review_head_hash`,
-`through_eligibility_index`, and `eligibility_head_hash`, so even a one-page
-response with no next cursor independently binds all four source boundaries.
+operator-audit, claim-review, claim-eligibility, and ownership-transfer
+boundaries. Cursor v3 includes `through_transfer_event_index` and
+`transfer_event_head_hash` in addition to the v2 eligibility fields. A valid
+pre-transfer v2 cursor remains readable with the protocol zero transfer
+boundary, so it retains its original group membership; its next page is
+re-issued as v3 with that same zero boundary. Older cursor versions fail
+closed. The signed snapshot v3 also exposes the transfer index/hash, so even a
+one-page response with no next cursor independently binds all five source
+boundaries.
 CLI output is the same protocol JSON shape as HTTP.
 
-The leaderboard snapshot-hash canonical message and claim-status receipt
-canonical message are v2 because they now bind eligibility. The outer
-leaderboard snapshot receipt remains v1 and signs the v2 snapshot hash. Java
-clients/verifiers must be upgraded with the Go registry: verify
-`through_eligibility_index`, `eligibility_head_hash`, and each row/deployment
-`eligibility_status`; also verify the now-explicit review index/hash and the
-exact v2 snapshot-hash field order. A v1 verifier must reject, not silently
-accept or reinterpret, the v2 snapshot hash or claim-status receipt.
+The leaderboard snapshot-hash canonical message is v3 because it now binds
+ownership transfer; the claim-status receipt remains v2. The outer
+leaderboard snapshot receipt remains v1 and signs the v3 snapshot hash. Java
+clients/verifiers must verify `through_transfer_event_index`,
+`transfer_event_head_hash`, the eligibility and review heads, each
+row/deployment `eligibility_status`, and the exact v3 snapshot-hash field
+order. An older verifier must reject, not silently accept or reinterpret, the
+v3 snapshot hash.
 
 Leaderboard SQL reads weights from immutable `ledger_weight_rows`,
 membership/profile state from the versioned direct network-state table, and
 approval from the immutable review chain, always at or before their captured
 boundaries. Claim action IDs are joined at the exact state-row claim boundary;
-no mutable current-status row and no action-stream projection participates in
-the query. Integrity verification rejects missing, extra, or mismatched direct
-rows.
+an immutable completed ownership-transfer membership row overlays only the
+effective group ID when its transfer-event/effective-date boundary is included
+and its pinned operator-audit head is not superseded. No mutable current-status
+row and no action-stream projection participates in the query. Integrity
+verification rejects missing, extra, or mismatched direct rows.
 
 The six most recent complete UTC months determine measured weight. Founder
 contribution is fixed at 100,000 units and founder share is:

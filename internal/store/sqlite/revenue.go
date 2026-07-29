@@ -618,6 +618,20 @@ func (sqliteStore *Store) RevenueSummary(
 			AND row.deployment_id IN (
 				SELECT state.deployment_id
 				FROM operator_network_state_rows state
+				LEFT JOIN ownership_transfer_memberships transfer
+				  ON transfer.target_deployment_id = state.deployment_id
+				 AND transfer.claim_action_id = (
+					SELECT claim.action_id
+					FROM operator_audit_events claim
+					WHERE claim.audit_index = state.claim_state_audit_index
+				 )
+				 AND transfer.through_audit_index >= state.audit_index
+				 AND transfer.completion_event_index = (
+					SELECT MAX(latest_transfer.completion_event_index)
+					FROM ownership_transfer_memberships latest_transfer
+					WHERE latest_transfer.target_deployment_id =
+						state.deployment_id
+				 )
 				WHERE state.audit_index = (
 					SELECT MAX(latest.audit_index)
 					FROM operator_network_state_rows latest
@@ -625,7 +639,11 @@ func (sqliteStore *Store) RevenueSummary(
 				)
 				  AND state.active = 1
 				  AND state.claimed = 1
-				  AND state.effective_group_id = ?
+				  AND CASE
+					WHEN transfer.transfer_id IS NOT NULL
+						THEN transfer.target_group_id
+					ELSE state.effective_group_id
+				  END = ?
 			)`
 		arguments = append(arguments, query.GroupID)
 	}
@@ -728,6 +746,20 @@ func (sqliteStore *Store) RevenueSummary(
 			AND batch.deployment_id IN (
 				SELECT state.deployment_id
 				FROM operator_network_state_rows state
+				LEFT JOIN ownership_transfer_memberships transfer
+				  ON transfer.target_deployment_id = state.deployment_id
+				 AND transfer.claim_action_id = (
+					SELECT claim.action_id
+					FROM operator_audit_events claim
+					WHERE claim.audit_index = state.claim_state_audit_index
+				 )
+				 AND transfer.through_audit_index >= state.audit_index
+				 AND transfer.completion_event_index = (
+					SELECT MAX(latest_transfer.completion_event_index)
+					FROM ownership_transfer_memberships latest_transfer
+					WHERE latest_transfer.target_deployment_id =
+						state.deployment_id
+				 )
 				WHERE state.audit_index = (
 					SELECT MAX(latest.audit_index)
 					FROM operator_network_state_rows latest
@@ -735,7 +767,11 @@ func (sqliteStore *Store) RevenueSummary(
 				)
 				  AND state.active = 1
 				  AND state.claimed = 1
-				  AND state.effective_group_id = ?
+				  AND CASE
+					WHEN transfer.transfer_id IS NOT NULL
+						THEN transfer.target_group_id
+					ELSE state.effective_group_id
+				  END = ?
 			)`
 		activeArguments = append(activeArguments, query.GroupID)
 	}

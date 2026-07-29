@@ -14,10 +14,12 @@ const leaderboardStateCTE = `
 		ledger_bound,
 		review_bound,
 		eligibility_bound,
+		transfer_event_bound,
+		transfer_effective_date,
 		from_period,
 		through_period
 	) AS (
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	),
 	state_ranked AS (
 		SELECT
@@ -35,6 +37,7 @@ const leaderboardStateCTE = `
 			related_deployment_id,
 			profile_claim_audit_index,
 			audit_index,
+			accepted_at,
 			ROW_NUMBER() OVER (
 				PARTITION BY deployment_id
 				ORDER BY audit_index DESC
@@ -57,11 +60,12 @@ const leaderboardStateCTE = `
 			link_id,
 			related_deployment_id,
 			profile_claim_audit_index,
-			audit_index
+			audit_index,
+			accepted_at
 		FROM state_ranked
 		WHERE rank = 1
 	),
-	membership_states AS (
+	base_membership_states AS (
 		SELECT
 			deployment.deployment_id,
 			COALESCE(state.claimed, 0) AS claimed,
@@ -77,7 +81,8 @@ const leaderboardStateCTE = `
 			COALESCE(state.active, 1) AS active,
 			COALESCE(state.effective_group_id, '') AS group_id,
 			COALESCE(state.link_id, '') AS link_id,
-			COALESCE(claim.action_id, '') AS claim_action_id
+			COALESCE(claim.action_id, '') AS claim_action_id,
+			COALESCE(state.audit_index, 0) AS state_audit_index
 		FROM deployments deployment
 		LEFT JOIN states state
 		  ON state.deployment_id = deployment.deployment_id
@@ -86,6 +91,48 @@ const leaderboardStateCTE = `
 		LEFT JOIN operator_claim_reviews review
 		  ON review.claim_action_id = claim.action_id
 		 AND review.review_index <= (SELECT review_bound FROM bounds)
+	),
+	transfer_membership_ranked AS (
+		SELECT
+			membership.*,
+			ROW_NUMBER() OVER (
+				PARTITION BY membership.target_deployment_id
+				ORDER BY membership.completion_event_index DESC
+			) AS rank
+		FROM ownership_transfer_memberships membership
+		WHERE membership.completion_event_index <=
+			(SELECT transfer_event_bound FROM bounds)
+		  AND membership.effective_date <=
+			(SELECT transfer_effective_date FROM bounds)
+	),
+	transfer_memberships AS (
+		SELECT *
+		FROM transfer_membership_ranked
+		WHERE rank = 1
+	),
+	membership_states AS (
+		SELECT
+			base.deployment_id,
+			base.claimed,
+			base.claim_state,
+			base.active,
+			CASE
+				WHEN transfer.transfer_id IS NOT NULL
+					THEN transfer.target_group_id
+				ELSE base.group_id
+			END AS group_id,
+			CASE
+				WHEN transfer.transfer_id IS NOT NULL
+					THEN ''
+				ELSE base.link_id
+			END AS link_id,
+			base.claim_action_id,
+			COALESCE(transfer.transfer_id, '') AS transfer_id
+		FROM base_membership_states base
+		LEFT JOIN transfer_memberships transfer
+		  ON transfer.target_deployment_id = base.deployment_id
+		 AND transfer.claim_action_id = base.claim_action_id
+		 AND transfer.through_audit_index >= base.state_audit_index
 	),
 	eligibility_ranked AS (
 		SELECT
@@ -224,15 +271,21 @@ func (sqliteStore *Store) LeaderboardBoundary(
 	if err != nil {
 		return store.LeaderboardBoundary{}, err
 	}
+	transferHead, err := sqliteStore.OwnershipTransferHead(ctx)
+	if err != nil {
+		return store.LeaderboardBoundary{}, err
+	}
 	return store.LeaderboardBoundary{
-		LedgerIndex:      ledgerHead.LedgerIndex,
-		AuditIndex:       auditHead.AuditIndex,
-		ReviewIndex:      reviewHead.ReviewIndex,
-		EligibilityIndex: eligibilityHead.EligibilityIndex,
-		LedgerHash:       ledgerHead.EntryHash,
-		AuditHash:        auditHead.AuditHash,
-		ReviewHash:       reviewHead.ReviewHash,
-		EligibilityHash:  eligibilityHead.EligibilityHash,
+		LedgerIndex:        ledgerHead.LedgerIndex,
+		AuditIndex:         auditHead.AuditIndex,
+		ReviewIndex:        reviewHead.ReviewIndex,
+		EligibilityIndex:   eligibilityHead.EligibilityIndex,
+		TransferEventIndex: transferHead.EventIndex,
+		LedgerHash:         ledgerHead.EntryHash,
+		AuditHash:          auditHead.AuditHash,
+		ReviewHash:         reviewHead.ReviewHash,
+		EligibilityHash:    eligibilityHead.EligibilityHash,
+		TransferEventHash:  transferHead.EventHash,
 	}, nil
 }
 
@@ -264,6 +317,30 @@ func (sqliteStore *Store) LeaderboardTotalsAtEligibility(
 	throughReviewIndex int64,
 	throughEligibilityIndex int64,
 ) (store.LeaderboardTotals, error) {
+	return sqliteStore.LeaderboardTotalsAtOwnershipTransfer(
+		ctx,
+		fromPeriod,
+		throughPeriod,
+		throughLedgerIndex,
+		throughAuditIndex,
+		throughReviewIndex,
+		throughEligibilityIndex,
+		0,
+		"",
+	)
+}
+
+func (sqliteStore *Store) LeaderboardTotalsAtOwnershipTransfer(
+	ctx context.Context,
+	fromPeriod string,
+	throughPeriod string,
+	throughLedgerIndex int64,
+	throughAuditIndex int64,
+	throughReviewIndex int64,
+	throughEligibilityIndex int64,
+	throughTransferEventIndex int64,
+	transferEffectiveDate string,
+) (store.LeaderboardTotals, error) {
 	var totals store.LeaderboardTotals
 	err := sqliteStore.db.QueryRowContext(
 		ctx,
@@ -282,6 +359,8 @@ func (sqliteStore *Store) LeaderboardTotalsAtEligibility(
 		throughLedgerIndex,
 		throughReviewIndex,
 		throughEligibilityIndex,
+		throughTransferEventIndex,
+		transferEffectiveDate,
 		fromPeriod,
 		throughPeriod,
 	).Scan(&totals.MeasuredWeight, &totals.ClaimedWeight)
@@ -421,6 +500,8 @@ func (sqliteStore *Store) LeaderboardRows(
 		query.ThroughLedgerIndex,
 		query.ThroughReviewIndex,
 		query.ThroughEligibilityIndex,
+		query.ThroughTransferEventIndex,
+		query.TransferEffectiveDate,
 		query.FromPeriod,
 		query.ThroughPeriod,
 		hasAfter,
@@ -476,6 +557,7 @@ func (sqliteStore *Store) LeaderboardDeployments(
 			membership.claim_state,
 			membership.eligibility_state,
 			CASE
+				WHEN membership.transfer_id <> '' THEN 'transferred'
 				WHEN membership.link_id = '' THEN 'owner'
 				ELSE 'linked'
 			END,
@@ -499,6 +581,8 @@ func (sqliteStore *Store) LeaderboardDeployments(
 		query.ThroughLedgerIndex,
 		query.ThroughReviewIndex,
 		query.ThroughEligibilityIndex,
+		query.ThroughTransferEventIndex,
+		query.TransferEffectiveDate,
 		query.FromPeriod,
 		query.ThroughPeriod,
 		query.GroupID,

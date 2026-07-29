@@ -87,6 +87,9 @@ func TestStandaloneRegistryProcessE2E(t *testing.T) {
 	t.Run("scope and signing key remain bound to the database", func(t *testing.T) {
 		testScopeAndSigningKeyBinding(t, binary)
 	})
+	t.Run("independent registries remain isolated", func(t *testing.T) {
+		testIndependentRegistryIsolation(t, binary)
+	})
 	t.Run("announcement CLI and HTTP server share durable state", func(t *testing.T) {
 		testAnnouncementCLIAndHTTPPersistence(t, binary)
 	})
@@ -458,6 +461,116 @@ func testScopeAndSigningKeyBinding(t *testing.T, binary string) {
 	}
 }
 
+func testIndependentRegistryIsolation(t *testing.T, binary string) {
+	alphaFiles := newRegistryFiles(t, "e2e:independent-registry-alpha")
+	betaFiles := newRegistryFiles(t, "e2e:independent-registry-beta")
+	alpha := startRegistry(t, binary, alphaFiles)
+	beta := startRegistry(t, binary, betaFiles)
+
+	var alphaIdentity protocol.RegistryIdentity
+	alphaIdentityResult := request(t, http.MethodGet, alpha.baseURL+protocol.IdentityPath, nil)
+	assertStatus(t, alphaIdentityResult, http.StatusOK)
+	decodeJSON(t, alphaIdentityResult.body, &alphaIdentity)
+	verifyRegistryIdentity(t, alphaIdentity, alphaFiles.scope)
+
+	var betaIdentity protocol.RegistryIdentity
+	betaIdentityResult := request(t, http.MethodGet, beta.baseURL+protocol.IdentityPath, nil)
+	assertStatus(t, betaIdentityResult, http.StatusOK)
+	decodeJSON(t, betaIdentityResult.body, &betaIdentity)
+	verifyRegistryIdentity(t, betaIdentity, betaFiles.scope)
+
+	if alphaIdentity.RegistryKeyID == betaIdentity.RegistryKeyID ||
+		alphaIdentity.RegistryPublicKey == betaIdentity.RegistryPublicKey {
+		t.Fatal("independent registries unexpectedly share a signing identity")
+	}
+	if alpha.files.databasePath == beta.files.databasePath ||
+		alpha.files.keyPath == beta.files.keyPath {
+		t.Fatal("independent registry processes unexpectedly share persistence paths")
+	}
+
+	_, deploymentPrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate deployment signing key: %v", err)
+	}
+	alphaRegistration := signedRegistration(
+		t,
+		deploymentPrivateKey,
+		alphaFiles.scope,
+		wireNow(),
+		"e2e_isolation_registration_nonce_alpha",
+		"e2e_isolation_registration_alpha",
+		"registry-e2e-1.0.0",
+	)
+
+	foreignRegistration := requestJSON(
+		t,
+		http.MethodPost,
+		beta.baseURL+protocol.RegistrationPath,
+		alphaRegistration,
+	)
+	assertAPIError(
+		t,
+		foreignRegistration,
+		http.StatusBadRequest,
+		"registry_scope_mismatch",
+	)
+
+	alphaRegistrationResult := requestJSON(
+		t,
+		http.MethodPost,
+		alpha.baseURL+protocol.RegistrationPath,
+		alphaRegistration,
+	)
+	assertStatus(t, alphaRegistrationResult, http.StatusCreated)
+	var alphaAccepted protocol.RegistrationResponse
+	decodeJSON(t, alphaRegistrationResult.body, &alphaAccepted)
+
+	alphaBatch := signedInstallationBatch(
+		t,
+		deploymentPrivateKey,
+		alphaFiles.scope,
+		alphaAccepted.DeploymentID,
+		wireNow(),
+		"e2e_isolation_batch_nonce_alpha",
+		"e2e_isolation_batch_alpha",
+		time.Now().UTC().Format("2006-01"),
+	)
+	alphaBatchResult := requestJSON(
+		t,
+		http.MethodPost,
+		alpha.baseURL+protocol.BatchPath,
+		alphaBatch,
+	)
+	assertStatus(t, alphaBatchResult, http.StatusCreated)
+	var alphaBatchAccepted protocol.BatchResponse
+	decodeJSON(t, alphaBatchResult.body, &alphaBatchAccepted)
+
+	foreignBatch := requestJSON(
+		t,
+		http.MethodPost,
+		beta.baseURL+protocol.BatchPath,
+		alphaBatch,
+	)
+	assertAPIError(t, foreignBatch, http.StatusNotFound, "deployment_not_found")
+	foreignReceipt := request(
+		t,
+		http.MethodGet,
+		beta.baseURL+protocol.BatchPath+"/"+alphaBatchAccepted.BatchID+"/receipt",
+		nil,
+	)
+	assertAPIError(t, foreignReceipt, http.StatusNotFound, "receipt_not_found")
+
+	if alphaHealth := readHealth(t, alpha); alphaHealth.EntryCount != 1 ||
+		alphaHealth.LedgerIndex != 1 {
+		t.Fatalf("alpha registry did not retain its accepted batch: %+v", alphaHealth)
+	}
+	if betaHealth := readHealth(t, beta); betaHealth.EntryCount != 0 ||
+		betaHealth.LedgerIndex != 0 ||
+		betaHealth.LedgerHeadHash != protocol.ZeroHash {
+		t.Fatalf("foreign requests mutated beta registry state: %+v", betaHealth)
+	}
+}
+
 func testAnnouncementCLIAndHTTPPersistence(t *testing.T, binary string) {
 	files := newRegistryFiles(t, e2eScope)
 	process := startRegistry(t, binary, files)
@@ -731,18 +844,23 @@ func acceptingAddress(logs string) (string, bool) {
 
 func registryEnvironment(files registryFiles, address string) []string {
 	replacements := map[string]string{
-		"REGISTRY_LISTEN_ADDR":                       address,
-		"REGISTRY_SCOPE":                             files.scope,
-		"REGISTRY_DATABASE_PATH":                     files.databasePath,
-		"REGISTRY_SIGNING_KEY_PATH":                  files.keyPath,
-		"REGISTRY_GENERATE_SIGNING_KEY":              "true",
-		"REGISTRY_DEMO_SEED":                         "false",
-		"REGISTRY_TIMESTAMP_SKEW":                    "5m",
-		"REGISTRY_MAX_REQUEST_BODY_BYTES":            "65536",
-		"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS": "30000",
-		"REGISTRY_CHECKPOINT_INTERVAL":               "1h",
-		"REGISTRY_SHUTDOWN_TIMEOUT":                  "3s",
-		"REGISTRY_HEALTHCHECK_URL":                   "http://" + address + "/healthz",
+		"REGISTRY_LISTEN_ADDR":          address,
+		"REGISTRY_SCOPE":                files.scope,
+		"REGISTRY_DATABASE_PATH":        files.databasePath,
+		"REGISTRY_SIGNING_KEY_PATH":     files.keyPath,
+		"REGISTRY_GENERATE_SIGNING_KEY": "true",
+		"REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH": filepath.Join(
+			files.directory,
+			"registry-global-identity-voprf-keyring.json",
+		),
+		"REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY": "true",
+		"REGISTRY_DEMO_SEED":                          "false",
+		"REGISTRY_TIMESTAMP_SKEW":                     "5m",
+		"REGISTRY_MAX_REQUEST_BODY_BYTES":             "65536",
+		"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS":  "30000",
+		"REGISTRY_CHECKPOINT_INTERVAL":                "1h",
+		"REGISTRY_SHUTDOWN_TIMEOUT":                   "3s",
+		"REGISTRY_HEALTHCHECK_URL":                    "http://" + address + "/healthz",
 	}
 	environment := make([]string, 0, len(os.Environ())+len(replacements))
 	for _, entry := range os.Environ() {

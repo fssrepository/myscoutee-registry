@@ -76,6 +76,16 @@ func (sqliteStore *Store) EnsureGlobalIdentityVOPRFKeys(
 			return fmt.Errorf("persist global identity VOPRF key metadata: %w", err)
 		}
 	}
+	var persistedCount int
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM global_identity_voprf_keys`,
+	).Scan(&persistedCount); err != nil {
+		return fmt.Errorf("count persisted global identity VOPRF keys: %w", err)
+	}
+	if persistedCount != len(keys) {
+		return store.ErrGlobalIdentityKeyMismatch
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit global identity key metadata sync: %w", err)
 	}
@@ -201,6 +211,25 @@ func (sqliteStore *Store) AcceptGlobalIdentityEvaluation(
 	if !active {
 		return store.GlobalIdentityEvaluationRecord{}, false,
 			store.ErrDeploymentInactive
+	}
+	if input.RateLimit <= 0 || input.RateWindowStart == "" {
+		return store.GlobalIdentityEvaluationRecord{}, false,
+			store.ErrInconsistentState
+	}
+	var recentCount int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM global_identity_evaluations
+		WHERE deployment_id = ? AND evaluated_at >= ?`,
+		input.DeploymentID,
+		input.RateWindowStart,
+	).Scan(&recentCount); err != nil {
+		return store.GlobalIdentityEvaluationRecord{}, false,
+			fmt.Errorf("enforce global identity evaluation rate limit: %w", err)
+	}
+	if recentCount >= input.RateLimit {
+		return store.GlobalIdentityEvaluationRecord{}, false,
+			store.ErrGlobalIdentityRateLimited
 	}
 	var persistedPublicKey []byte
 	var suite string

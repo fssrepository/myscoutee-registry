@@ -39,7 +39,14 @@ provides:
   accounting state;
 - a registry-local signed exit-review rail that freezes completed checkpoint,
   Merkle, claim/group membership, eligibility, and settlement boundaries, with
-  effective-dated buyer/auditor decisions and no payment or ownership transfer;
+  effective-dated buyer/auditor decisions and no payment execution;
+- a two-phase registry-signed ownership-transfer rail that pins an exact
+  approved/eligible claim and verified exit decision, then changes effective
+  group membership only on an immutable manager completion boundary;
+- a registry-local final exit allocation rail that pins the verified exit,
+  completed-transfer or explicit no-transfer beneficiary, contractual/evidence
+  commitments, and exact JavaScript-safe conserved minor units per currency,
+  without payment execution;
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
@@ -67,6 +74,12 @@ The registry-local anomaly/case audit rail is documented in
 The registry-local record-date freeze and buyer/auditor decision rail is
 documented in
 [`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
+The non-payment prepare/approve/complete ownership-transfer rail is documented
+in
+[`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
+The non-payment contractual allocation, frozen settlement-source, and exact
+per-currency conservation rail is documented in
+[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
 The technical monthly allocation, bounded valuation, private signed history
 query, and revision rules are documented in
 [`docs/settlements-v1.md`](docs/settlements-v1.md).
@@ -338,9 +351,23 @@ UID, local profile ID, or plain identifier hash. Deployments locally normalize
 an eligible identifier, run the RFC 9497 `P256-SHA256` VOPRF flow, and send
 only the resulting domain-separated commitment. Public global-identity events
 contain aggregate counts and a snapshot commitment; opaque commitments remain
-in restricted direct tables. See
+in restricted direct tables. This is not anonymous PSI: an operator that
+controls both the VOPRF secret and the restricted commitments can
+dictionary-test likely identifiers offline. Separate and audit those access
+boundaries; a threshold or separately governed/HSM-backed OPRF is a future
+hardening option. See
 [`docs/global-identity-v1.md`](docs/global-identity-v1.md) for the exact wire,
 signature, correction, key-rotation, rate-limit, and privacy rules.
+The resulting deduplicated snapshot changes only the audited network total:
+it neither redistributes activity/weight between deployments nor changes
+leaderboard shares or payout inputs.
+Presence is delivered as independently signed, idempotent chunks. The Go
+limits of 4096 commitments per chunk and 4096 chunks per submission are
+memory/DoS safety bounds, not deployment or user limits. The Java sender uses
+512-item chunks under the default HTTP body limit, for a current interoperable
+ceiling of 2,097,152 commitments per deployment/period/revision submission.
+Partial submissions stay in audited append-only staging and cannot affect the
+current dedup snapshot.
 
 ```bash
 docker compose exec -T registry \
@@ -578,6 +605,96 @@ commitments are stored. Full command, transition, pagination, privacy, and
 verification rules are in
 [`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
 
+## Ownership-transfer CLI
+
+A transfer request pins one exact current approved/active/eligible claim,
+source group, current verified exit event/evidence commitment, and a different
+target group that itself has a current active approved eligible claim.
+Preparation and approval do not change membership. Only `complete` appends the
+effective-dated historical membership boundary; it never edits the old claim
+or eligibility rows.
+
+```bash
+docker compose exec -T registry \
+  /registry prepare-ownership-transfer \
+  --exit-review-id exr_0123456789abcdef0123456789abcdef \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --source-group-id opg_0123456789abcdef0123456789abcdef \
+  --target-group-id opg_fedcba9876543210fedcba9876543210 \
+  --exit-verification-event-hash sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --requester-id acquisition-request-system \
+  --reference transfer:2026-0042 \
+  --idempotency-key prepare-transfer-2026-0042
+
+docker compose exec -T registry \
+  /registry decide-ownership-transfer \
+  --transfer-id otf_0123456789abcdef0123456789abcdef \
+  --decision approve \
+  --effective-date 2026-07-29 \
+  --manager-id registry-transfer-manager \
+  --reference approval:2026-0042 \
+  --idempotency-key approve-transfer-2026-0042
+
+docker compose exec -T registry \
+  /registry complete-ownership-transfer \
+  --transfer-id otf_0123456789abcdef0123456789abcdef \
+  --effective-date 2026-07-29 \
+  --manager-id registry-transfer-manager \
+  --reference completion:2026-0042 \
+  --idempotency-key complete-transfer-2026-0042
+```
+
+Completed membership is snapshot-pinned: old leaderboard cursors retain the
+source group, while new snapshots use the target group's own verified profile
+label. This rail sends no money. A completed transfer can be pinned by the
+separate final allocation rail. Full transition, idempotency, stale-target,
+privacy, and allocation-boundary rules are in
+[`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
+
+## Final exit allocation CLI
+
+A final allocation copies only the exact settlement revisions already frozen
+inside a current verified-eligible exit. It allocates the exiting source
+group's technical network-pool amounts to either the exact completed-transfer
+target group or an explicit opaque no-transfer contract beneficiary.
+Currencies remain separate; every amount and per-currency sum is a
+non-negative JavaScript-safe integer, and allocated minor units must equal the
+frozen distributable total exactly.
+
+```bash
+docker compose exec -T registry \
+  /registry create-exit-allocation \
+  --exit-review-id exr_0123456789abcdef0123456789abcdef \
+  --exit-verification-event-hash sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --decision-mode completed-transfer \
+  --ownership-transfer-id otf_0123456789abcdef0123456789abcdef \
+  --ownership-transfer-completion-event-hash sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789 \
+  --contract-reference exit-contract:2026-0042 \
+  --contract-terms-hash sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+  --evidence-hash sha256:2222222222222222222222222222222222222222222222222222222222222222 \
+  --allocator-id registry-contract-manager \
+  --idempotency-key create-exit-allocation-2026-0042
+
+docker compose exec -T registry \
+  /registry verify-exit-allocation \
+  --allocation-id xal_0123456789abcdef0123456789abcdef \
+  --verifier-id registry-allocation-verifier \
+  --reference allocation-verification:2026-0042 \
+  --evidence-hash sha256:3333333333333333333333333333333333333333333333333333333333333333 \
+  --idempotency-key verify-exit-allocation-2026-0042
+```
+
+Use `--decision-mode no-transfer --beneficiary-id OPAQUE_ID` instead of the
+two ownership-transfer flags for an explicit no-transfer beneficiary.
+`show-exit-allocation` returns the full signed record and sources;
+`list-exit-allocations` reads the immutable direct state rows.
+
+This is contractual allocation evidence, not payout execution. It stores no
+bank details, invoice state, tax data, or payment-provider instruction. Exact
+commands, hashes, conservation rules, and verification semantics are in
+[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
+
 ## Configuration
 
 | Environment variable | Default | Meaning |
@@ -726,6 +843,13 @@ On every restart and health check, the registry validates:
 - frozen exit-review checkpoint/Merkle/operator/settlement boundaries, exact
   historical group membership, global and per-review signed event chains,
   transition rules, and one same-transaction query row per event.
+- ownership-transfer claim/exit/target-group boundaries, record/event/
+  membership hashes, registry signatures, global and per-transfer chains,
+  transition/idempotency rules, and exact same-transaction query rows.
+- final exit allocation verified-exit/ownership boundaries, exact frozen
+  settlement revisions, contractual/evidence commitments, JavaScript-safe
+  per-currency conservation, registry signatures, global/per-record chains,
+  and exact same-transaction query rows.
 
 Registration, MAU/revenue batch, operator-action, announcement-publication,
 and signed read-model operations fail closed when their operational integrity
