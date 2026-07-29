@@ -55,6 +55,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := reconcileMerkleTree(ctx, db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if err := verifyPragmas(ctx, db); err != nil {
 		db.Close()
 		return nil, err
@@ -186,13 +190,53 @@ func (sqliteStore *Store) PersistentStateIsPristine(ctx context.Context) (bool, 
 			(SELECT COUNT(*) FROM used_nonces) +
 			(SELECT COUNT(*) FROM idempotency_records) +
 			(SELECT COUNT(*) FROM ledger_entries) +
+			(SELECT COUNT(*) FROM ledger_merkle_nodes) +
 			(SELECT COUNT(*) FROM ledger_weight_rows) +
-			(SELECT COUNT(*) FROM mau_batches) +
-			(SELECT COUNT(*) FROM checkpoints) +
+				(SELECT COUNT(*) FROM mau_batches) +
+				(SELECT COUNT(*) FROM revenue_batches) +
+				(SELECT COUNT(*) FROM revenue_query_rows) +
+				(SELECT COUNT(*) FROM settlements) +
+				(SELECT COUNT(*) FROM settlement_revenue_sources) +
+				(SELECT COUNT(*) FROM settlement_ttm_months) +
+				(SELECT COUNT(*) FROM settlement_weight_sources) +
+				(SELECT COUNT(*) FROM settlement_beneficiary_deployments) +
+				(SELECT COUNT(*) FROM settlement_allocations) +
+				(SELECT COUNT(*) FROM checkpoints) +
 			(SELECT COUNT(*) FROM operator_audit_events) +
 			(SELECT COUNT(*) FROM operator_action_nonces) +
 			(SELECT COUNT(*) FROM operator_network_state_rows) +
-			(SELECT COUNT(*) FROM announcements)`).Scan(&recordCount); err != nil {
+			(SELECT COUNT(*) FROM announcements) +
+			(SELECT COUNT(*) FROM registry_case_events) +
+			(SELECT COUNT(*) FROM registry_cases) +
+			(SELECT COUNT(*) FROM exit_reviews) +
+			(SELECT COUNT(*) FROM exit_review_deployments) +
+			(SELECT COUNT(*) FROM exit_review_settlement_boundaries) +
+			(SELECT COUNT(*) FROM exit_review_events) +
+			(SELECT COUNT(*) FROM exit_review_state_rows) +
+			(SELECT COUNT(*) FROM ownership_transfers) +
+			(SELECT COUNT(*) FROM ownership_transfer_events) +
+			(SELECT COUNT(*) FROM ownership_transfer_state_rows) +
+			(SELECT COUNT(*) FROM ownership_transfer_memberships) +
+			(SELECT COUNT(*) FROM exit_allocations) +
+			(SELECT COUNT(*) FROM exit_allocation_settlement_sources) +
+			(SELECT COUNT(*) FROM exit_allocation_currency_allocations) +
+			(SELECT COUNT(*) FROM exit_allocation_events) +
+			(SELECT COUNT(*) FROM exit_allocation_state_rows) +
+			(SELECT COUNT(*) FROM global_identity_voprf_keys) +
+			(SELECT COUNT(*) FROM global_identity_evaluations) +
+			(SELECT COUNT(*) FROM global_identities) +
+			(SELECT COUNT(*) FROM global_identity_aliases) +
+			(SELECT COUNT(*) FROM global_identity_events) +
+			(SELECT COUNT(*) FROM global_identity_links) +
+			(SELECT COUNT(*) FROM global_identity_link_history) +
+				(SELECT COUNT(*) FROM global_identity_presence_batches) +
+				(SELECT COUNT(*) FROM global_identity_presence_items) +
+				(SELECT COUNT(*) FROM global_identity_presence_submissions) +
+				(SELECT COUNT(*) FROM global_identity_presence_chunks) +
+				(SELECT COUNT(*) FROM global_identity_presence_chunk_items) +
+				(SELECT COUNT(*) FROM global_identity_presence_completions) +
+				(SELECT COUNT(*) FROM global_identity_dedup_snapshots) +
+			(SELECT COUNT(*) FROM demo_seed_metadata)`).Scan(&recordCount); err != nil {
 		return false, fmt.Errorf("inspect registry persistent state: %w", err)
 	}
 	return recordCount == 0, nil

@@ -1,15 +1,22 @@
 # MyScoutee Registry Protocol v1
 
-This document fixes the wire and signature format for the first registry
-milestone. It is intentionally limited to deployment registration, one
-installation-test MAU batch, signed receipts, and daily checkpoints.
+This document fixes the wire and signature format for deployment registration,
+the non-accounting installation test, production aggregate qualified-monthly-
+active-user (QMAU) snapshots/corrections, aggregate daily revenue
+snapshots/corrections, signed receipts, daily checkpoints, and RFC 9162-style
+Merkle proofs. The registry-owned monthly allocation and private signed
+deployment-history extension is specified in
+[`settlements-v1.md`](settlements-v1.md). Privacy-preserving optional
+cross-deployment identity linking and globally deduplicated QMAU are specified
+in [`global-identity-v1.md`](global-identity-v1.md).
 
 ## Encoding rules
 
 - HTTP JSON is UTF-8 with `Content-Type: application/json`.
 - Protocol version is the JSON string `"1"`.
 - Timestamps are RFC 3339 UTC timestamps ending in the literal `Z`.
-- Periods use `YYYY-MM`.
+- Installation-test and QMAU periods use `YYYY-MM`.
+- Revenue periods use an original payment UTC day in `YYYY-MM-DD`.
 - Checkpoint dates use `YYYY-MM-DD` in UTC.
 - Binary values use standard padded RFC 4648 base64.
 - SHA-256 values use `sha256:` followed by 64 lowercase hexadecimal digits.
@@ -17,6 +24,8 @@ installation-test MAU batch, signed receipts, and daily checkpoints.
   characters.
 - Batch IDs are `batch_` followed by exactly 32 lowercase hexadecimal
   characters.
+- Revenue batch IDs are `revbatch_` followed by exactly 32 lowercase
+  hexadecimal characters.
 - Canonical values must not contain CR or LF.
 - Every canonical message is its listed fields joined with LF (`\n`) and has
   one final LF.
@@ -221,7 +230,7 @@ Endpoint:
 POST /v1/mau/batches
 ```
 
-Protocol v1 accepts only the non-accounting installation test:
+The installation-test variant is non-accounting:
 
 ```text
 kind                = installation-test
@@ -358,6 +367,362 @@ The immediate receipt names the UTC checkpoint date that will cover the entry.
 That daily checkpoint is immutable and is finalized only after the UTC date has
 closed.
 
+## Qualified monthly active-user snapshots
+
+Production QMAU snapshots use the same signed endpoint:
+
+```text
+POST /v1/mau/batches
+```
+
+The fixed v1 metadata is:
+
+```text
+kind            = monthly-qmau
+ruleset_version = qmau-v1
+```
+
+For `qmau-v1`, one qualified user is a distinct local human account that is not
+an administrator, demo account, or test account and that records at least two
+substantive actions on at least two separate days in the applicable rolling
+30-day activity window. Substantive actions are rating, joining, messaging,
+hosting, booking, or verified attendance. The submitting deployment applies
+this rule to its private evidence. The registry receives only the aggregate
+non-negative count and an opaque SHA-256 evidence commitment; it does not
+receive user identifiers or activity records and cannot independently prove
+that the local evidence is truthful.
+
+The initial snapshot for one deployment and period has `revision = 1` and an
+empty `supersedes_batch_id`. A correction is a complete immutable replacement,
+increments `revision` by exactly one, and names the currently active prior
+batch. Stale or branching corrections are rejected. Historical revisions stay
+in the ledger and source table; direct leaderboard rows select the latest
+revision at their signed ledger boundary.
+
+The QMAU payload-hash input is:
+
+```text
+myscoutee-registry-qmau-batch-payload-v1
+monthly-qmau
+<period>
+qmau-v1
+<qualified_mau_count as base-10 integer>
+<commitment_hash>
+<revision as base-10 integer>
+<supersedes_batch_id, empty for revision 1>
+```
+
+Example request:
+
+```json
+{
+  "protocol_version": "1",
+  "registry_scope": "example:region-a",
+  "deployment_id": "dep_...",
+  "timestamp": "2026-07-28T00:00:02Z",
+  "nonce": "nonce_...",
+  "idempotency_key": "qmau_2026_06_revision_1",
+  "kind": "monthly-qmau",
+  "period": "2026-06",
+  "ruleset_version": "qmau-v1",
+  "qualified_mau_count": 1250,
+  "commitment_hash": "sha256:...",
+  "revision": 1,
+  "supersedes_batch_id": "",
+  "payload_hash": "sha256:...",
+  "signature": "<base64 Ed25519 signature>"
+}
+```
+
+The generic request signature uses `/v1/mau/batches` and the deployment ID as
+signer. An accepted snapshot appends the entry type:
+
+```text
+QMAU_BATCH_ACCEPTED
+```
+
+The existing ledger-entry canonical message is unchanged. In the same SQLite
+transaction, the registry writes one immutable `ledger_weight_rows` row with
+the accepted count. This row is a directly queryable representation, not an
+asynchronous projection, and is never rebuilt or repaired from the ledger.
+
+The QMAU receipt-signature input is:
+
+```text
+myscoutee-registry-qmau-receipt-v1
+<protocol_version>
+<registry_scope>
+<batch_id>
+<deployment_id>
+<ledger_index>
+<entry_hash>
+<previous_entry_hash>
+<batch_hash>
+monthly-qmau
+<period>
+<ruleset_version>
+<qualified_mau_count>
+<commitment_hash>
+<revision>
+<supersedes_batch_id>
+<accepted_at>
+<checkpoint_date>
+<registry_key_id>
+```
+
+The response uses the normal batch envelope. Its `receipt` includes
+`commitment_hash`, `revision`, registry identity, and signature;
+`supersedes_batch_id` is present when non-empty. The empty revision-1 value is
+still one line in the canonical receipt-signature message. Receipt lookup
+remains:
+
+```text
+GET /v1/mau/batches/{batch_id}/receipt
+```
+
+Leaderboard measured weight is the arithmetic mean of each deployment's active
+QMAU snapshots across the six most recent complete UTC months. Missing months
+contribute zero to that fixed six-month denominator. The leaderboard
+explicitly reports deployment-level QMAU; it must not be described as globally
+deduplicated human users.
+
+## Daily aggregate revenue batches
+
+Revenue ingestion is a distinct signed endpoint:
+
+```text
+POST /v1/revenue/batches
+```
+
+It accepts privacy-safe per-currency totals only. It never accepts payment,
+customer, user, booking, or provider identifiers. The fixed v1 accounting
+metadata is:
+
+```text
+kind                         = daily-revenue
+ruleset_version              = net-captured-revenue-v1
+commission_rate_basis_points = 500
+```
+
+`period` is the original payment UTC day. Revision 1 has an empty
+`supersedes_batch_id`. A correction is a complete immutable replacement
+snapshot for the same deployment/day, increments `revision` by exactly one,
+and names the currently active prior batch in `supersedes_batch_id`. A stale or
+branching correction is rejected. Old revisions remain in the ledger and
+direct query tables; reads select only the latest revision.
+
+The request is:
+
+```json
+{
+  "protocol_version": "1",
+  "registry_scope": "example:region-a",
+  "deployment_id": "dep_...",
+  "timestamp": "2026-07-28T00:00:02Z",
+  "nonce": "nonce_...",
+  "idempotency_key": "revenue_2026_07_27_revision_1",
+  "kind": "daily-revenue",
+  "period": "2026-07-27",
+  "revision": 1,
+  "supersedes_batch_id": "",
+  "ruleset_version": "net-captured-revenue-v1",
+  "commission_rate_basis_points": 500,
+  "currencies": [
+    {
+      "currency_code": "EUR",
+      "fraction_digits": 2,
+      "captured_minor": 12345,
+      "refunded_minor": 345,
+      "net_minor": 12000,
+      "commission_basis_minor": 12000,
+      "estimated_commission_minor": 600,
+      "payment_count": 4
+    }
+  ],
+  "payload_hash": "sha256:...",
+  "signature": "<base64 Ed25519 signature>"
+}
+```
+
+Currencies must be strictly sorted and unique by `currency_code`. The registry
+uses a deterministic supported ISO-4217 code/exponent table and rejects unknown
+codes or mismatched `fraction_digits`. It never converts or aggregates between
+currencies. `currencies` must be a JSON array; an empty array is valid and
+records an explicit zero-revenue day, while an omitted or `null` field is
+rejected.
+At most 32 currencies are accepted. Every minor-unit value is bounded at
+`9000000000000000` and `payment_count` at `1000000000000`; the registry also
+rejects a write that would overflow the active per-day/currency aggregate.
+
+For each row:
+
+```text
+captured_minor >= 0
+0 <= refunded_minor <= captured_minor
+net_minor = captured_minor - refunded_minor
+commission_basis_minor = net_minor
+estimated_commission_minor = floor(commission_basis_minor * 500 / 10000)
+payment_count >= 0
+```
+
+The `currencies` field contains accounting totals, not a transaction list. The
+canonical revenue payload is:
+
+```text
+myscoutee-registry-revenue-batch-payload-v1
+<kind>
+<period>
+<revision>
+<supersedes_batch_id>
+<ruleset_version>
+<commission_rate_basis_points>
+<currency row count>
+<first currency_code>
+<first fraction_digits>
+<first captured_minor>
+<first refunded_minor>
+<first net_minor>
+<first commission_basis_minor>
+<first estimated_commission_minor>
+<first payment_count>
+... eight lines for each remaining sorted currency row
+```
+
+The request `payload_hash` is the SHA-256 digest of that message. The generic
+request signature uses `/v1/revenue/batches` and the deployment ID as signer.
+
+An accepted batch appends `REVENUE_BATCH_ACCEPTED` to the same hash-linked
+ledger as installation-test entries. Its existing ledger message format is
+unchanged: revenue uses `qualified_mau_count = 0`, and `batch_hash` is the
+verified revenue payload hash. Therefore introducing revenue does not change
+or invalidate any historical ledger hash or completed-day checkpoint.
+
+In the same SQLite transaction, the registry also writes immutable
+`revenue_batches` and one `revenue_query_rows` row per currency. These rows are
+the directly queryable representation; they are not an asynchronous projection
+and are never repaired from the ledger. Integrity verification independently
+compares every source batch, signed request, receipt, ledger entry, revision
+link, and query row.
+
+The registry receipt signature input is:
+
+```text
+myscoutee-registry-revenue-receipt-v1
+<protocol_version>
+<registry_scope>
+<batch_id>
+<deployment_id>
+<ledger_index>
+<entry_hash>
+<previous_entry_hash>
+<batch_hash>
+<kind>
+<period>
+<revision>
+<supersedes_batch_id>
+<ruleset_version>
+<commission_rate_basis_points>
+<currency_count>
+<accepted_at>
+<checkpoint_date>
+<registry_key_id>
+```
+
+The response has the same top-level identity/idempotency fields as an MAU
+batch response and a receipt containing every canonical field above plus
+`registry_public_key` and `signature`. Receipt lookup is:
+
+```text
+GET /v1/revenue/batches/{revbatch_id}/receipt
+```
+
+The local registry-administrator CLI can query one currency at a time:
+
+```text
+/registry revenue --period 2026-07-27 --currency EUR
+/registry revenue --period 2026-07-27 --currency EUR --deployment-id dep_...
+/registry revenue --period 2026-07-27 --currency EUR --group-id opg_...
+```
+
+There is intentionally no unauthenticated public revenue query endpoint.
+`network_commission_pool_minor` is calculated once from the registry-wide
+active aggregate for the requested UTC day and currency:
+
+```text
+floor(SUM(active commission_basis_minor) * 500 / 10000)
+```
+
+It is not the sum of already-rounded deployment estimates. The CLI reports the
+currency and minor-unit exponent with the total; the registry does not perform
+foreign-exchange conversion. With `--deployment-id` or `--group-id`, captured,
+refunded, net, basis, payment-count, batch-count, and
+`reported_estimated_commission_minor` fields describe only the selected
+breakdown, while `network_commission_pool_minor` deliberately remains the
+registry-wide active pool for that UTC day and currency. The separately
+versioned [`settlements-v1.md`](settlements-v1.md) extension can apply the
+auditable QMAU weight boundary to a completed month's aggregated technical
+pool. That extension is deliberately non-binding and does not turn either the
+daily revenue receipt or monthly allocation into a legal settlement, payment,
+or payout decision.
+
+## Compact Merkle proofs
+
+The linear SHA-256 ledger hash chain remains authoritative. In the same
+transaction as each ledger append, the registry additionally maintains an
+RFC 9162 Certificate-Transparency-style Merkle Tree Hash index over the
+immutable ledger entry hashes.
+
+The leaf and internal-node hashes are:
+
+```text
+leaf_hash = SHA-256(0x00 || raw_32_byte_ledger_entry_hash)
+node_hash = SHA-256(0x01 || raw_32_byte_left_hash || raw_32_byte_right_hash)
+empty_root = SHA-256(empty byte string)
+```
+
+Ledger entries are the leaves and are not copied into a second table. Only
+completed internal subtrees are stored. A tree with `n` entries therefore
+stores exactly `n - popcount(n)` internal rows. A normal append computes one
+leaf and at most `floor(log2(n))` parent hashes (amortized one parent hash);
+proof generation and proof verification are `O(log n)`. Full-tree validation
+is deliberately reserved for startup, health checks, checkpoint finalization,
+and explicit verification commands rather than performed as an additional
+Merkle scan on every ordinary request.
+
+Inclusion proof:
+
+```text
+GET /v1/ledger/merkle/inclusion/{tree_size}/{ledger_index}
+```
+
+Consistency proof:
+
+```text
+GET /v1/ledger/merkle/consistency/{old_tree_size}/{new_tree_size}
+```
+
+`tree_size = 0` on the inclusion endpoint means the current size.
+`new_tree_size = 0` on the consistency endpoint means the current size.
+Indices are one-based. Both responses include an audit path and a
+registry-signed tree head. The tree-head signature input is:
+
+```text
+myscoutee-registry-merkle-tree-head-v1
+<protocol_version>
+<registry_scope>
+<tree_size>
+<root_hash>
+<generated_at>
+<registry_key_id>
+```
+
+The signed head also returns the registry public key. A verifier must validate
+the registry key ID/public-key relationship, the Ed25519 tree-head signature,
+and the complete inclusion or consistency path. These proofs establish that
+an entry belongs to a signed ledger prefix or that one prefix only grew by
+appending. They do not replace the daily checkpoint chain or prove that a
+deployment's aggregate claim is truthful.
+
 ## Daily checkpoint
 
 Endpoint:
@@ -411,9 +776,10 @@ display the deployment public-key fingerprint but must never receive the
 private key.
 
 Registration proves possession of a deployment key. Batch signatures prove
-which registered deployment made an unchanged claim. Central signatures and
-hash chains make accepted history tamper-evident. None of these prove that the
-operator reported truthful activity or that a local account is one human.
+which registered deployment made an unchanged claim. Central signatures, the
+linear hash chain, signed checkpoints, and Merkle proofs make accepted history
+tamper-evident. None of these prove that the operator reported truthful
+activity or that a local account is one human.
 
 No raw email, Firebase UID, access token, profile, chat, location, payment
 detail, or other direct user identifier is accepted by protocol v1.

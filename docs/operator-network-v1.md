@@ -10,12 +10,18 @@ identity or a transfer of ledger ownership.
 - Every operator mutation is signed by the already registered deployment key.
 - The registry verifies the signature, timestamp, nonce, idempotency key, and
   payload hash before accepting an action.
-- A deployment submits or withdraws its own company claim. A client token never
-  changes deployment identity, MAU history, or ledger ownership.
+- A deployment submits or withdraws its own company claim. An approved
+  deployment may also issue a short-lived, single-use client code so another
+  deployment can reuse the approved company submission as a new
+  `PENDING_REVIEW` claim. A client code never changes deployment identity, MAU
+  history, or ledger ownership.
 - Approval is an administrative action available only through local access to
   the registry container and its existing database/signing key. `reviewer_id`
   identifies that local audit actor; it is not a separate reviewer signature
   or remote authentication protocol.
+- Eligibility suspension/reinstatement is a second, independent local
+  administrative rail. It never rewrites company verification, measured
+  QMAU, deployment identity, or immutable accounting history.
 - Registry integrity verification fails closed. It verifies append-only
   sources and directly maintained query state, but never rebuilds or repairs
   query state while serving a request.
@@ -36,7 +42,7 @@ using action `claim` and these claim fields:
 | `registration_number` | required, 1–80 UTF-8 bytes |
 | `jurisdiction` | required, 1–80 UTF-8 bytes |
 | `registered_address` | required, 1–500 UTF-8 bytes |
-| `website` | optional absolute HTTPS URL, at most 2048 UTF-8 bytes |
+| `website` | required absolute HTTPS URL, at most 2048 UTF-8 bytes |
 | `verification_contact_name` | required, 1–120 UTF-8 bytes |
 | `verification_contact_role` | required, 1–120 UTF-8 bytes |
 | `verification_contact_email` | required canonical lowercase address, at most 254 UTF-8 bytes |
@@ -67,9 +73,11 @@ claim
 
 Acceptance immediately returns `claim_state: "pending-review"`, creates or
 retains the operator group, and makes the deployment a provisional claimed
-leaderboard member. Its grouping/client-token operations remain available
-while review is pending. Resubmitting a claim retains its group but creates a
-new claim action; a reviewer must approve that exact current action.
+leaderboard member. Resubmitting a claim retains its group but creates a new
+claim action; a reviewer must approve that exact current action. Client-code
+issuance requires the issuing deployment's own current claim to be approved,
+and that claim's group must be its effective operator group. A pending
+token-derived deployment cannot amplify one accepted code into more codes.
 
 The application may accept an explicit `Idempotency-Key` HTTP header at its
 operator API boundary. When absent, it derives a stable `claim_...` key from
@@ -111,12 +119,20 @@ GET /v1/operator/claims/{deployment_id}
 ```
 
 The receipt binds the deployment, exact claim action/audit index/hash, group,
-legal name, `verification_status`, submission time, review boundary, registry
-scope, and registry key. Status is one of:
+legal name, `verification_status`, submission time, review boundary, current
+eligibility boundary, registry scope, and registry key. Verification status is
+one of:
 
 - `PENDING_REVIEW`
 - `APPROVED`
+- `REJECTED`
 - `WITHDRAWN`
+
+`eligibility_status` is independently one of `active`, `suspended`, or
+`inactive`. Pending/rejected/withdrawn generations are `inactive`; an approved
+generation begins `active`. Suspension changes only an approved active
+generation to `suspended`, and reinstatement changes only that exact suspended
+generation back to `active`.
 
 Pending response example:
 
@@ -134,6 +150,8 @@ Pending response example:
     "verification_status": "PENDING_REVIEW",
     "submitted_at": "2026-07-28T12:00:00Z",
     "review_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "eligibility_status": "inactive",
+    "eligibility_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
     "registry_scope": "example:region-a",
     "registry_key_id": "rkey_0123456789abcdef0123456789abcdef",
     "signature": "BASE64_ED25519_SIGNATURE"
@@ -141,14 +159,78 @@ Pending response example:
 }
 ```
 
-The mutable current-status row is written in the same transaction as claim,
-withdrawal, or approval. Reads query that row directly. Integrity verification
-independently reconstructs the expected value from signed append-only sources
-and rejects a mismatch; it does not serve or repair reconstructed state.
+The mutable current-status and current-eligibility rows are written in the same
+transaction as claim, withdrawal, deployment deactivation, approval,
+rejection, suspension, or reinstatement. Reads query those rows directly.
+Integrity verification independently reconstructs the expected value
+from signed append-only sources and rejects a mismatch; it does not serve or
+repair reconstructed state.
 
-Approval changes this status receipt only. The provisional group membership
-already exists, so approval does not append an operator-network action, change
-a leaderboard snapshot boundary, or invalidate a cursor.
+Approval or rejection changes the current status receipt and appends one
+immutable, hash-linked review record for the exact pending claim. The provisional
+group membership already exists, so a review decision does not append an
+operator-network action. A fresh leaderboard
+snapshot captures the review and eligibility chain heads alongside the audit
+and ledger heads; an existing signed cursor remains pinned to those exact
+boundaries.
+
+Leaderboard presentation selects an active, currently claimed group profile
+and derives the decision only from an immutable review of that exact claim
+action at or before the captured review boundary. It does not read mutable
+current claim status. Structured profiles therefore expose `pending-review`,
+`approved`, or `rejected`; legacy profiles retain their signed `claimed` state.
+A pending or rejected profile remains visible with its measured weight, but it
+has zero eligible sort/allocation weight and zero share. Approval makes that
+exact claim boundary eligible without changing its immutable measured ledger
+rows.
+
+## Claim eligibility suspension CLI
+
+Copy the exact current identifiers from the access-controlled
+`show-operator-claim` command. Suspend only an approved, active generation:
+
+```bash
+docker compose exec -T registry \
+  /registry suspend-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --actor-id network-eligibility-team \
+  --decision-reference case:2026-eligibility-0042 \
+  --reason-code policy-hold \
+  --idempotency-key suspend-example-2026-0042
+```
+
+Reinstate only that exact suspended generation:
+
+```bash
+docker compose exec -T registry \
+  /registry reinstate-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --actor-id network-eligibility-team \
+  --decision-reference case:2026-eligibility-0042-clear \
+  --idempotency-key reinstate-example-2026-0042
+```
+
+Both commands append a registry-signed, hash-linked receipt and update the
+direct current eligibility row in the same transaction. The exact command is
+idempotent. A stale generation, pending/rejected/withdrawn claim, duplicate
+transition, or mismatched identity fails closed and appends nothing.
+`actor-id`, `decision-reference`, and `reason-code` are bounded non-personal
+audit identifiers. Never put names, email addresses, free-form notes, or
+evidence bodies in them.
+
+Suspension keeps the approved deployment in its claimed group and keeps its
+measured six-month QMAU visible. Its eligible weight, sort/allocation weight,
+and share become zero. In a mixed group only active deployments contribute
+eligible weight; the group returns `eligibility_status:
+"partially-suspended"`. Withdrawal or deployment deactivation changes current
+eligibility to `inactive` and cannot be undone by reinstatement. A later claim
+is a new generation requiring a new review.
 
 ## Other signed operator actions
 
@@ -175,16 +257,108 @@ Supported actions are:
 - `deactivate-deployment`
 - `reactivate-deployment`
 
-Client tokens are valid for 60–3600 seconds. The plaintext value is returned
-once and only its SHA-256 hash is stored. Redeeming a token creates virtual
-group membership; each deployment's accounting rows remain separately
+Client tokens are valid for 60–3600 seconds and are single-use. The plaintext
+value is returned only in the issue receipt and only its SHA-256 hash is
+stored. An exact retry of the same deployment-signed idempotent redemption
+returns the original receipt; a different redemption after the first accepted
+use fails with `client_token_used`.
+
+Redeeming on an already claimed deployment changes only that deployment's
+virtual operator-group membership. Redeeming on an unclaimed deployment
+copies the issuing deployment's exact current approved private company
+submission into a new append-only submission owned by the receiving deployment
+and creates a new
+`PENDING_REVIEW` claim in that group. The receiving deployment signs the
+client-token hash; the registry records the issuing deployment, token ID/hash,
+source claim action ID, source private-record hash, and new claim boundary in
+the same transaction. The source approval timestamp must be no later than both
+the token issue and redemption acceptance timestamps.
+The copied claim appears in the existing list/show/approve CLI flow and must
+be approved independently. In both cases each deployment's identity,
+accounting rows, MAU receipts, and ledger ownership remain separately
 auditable.
+
+Deactivating a deployment also withdraws that deployment's current pending or
+approved claim, changes current eligibility to `inactive`, and clears its
+current group link in the same transaction. The
+signed deactivation receipt carries `claim_state: "withdrawn"` plus the
+pre-deactivation effective `group_id` and, when present, `link_id` and related
+deployment. The directly queried claim status becomes `WITHDRAWN`, and the
+inactive deployment is absent from both claimed and unclaimed leaderboard
+views. Its immutable company submission, review, operator audit, and prior
+network-state rows remain available for audit. Reactivation makes the
+deployment active again but does not resurrect the withdrawn claim or link.
 
 Each accepted mutation atomically appends the deployment-signed nonce proof,
 hash-linked operator audit event, and the versioned network-state row used by
 leaderboard reads. Claim acceptance also appends its private submission and
 direct status row in that transaction. Replay, idempotency conflict, invalid
 state, and invalid signatures append nothing.
+
+The source anchors are explicit optional fields on the public action receipt:
+
+```text
+source_claim_action_id
+source_private_record_hash
+```
+
+They are both absent on every legacy action and on client-code redemption by
+an already claimed deployment. When both are absent, the operator audit and
+receipt retain their original v1 canonical messages exactly. When both are
+present, only a token-derived pending claim is valid and the registry signs:
+
+```text
+myscoutee-registry-operator-audit-v2
+<audit_index>
+<action_id>
+<deployment_id>
+<subject_deployment_id>
+<related_deployment_id>
+<action>
+<payload_hash>
+<accepted_at>
+<claim_state>
+<group_id>
+<link_id>
+<token_id>
+<client_token_hash>
+<source_claim_action_id>
+<source_private_record_hash>
+<token_expires_at>
+<previous_audit_hash>
+```
+
+and:
+
+```text
+myscoutee-registry-operator-action-receipt-v2
+<audit_index>
+<audit_hash>
+<previous_audit_hash>
+<action_id>
+<deployment_id>
+<subject_deployment_id>
+<related_deployment_id>
+<action>
+<accepted_at>
+<claim_state>
+<group_id>
+<link_id>
+<token_id>
+<client_token_hash>
+<source_claim_action_id>
+<source_private_record_hash>
+<token_expires_at>
+<registry_scope>
+<registry_key_id>
+```
+
+Integrity verification replays token issue, revocation, expiry, and redemption
+semantics, rejects more than one accepted redemption per token, verifies the
+source approval boundary, and compares every copied company field with the
+anchored source submission. For a pre-extension token-derived v1 row without
+anchors, verification reconstructs the issuer's current approved source at that
+historical boundary and performs the same field-for-field comparison.
 
 ## Administrative review CLI
 
@@ -228,7 +402,7 @@ docker compose exec -T registry \
   --after-deployment-id dep_fedcba9876543210fedcba9876543210
 ```
 
-`--status` accepts `PENDING_REVIEW`, `APPROVED`, or `WITHDRAWN`. List output
+`--status` accepts `PENDING_REVIEW`, `APPROVED`, `REJECTED`, or `WITHDRAWN`. List output
 never includes the private address or contact.
 
 Inspect one private submission only in an access-controlled terminal:
@@ -308,6 +482,35 @@ audit identifiers. Local registry CLI access is the approval authority. The
 registry signature proves what that authority recorded; it does not prove a
 separate person's identity.
 
+Reject the same optimistic-lock boundary with bounded, non-personal audit
+identifiers and a machine-readable reason code:
+
+```bash
+docker compose exec -T registry \
+  /registry reject-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --reviewer-id network-review-team \
+  --review-reference case:2026-0043 \
+  --reason-code identity-not-verified \
+  --idempotency-key reject-example-2026-0043
+```
+
+Rejection appends to the same signed review chain and changes only that pending
+claim generation to `REJECTED`. The receipt commits to `decision: rejected` and
+`reason_code`; the status receipt commits to the review index/hash without
+publishing the private claim submission. `reason_code` is a 3–64 character
+lowercase token. Do not place names, email addresses, notes, evidence bodies, or
+other personal data in the reviewer, reference, or reason fields.
+
+A rejected claim is not share-eligible. Rejection does not suspend or
+deactivate the deployment, withdraw the claim, rewrite measured history, or
+make any payout, dispute, ownership, or exit-eligibility decision. A later
+submission is a new signed claim generation and returns to `PENDING_REVIEW`;
+the rejected review remains immutable.
+
 CLI exit behavior:
 
 - exit `0`: successful JSON result, exact idempotent duplicate, or `--help`;
@@ -347,14 +550,36 @@ docker compose exec -T registry \
 ```
 
 Never parse, edit, or combine a cursor with another view/group/period. It is a
-registry-signed opaque value bound to the first page's immutable snapshot
-boundaries. CLI output is the same protocol JSON shape as HTTP.
+registry-signed opaque value bound to the first page's immutable ledger,
+operator-audit, claim-review, claim-eligibility, and ownership-transfer
+boundaries. Cursor v3 includes `through_transfer_event_index` and
+`transfer_event_head_hash` in addition to the v2 eligibility fields. A valid
+pre-transfer v2 cursor remains readable with the protocol zero transfer
+boundary, so it retains its original group membership; its next page is
+re-issued as v3 with that same zero boundary. Older cursor versions fail
+closed. The signed snapshot v3 also exposes the transfer index/hash, so even a
+one-page response with no next cursor independently binds all five source
+boundaries.
+CLI output is the same protocol JSON shape as HTTP.
 
-Leaderboard SQL reads weights from immutable `ledger_weight_rows` and operator
-membership/profile state from the versioned direct network-state table, always
-at or before the signed audit boundary. No action semantics are projected from
-the audit log at query time. Integrity verification rejects missing, extra, or
-mismatched direct rows.
+The leaderboard snapshot-hash canonical message is v3 because it now binds
+ownership transfer; the claim-status receipt remains v2. The outer
+leaderboard snapshot receipt remains v1 and signs the v3 snapshot hash. Java
+clients/verifiers must verify `through_transfer_event_index`,
+`transfer_event_head_hash`, the eligibility and review heads, each
+row/deployment `eligibility_status`, and the exact v3 snapshot-hash field
+order. An older verifier must reject, not silently accept or reinterpret, the
+v3 snapshot hash.
+
+Leaderboard SQL reads weights from immutable `ledger_weight_rows`,
+membership/profile state from the versioned direct network-state table, and
+approval from the immutable review chain, always at or before their captured
+boundaries. Claim action IDs are joined at the exact state-row claim boundary;
+an immutable completed ownership-transfer membership row overlays only the
+effective group ID when its transfer-event/effective-date boundary is included
+and its pinned operator-audit head is not superseded. No mutable current-status
+row and no action-stream projection participates in the query. Integrity
+verification rejects missing, extra, or mismatched direct rows.
 
 The six most recent complete UTC months determine measured weight. Founder
 contribution is fixed at 100,000 units and founder share is:
@@ -363,8 +588,14 @@ contribution is fixed at 100,000 units and founder share is:
 max(10%, 100000 / (100000 + measured_network_weight))
 ```
 
-The remaining pool is divided among claimed operator groups. Pending-review
-claims are intentionally provisional claimed members; approval does not change
-their weight or share. Protocol v1 currently accepts only zero-count
-installation-test MAU batches, so production weight remains zero until the
-qualified-MAU protocol is introduced.
+The remaining pool is divided among eligible claimed operator groups.
+Pending-review claims are intentionally provisional claimed members: their
+measured weight remains visible, while `claimed_weight`, share, share ordering,
+and allocation exclude them until registry approval. Approval changes
+eligibility, not the immutable measured ledger rows. Protocol v1 accepts
+deployment-signed `monthly-qmau` snapshots and immutable linear corrections
+under `qmau-v1`; measured weight is their latest-revision arithmetic mean over
+the fixed six-month window, with missing months contributing zero.
+Suspended approved claims follow the same visibility rule: measured weight is
+reported, but eligible weight and share are zero at a snapshot whose
+eligibility boundary includes the suspension.

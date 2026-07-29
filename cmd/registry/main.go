@@ -18,6 +18,7 @@ import (
 	"github.com/fssrepository/myscoutee-registry/internal/announcementfile"
 	"github.com/fssrepository/myscoutee-registry/internal/app"
 	"github.com/fssrepository/myscoutee-registry/internal/config"
+	"github.com/fssrepository/myscoutee-registry/internal/demoseed"
 	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
 	"github.com/fssrepository/myscoutee-registry/internal/service"
 )
@@ -29,6 +30,8 @@ func main() {
 		err = runHealthcheck()
 	} else if len(os.Args) == 2 && os.Args[1] == "initialize" {
 		err = runInitialize(logger)
+	} else if len(os.Args) == 2 && os.Args[1] == "start-demo" {
+		err = runDemoServer(logger)
 	} else if len(os.Args) >= 2 && os.Args[1] == "publish-announcement" {
 		err = runPublishAnnouncement(
 			os.Args[2:],
@@ -41,11 +44,81 @@ func main() {
 		err = runShowOperatorClaim(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "approve-operator-claim" {
 		err = runApproveOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "reject-operator-claim" {
+		err = runRejectOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "suspend-operator-claim" {
+		err = runSuspendOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "reinstate-operator-claim" {
+		err = runReinstateOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-registry-cases" {
+		err = runListRegistryCases(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-registry-case" {
+		err = runShowRegistryCase(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "flag-registry-case" {
+		err = runFlagRegistryCase(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "clear-registry-case" {
+		err = runClearRegistryCase(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "freeze-exit-review" {
+		err = runFreezeExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "decide-exit-review" {
+		err = runDecideExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "dispute-exit-review" {
+		err = runDisputeExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "withdraw-exit-review" {
+		err = runWithdrawExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-exit-reviews" {
+		err = runListExitReviews(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-exit-review" {
+		err = runShowExitReview(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "prepare-ownership-transfer" {
+		err = runPrepareOwnershipTransfer(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "decide-ownership-transfer" {
+		err = runDecideOwnershipTransfer(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "cancel-ownership-transfer" {
+		err = runCancelOwnershipTransfer(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "complete-ownership-transfer" {
+		err = runCompleteOwnershipTransfer(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-ownership-transfers" {
+		err = runListOwnershipTransfers(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-ownership-transfer" {
+		err = runShowOwnershipTransfer(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "create-exit-allocation" {
+		err = runCreateExitAllocation(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "verify-exit-allocation" {
+		err = runVerifyExitAllocation(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-exit-allocations" {
+		err = runListExitAllocations(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-exit-allocation" {
+		err = runShowExitAllocation(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "leaderboard" {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
+		err = runRevenue(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 &&
+		os.Args[1] == "global-identity-dedup" {
+		err = runGlobalIdentityDedup(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 &&
+		os.Args[1] == "rotate-global-identity-key" {
+		err = runRotateGlobalIdentityKey(
+			os.Args[2:],
+			os.Stdout,
+			logger,
+		)
+	} else if len(os.Args) >= 2 && os.Args[1] == "calculate-settlement" {
+		err = runCalculateSettlement(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "settlements" {
+		err = runSettlements(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "merkle-proof" {
+		err = runMerkleProof(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "merkle-consistency" {
+		err = runMerkleConsistency(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "verify-merkle-proof" {
+		err = runVerifyMerkleProof(os.Args[2:], os.Stdin, os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "verify-merkle-consistency" {
+		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|leaderboard]",
+			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|prepare-ownership-transfer|decide-ownership-transfer|cancel-ownership-transfer|complete-ownership-transfer|list-ownership-transfers|show-ownership-transfer|create-exit-allocation|verify-exit-allocation|list-exit-allocations|show-exit-allocation|leaderboard|revenue|global-identity-dedup|rotate-global-identity-key|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {
@@ -57,13 +130,85 @@ func main() {
 	}
 }
 
+func runRevenue(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("revenue", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	period := flags.String(
+		"period",
+		"",
+		"exact original revenue UTC day in YYYY-MM-DD",
+	)
+	currency := flags.String(
+		"currency",
+		"",
+		"one supported uppercase ISO-4217 settlement currency",
+	)
+	deploymentID := flags.String(
+		"deployment-id",
+		"",
+		"optional exact deployment ID breakdown",
+	)
+	groupID := flags.String(
+		"group-id",
+		"",
+		"optional current claimed operator group breakdown",
+	)
+	flags.Usage = func() {
+		fmt.Fprintln(
+			stdout,
+			"Usage: /registry revenue --period YYYY-MM-DD --currency CODE [--deployment-id ID|--group-id ID]",
+		)
+		fmt.Fprintln(
+			stdout,
+			"Reads immutable active revenue rows from the local registry database. Currencies are never combined.",
+		)
+		fmt.Fprintln(
+			stdout,
+			"network_commission_pool_minor is the registry-wide period/currency floor(overall active commission basis × 500 / 10000), even for a filtered breakdown.",
+		)
+		flags.PrintDefaults()
+	}
+	help, err := parseCLIFlags(flags, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		return nil
+	}
+	if *period == "" || *currency == "" {
+		flags.Usage()
+		return errors.New("revenue requires --period and --currency")
+	}
+	if *deploymentID != "" && *groupID != "" {
+		return errors.New(
+			"revenue --deployment-id and --group-id are mutually exclusive",
+		)
+	}
+	return withRegistryService(func(
+		ctx context.Context,
+		registryService *service.Service,
+	) error {
+		summary, err := registryService.RevenueSummary(
+			ctx,
+			*period,
+			*currency,
+			*deploymentID,
+			*groupID,
+		)
+		if err != nil {
+			return fmt.Errorf("query revenue: %w", err)
+		}
+		return writeCLIJSON(stdout, summary)
+	})
+}
+
 func runListOperatorClaims(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("list-operator-claims", flag.ContinueOnError)
 	flags.SetOutput(stdout)
 	status := flags.String(
 		"status",
 		"PENDING_REVIEW",
-		"PENDING_REVIEW, APPROVED, or WITHDRAWN",
+		"PENDING_REVIEW, APPROVED, REJECTED, or WITHDRAWN",
 	)
 	limit := flags.Int("limit", 50, "number of summary rows (1-200)")
 	afterDeploymentID := flags.String(
@@ -430,7 +575,50 @@ func runServer(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	if cfg.DemoSeedEnabled {
+		return errors.New(
+			"REGISTRY_DEMO_SEED=true is accepted only by the explicit start-demo command",
+		)
+	}
+	return serveRegistry(logger, cfg)
+}
 
+func runDemoServer(logger *slog.Logger) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	seedContext, cancelSeed := context.WithTimeout(
+		context.Background(),
+		2*time.Minute,
+	)
+	defer cancelSeed()
+	summary, err := demoseed.Seed(seedContext, cfg, logger)
+	if err != nil {
+		return fmt.Errorf("seed isolated demo registry: %w", err)
+	}
+	refresh, err := demoseed.RefreshQualifiedMAU(
+		seedContext,
+		cfg,
+		logger,
+		time.Now(),
+	)
+	if err != nil {
+		return fmt.Errorf("refresh isolated demo QMAU window: %w", err)
+	}
+	logger.Info(
+		"isolated demo registry is ready",
+		"registry_scope", summary.RegistryScope,
+		"seed_version", summary.SeedVersion,
+		"already_seeded", summary.AlreadySeeded,
+		"ledger_entries", summary.LedgerEntries,
+		"qmau_through_period", refresh.ThroughPeriod,
+		"qmau_snapshots_added", refresh.AddedSnapshots,
+	)
+	return serveRegistry(logger, cfg)
+}
+
+func serveRegistry(logger *slog.Logger, cfg config.Config) error {
 	rootContext, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,

@@ -27,9 +27,12 @@ service.
 9. The registry may publish signed update metadata, but it never performs an
    unattended deployment upgrade. A local operator must inspect and explicitly
    approve every installation.
-10. A registry URL is a route, not a deployment identity. Moving one parent
-    service to another domain preserves the deployment key, code, idempotency
-    state, receipts, and pinned parent signing identity.
+10. A bound registry URL is never rewritten in place. Moving to any other
+    endpoint, including a new domain for the same signed registry identity,
+    first requires signed central deactivation. That withdraws the claim; Java
+    archives the old code, idempotency state, and receipts, clears the active
+    binding, and preserves only the deployment key pair for a fresh explicit
+    registration.
 11. Each independently governed parent/accounting scope is a separate
     cryptographic and operational domain. A deployment selects one parent
     directly; neither registration, raw accounting traffic, identity data, nor
@@ -86,6 +89,17 @@ Deliverables:
   retry state, and central-receipt verification;
 - self-signed deployment registration with an opaque deployment ID;
 - one zero-count `installation-test-v1` batch that can never affect weight;
+- signed `daily-revenue` aggregate snapshots by original-payment UTC day and
+  settlement currency, with a pinned minor-unit table, fixed
+  `net-captured-revenue-v1` ruleset, 500-basis-point technical network pool,
+  explicit zero days, and immutable revision/supersession corrections;
+- revenue ledger/source/query rows written directly in one transaction, with
+  signed receipts and fail-closed replay verification instead of an
+  asynchronously rebuilt projection;
+- local registry-administrator revenue queries for global,
+  deployment-specific, and current claimed-group totals; currencies are never
+  combined, there is no public revenue-query endpoint, and filtered
+  breakdowns retain the global day/currency commission pool;
 - Go HTTP registry in Docker;
 - dedicated production Compose deployment on the separate registry host, with
   operator-supplied TLS certificate/key material and a registry-owned Nginx
@@ -93,8 +107,16 @@ Deliverables:
   publishes HTTP-to-HTTPS redirect and bounded HTTPS proxy traffic;
 - the canonical Java development Docker Compose stack includes a
   disposable/persistent local Go registry for operator and failure testing;
-  production Java packaging never includes that local registry, and direct
-  plain HTTP is permitted only inside this explicit development topology;
+  production never bundles or silently selects a real/operator registry, but
+  the production Explore workspace packages the stripped
+  `myscoutee-registry:<version>-prod` image as an internal-only seeded demo
+  registry, started by the guarded `start-demo` command with its own demo
+  scope, identity, SQLite/key volume, and Java-client state volume; it has no
+  host port, cannot share production/operator registry state, and direct plain
+  HTTP is confined to these explicit internal development/Explore networks;
+  its seed uses normal signed revenue submissions and the ordinary settlement
+  calculator to provide a deterministic private allocation/value history,
+  while the real production registry remains unseeded;
 - SQLite in WAL mode on a persistent volume;
 - atomic nonce/idempotency enforcement;
 - append-only, hash-linked ledger;
@@ -109,6 +131,9 @@ Exit criteria:
 
 - restarting either deployment or registry preserves identity and signatures;
 - repeating a batch returns the original receipt and does not append;
+- exact revenue retries return the original receipt, stale or branching
+  corrections fail, and the global pool is calculated once from the active
+  day/currency basis instead of by summing rounded deployment estimates;
 - invalid signature, stale timestamp, nonce replay, and idempotency conflict are
   rejected;
 - ledger and checkpoint verification succeed after restart;
@@ -128,8 +153,12 @@ Deliverables:
 - explicit operator authority and access-policy keys, separate from moderation
   admin authority;
 - operator authorization through the deployment's configured identity provider
-  (Firebase in the current production path), with an explicit operator
-  allowlist/bootstrap policy and no installer-generated shared password;
+  (Firebase in the configured production path), with an explicit operator
+  allowlist/bootstrap policy; a generic install may generate one
+  deployment-local, cryptographically random bootstrap credential, print its
+  plaintext once, and retain only its root-protected digest. It is never a
+  packaged or cross-deployment shared password and remains a recovery login
+  until that deployment owner explicitly replaces or disables it;
 - prepare/inspect/confirm enrollment flow: preparation records only a
   candidate, inspection verifies the read-only registry identity preflight,
   and confirmation of that exact endpoint/scope/key tuple is the first
@@ -162,12 +191,14 @@ Deliverables:
   enforcement, certificate/key pin diagnostics, connection testing, and a
   deliberate
   insecure-local-development exception;
-- route-change diagnostics that distinguish the same pinned parent registry
-  behind a new domain from a genuinely different parent/signing identity;
-- safe manual retry for transient failures and an explicit, warned
-  re-enrollment flow when moving to a genuinely different registry identity;
-- deployment-domain changes that preserve the deployment key, code, receipts,
-  and registry identity without requiring re-registration;
+- route-change diagnostics that explain whether the candidate endpoint exposes
+  the same signed identity or a different one, without treating either case as
+  permission to rewrite an active binding;
+- safe manual retry for transient failures and an explicit, warned disconnect
+  followed by fresh registration when moving to any other endpoint;
+- signed deactivation withdraws the current claim, and Java privately archives
+  the old deployment code, receipts, and idempotency state while preserving the
+  node key pair; no history is copied into the new registry;
 - connection status, last successful receipt, pending outbox count, key ID,
   deployment code, protocol version, and safe retry controls;
 - audit trail for operator setting changes;
@@ -237,17 +268,20 @@ Deliverables:
 - a virtual operator-ownership grouping model that associates multiple
   independently claimed deployments without treating the association as
   server routing, clustering, or shared deployment identity;
-- a separate Operator Settings connection flow, independent from claiming:
-  one claimed deployment exposes or generates a signed client code, and the
-  operator enters that code on another claimed deployment to request that both
-  deployments belong to the same virtual operator group;
-- configurable client-code expiry plus explicit rotation and revocation;
-  redemption and link acceptance are authenticated, deployment-signed, and
-  audited, but a code is not inherently one-time unless the operator selects
-  that policy; a code is never a deployment takeover bearer token;
-- explicit consent and current claimed/provisionally verified operator records
-  on both deployments before a group link becomes effective, without changing
-  either claim;
+- a claim-popup client-code flow: a deployment whose own current claim is
+  approved and remains in that claim's operator group may issue a short-lived,
+  single-use code and copy it through the shared protected-value dialog;
+- entering that code on an unclaimed deployment avoids repeating the company
+  form, but creates a separate `pending-review` claim from the approved company
+  submission; entering it on an already claimed deployment changes only its
+  virtual operator-group membership;
+- configurable client-code expiry plus explicit revocation; issuance,
+  redemption, the issuing deployment, and the token hash are
+  deployment-signed and append-only audited, and a code is never a deployment
+  takeover bearer token;
+- independent registry-manager approval for every token-derived claim before
+  it becomes approved, with the same local list/show/approve CLI boundary as a
+  form-submitted claim;
 - an explicit trust label explaining that a valid client code proves only an
   authenticated request to group deployments; it does not prove beneficial
   ownership, operator authority, untampered server/software, truthful MAU, or
@@ -277,6 +311,14 @@ Deliverables:
 - provisional leaderboard presentation: a claimed operator name may appear
   before human validation, but claim verification, grouping status, audit
   status, and any later exit-eligibility status remain visibly distinct;
+- pending-review claims appear as yellow leaderboard rows with an `Under
+  review` marker and retain their measured percentage badge for transparency;
+  that percentage is excluded from approved-share allocation. The separate
+  large workspace action still keeps `Claim share` as its primary label and
+  changes only its secondary status to `Under review`;
+- claim, registration, deactivation, and client-code responses return targeted
+  leaderboard mutations so the local signal store can insert, remove, or
+  reorder cached rows without invalidating the complete cursor-paginated list;
 - strict separation of deployment identities, claim histories, MAU receipts,
   ledger entries, weight calculations, and revenue allocations inside a
   grouping; raw users and identities are never merged by default, and any
@@ -314,8 +356,9 @@ Deliverables:
 - all branding, provider, Firebase, forum/community, registry-route, and update
   preferences exposed through the authenticated local operator workspace
   rather than requiring routine server-file edits;
-- operator logo/icon upload, safe image validation, home label, product name,
-  contact links, and landing copy;
+- operator logo/icon upload, safe image validation, product name, contact links,
+  and theme selection; non-configurable landing copy remains localized product
+  content rather than a hidden branding field;
 - immutable default assets plus reversible operator overrides;
 - provider catalog and server-side encrypted payment credentials;
 - provider capability/status checks and explicit test/live modes;
@@ -326,6 +369,9 @@ Deliverables:
 - masked secret rotation and audit events;
 - external forum/community configuration, initially Discord or Discourse links
   and feeds instead of a custom forum;
+- community-provider links stored by the deployment, with optional demo
+  Discord/Discourse records and a valid empty production catalog; the registry
+  supplies signed announcements rather than owning deployment link settings;
 - operator help links and central documentation cached locally so temporary
   registry unavailability does not remove help.
 
@@ -391,35 +437,65 @@ Exit criteria:
 Goal: measure globally linked people only where identity and consent evidence
 actually support that claim.
 
+Status: implemented at the VOPRF link/unlink, immutable history, signed chunked
+presence, aggregate snapshot, direct-query, verifier, and member-consent
+boundaries. Independent privacy/security review and stronger separation of the
+registry VOPRF secret from restricted commitment storage remain release
+hardening work.
+
 Deliverables:
 
-- separate central identity-linking store, not part of the public ledger;
-- network identity IDs mapped to scoped source identities
-  `(provider, issuer, subject)`;
-- opt-in link flows using reauthentication or provider-issued proof;
-- configurable central-token-validation versus deployment-validated evidence;
-- registered/approved issuer configuration for each deployment;
-- collision queues for shared email/phone, recycled identities, split accounts,
-  and provider changes;
-- user-confirmed merge/split operations with complete audit history;
-- deduplicated accounting snapshots that reference an identity-linking ruleset;
-- simultaneous reporting of deployment-level QMAU and globally linked unique
-  users so the distinction remains visible;
-- exportable source-to-target mappings for a future buyer identity migration.
+- a separate restricted identity-linking store, distinct from local profiles,
+  public ledger data, QMAU evidence, claims, and leaderboard rows;
+- explicit member consent plus locally verified, deployment-scoped
+  `(provider, issuer, subject)` input;
+- RFC 9497 `P256-SHA256` VOPRF evaluation so the registry receives no raw
+  email, Firebase UID, phone number, profile ID, or plain identifier hash;
+- immutable, period-effective link/correct/unlink history, local purge intent,
+  key rotation, exact idempotent retry, and atomic rate limiting;
+- durable Java presence outbox with independently signed 512-item chunks;
+  incomplete submissions remain append-only staging, and the final chunk
+  atomically produces one aggregate event and directly queryable snapshot;
+- simultaneous reporting of deployment QMAU, linked observations, globally
+  unique linked people, unlinked QMAU, and the deduplicated network total;
+- full verification of deployment signatures, registry receipts, chunk
+  manifests, restricted link history, aggregate events, snapshots, and
+  persisted query rows.
+
+The Go safety bounds of 4096 commitments per chunk and 4096 chunks per
+deployment/period/revision submission are memory/DoS controls, not deployment
+or network-size limits. With Java's 512-item chunks, the current interoperable
+ceiling is 2,097,152 linked commitments in one deployment-period submission.
 
 Exit criteria:
 
-- no accounts merge solely because names match;
-- verified email/phone creates a candidate, not an automatic irreversible merge;
-- every global deduplication decision is explainable and reversible by an
-  append-only correction;
+- no identity links solely because names match, and linking remains explicit
+  and reversible through append-only correction/unlink;
 - users/deployments outside the opt-in linking scope remain deployment-level
-  counts and are labeled accordingly.
+  counts and are labeled accordingly;
+- the registry can reproduce the deduplicated total without reconstructing
+  local profiles or exporting raw identifiers;
+- production review accepts the single-registry threat boundary: an operator
+  controlling both the VOPRF secret and restricted commitments can
+  dictionary-test likely low-entropy identifiers. This version is therefore
+  not described as anonymous PSI; threshold or separately governed/HSM-backed
+  OPRF remains an optional hardening path.
 
 ## Milestone 8 — resilience, sovereign parent domains, and exit readiness
 
 Goal: make the system operable across regions and auditable at contractual
 scale.
+
+Status: the fraud case rail, claim reject/suspend/reinstate decisions,
+exit-record freeze and buyer/auditor decisions, two-phase ownership transfer,
+and final exit allocation are implemented as immutable, registry-signed
+records with same-transaction direct query rows and full verification. Final
+allocation pins exact frozen settlement revisions and conserves
+JavaScript-safe minor units independently per currency; it is contractual
+allocation evidence, not payment execution. Host/topology drills,
+cross-registry federation, public checkpoint witnessing, PostgreSQL, and
+identity/application-data migration remain open unless an earlier milestone
+explicitly implements them.
 
 Deliverables:
 
@@ -449,10 +525,10 @@ Deliverables:
 - PostgreSQL storage implementation behind the same store interface when
   single-node SQLite limits are reached;
 - optional read replicas/reporting stores without changing ledger semantics;
-- exit record-date freeze, participation election, legal agreement state, and
-  signed final allocation export;
+- exit record-date freeze, participation election, legal agreement state,
+  ownership transfer, and signed final allocation record/export;
 - separate append-only exit-review records, controlled only by authorized
-  buyer/auditor roles, with effective-dated `not-reviewed`, `review-pending`,
+  buyer/auditor roles, with effective-dated `review-pending`,
   `verified-eligible`, `rejected`, `disputed`, and `withdrawn` states;
 - documented exit due diligence covering operator identity and authority,
   deployment/server and software-tamper inspection, reconciliation of signed
@@ -479,10 +555,19 @@ Exit criteria:
 
 ## Decisions deliberately deferred until their milestone
 
-- the production QMAU ruleset;
-- whether central token validation is required for every counted identity;
-- the global-link consent and privacy model;
-- the final weight window and founder/operator allocation formula;
+- changes to the implemented `qmau-v1` production qualification rules;
+- whether a future identity-link protocol additionally requires central
+  provider-token validation instead of the current deployment-validated,
+  explicitly consented VOPRF evidence;
+- threshold/HSM separation for the global-link VOPRF key and restricted
+  commitments;
+- contractual changes to the versioned technical six-month weight window,
+  founder minimum, operator-group allocation, or non-binding valuation formula;
+- payment execution, tax treatment, and buyer-side legal enforcement. The
+  final exit allocation, immutable
+  `share-weighted-settlement-v1` technical allocation and bounded
+  `three-month-acceleration-valuation-v1` estimate now exist, but none executes
+  a bank/provider payout or determines tax treatment;
 - claim retroactivity and transfer terms;
 - the preferred external operator/company identity provider;
 - the forum provider;

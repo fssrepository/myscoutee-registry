@@ -18,18 +18,29 @@ const (
 	OperatorActionDeactivateDeployment = "deactivate-deployment"
 	OperatorActionReactivateDeployment = "reactivate-deployment"
 
-	OperatorAuditZeroHash       = ZeroHash
-	OperatorClaimReviewZeroHash = ZeroHash
+	OperatorAuditZeroHash            = ZeroHash
+	OperatorClaimReviewZeroHash      = ZeroHash
+	OperatorClaimEligibilityZeroHash = ZeroHash
 
 	OperatorClaimStateClaimed       = "claimed"
 	OperatorClaimStatePendingReview = "pending-review"
 	OperatorClaimStateApproved      = "approved"
+	OperatorClaimStateRejected      = "rejected"
 	OperatorClaimStateWithdrawn     = "withdrawn"
 
 	OperatorClaimReviewApproved = "approved"
+	OperatorClaimReviewRejected = "rejected"
+
+	OperatorClaimEligibilitySuspend   = "suspend"
+	OperatorClaimEligibilityReinstate = "reinstate"
+	OperatorEligibilityActive         = "active"
+	OperatorEligibilitySuspended      = "suspended"
+	OperatorEligibilityInactive       = "inactive"
+	OperatorEligibilityPartial        = "partially-suspended"
 
 	OperatorVerificationStatusPendingReview = "PENDING_REVIEW"
 	OperatorVerificationStatusApproved      = "APPROVED"
+	OperatorVerificationStatusRejected      = "REJECTED"
 	OperatorVerificationStatusWithdrawn     = "WITHDRAWN"
 
 	LeaderboardFormulaVersion = "six-complete-month-average-v1"
@@ -65,25 +76,27 @@ type OperatorActionRequest struct {
 }
 
 type OperatorActionReceipt struct {
-	AuditIndex          int64  `json:"audit_index"`
-	AuditHash           string `json:"audit_hash"`
-	PreviousAuditHash   string `json:"previous_audit_hash"`
-	ActionID            string `json:"action_id"`
-	DeploymentID        string `json:"deployment_id"`
-	SubjectDeploymentID string `json:"subject_deployment_id"`
-	RelatedDeploymentID string `json:"related_deployment_id,omitempty"`
-	Action              string `json:"action"`
-	AcceptedAt          string `json:"accepted_at"`
-	ClaimState          string `json:"claim_state,omitempty"`
-	GroupID             string `json:"group_id,omitempty"`
-	LinkID              string `json:"link_id,omitempty"`
-	TokenID             string `json:"token_id,omitempty"`
-	ClientToken         string `json:"client_token,omitempty"`
-	ClientTokenHash     string `json:"client_token_hash,omitempty"`
-	TokenExpiresAt      string `json:"token_expires_at,omitempty"`
-	RegistryScope       string `json:"registry_scope"`
-	RegistryKeyID       string `json:"registry_key_id"`
-	Signature           string `json:"signature"`
+	AuditIndex              int64  `json:"audit_index"`
+	AuditHash               string `json:"audit_hash"`
+	PreviousAuditHash       string `json:"previous_audit_hash"`
+	ActionID                string `json:"action_id"`
+	DeploymentID            string `json:"deployment_id"`
+	SubjectDeploymentID     string `json:"subject_deployment_id"`
+	RelatedDeploymentID     string `json:"related_deployment_id,omitempty"`
+	Action                  string `json:"action"`
+	AcceptedAt              string `json:"accepted_at"`
+	ClaimState              string `json:"claim_state,omitempty"`
+	GroupID                 string `json:"group_id,omitempty"`
+	LinkID                  string `json:"link_id,omitempty"`
+	TokenID                 string `json:"token_id,omitempty"`
+	ClientToken             string `json:"client_token,omitempty"`
+	ClientTokenHash         string `json:"client_token_hash,omitempty"`
+	SourceClaimActionID     string `json:"source_claim_action_id,omitempty"`
+	SourcePrivateRecordHash string `json:"source_private_record_hash,omitempty"`
+	TokenExpiresAt          string `json:"token_expires_at,omitempty"`
+	RegistryScope           string `json:"registry_scope"`
+	RegistryKeyID           string `json:"registry_key_id"`
+	Signature               string `json:"signature"`
 }
 
 type OperatorActionResponse struct {
@@ -106,6 +119,10 @@ type OperatorClaimStatusReceipt struct {
 	ReviewIndex        int64  `json:"review_index,omitempty"`
 	ReviewHash         string `json:"review_hash"`
 	ApprovedAt         string `json:"approved_at,omitempty"`
+	EligibilityStatus  string `json:"eligibility_status"`
+	EligibilityID      string `json:"eligibility_id,omitempty"`
+	EligibilityIndex   int64  `json:"eligibility_index,omitempty"`
+	EligibilityHash    string `json:"eligibility_hash"`
 	RegistryScope      string `json:"registry_scope"`
 	RegistryKeyID      string `json:"registry_key_id"`
 	Signature          string `json:"signature"`
@@ -127,6 +144,7 @@ type OperatorClaimReviewReceipt struct {
 	Decision           string `json:"decision"`
 	ReviewerID         string `json:"reviewer_id"`
 	ReviewReference    string `json:"review_reference"`
+	ReasonCode         string `json:"reason_code,omitempty"`
 	IdempotencyKey     string `json:"idempotency_key"`
 	ReviewedAt         string `json:"reviewed_at"`
 	PreviousReviewHash string `json:"previous_review_hash"`
@@ -150,6 +168,7 @@ type OperatorClaimReviewListItem struct {
 	SubmittedAt        string `json:"submitted_at"`
 	ApprovedAt         string `json:"approved_at,omitempty"`
 	ReviewID           string `json:"review_id,omitempty"`
+	EligibilityStatus  string `json:"eligibility_status"`
 }
 
 type OperatorClaimReviewDetail struct {
@@ -169,6 +188,31 @@ type OperatorClaimReviewListPage struct {
 	NextDeploymentID string                        `json:"next_deployment_id,omitempty"`
 }
 
+type OperatorClaimEligibilityReceipt struct {
+	EligibilityIndex        int64  `json:"eligibility_index"`
+	EligibilityID           string `json:"eligibility_id"`
+	DeploymentID            string `json:"deployment_id"`
+	ClaimActionID           string `json:"claim_action_id"`
+	GroupID                 string `json:"group_id"`
+	LegalName               string `json:"legal_name"`
+	Decision                string `json:"decision"`
+	ActorID                 string `json:"actor_id"`
+	DecisionReference       string `json:"decision_reference"`
+	ReasonCode              string `json:"reason_code,omitempty"`
+	IdempotencyKey          string `json:"idempotency_key"`
+	DecidedAt               string `json:"decided_at"`
+	PreviousEligibilityHash string `json:"previous_eligibility_hash"`
+	EligibilityHash         string `json:"eligibility_hash"`
+	RegistryScope           string `json:"registry_scope"`
+	RegistryKeyID           string `json:"registry_key_id"`
+	Signature               string `json:"signature"`
+}
+
+type OperatorClaimEligibilityResult struct {
+	Duplicate bool                            `json:"duplicate"`
+	Receipt   OperatorClaimEligibilityReceipt `json:"receipt"`
+}
+
 type LeaderboardSnapshotDto struct {
 	SnapshotID                string `json:"snapshot_id"`
 	FormulaVersion            string `json:"formula_version"`
@@ -176,8 +220,14 @@ type LeaderboardSnapshotDto struct {
 	ThroughPeriod             string `json:"through_period"`
 	ThroughLedgerIndex        int64  `json:"through_ledger_index"`
 	ThroughAuditIndex         int64  `json:"through_audit_index"`
+	ThroughReviewIndex        int64  `json:"through_review_index"`
+	ThroughEligibilityIndex   int64  `json:"through_eligibility_index"`
+	ThroughTransferEventIndex int64  `json:"through_transfer_event_index"`
 	LedgerHeadHash            string `json:"ledger_head_hash"`
 	AuditHeadHash             string `json:"audit_head_hash"`
+	ReviewHeadHash            string `json:"review_head_hash"`
+	EligibilityHeadHash       string `json:"eligibility_head_hash"`
+	TransferEventHeadHash     string `json:"transfer_event_head_hash"`
 	FounderUnitsNumerator     string `json:"founder_units_numerator"`
 	FounderUnitsDenominator   string `json:"founder_units_denominator"`
 	FounderShareNumerator     string `json:"founder_share_numerator"`
@@ -200,6 +250,7 @@ type LeaderboardRowDto struct {
 	Label             string `json:"label"`
 	AvatarURL         string `json:"avatar_url,omitempty"`
 	ClaimState        string `json:"claim_state"`
+	EligibilityStatus string `json:"eligibility_status"`
 	DeploymentCount   int64  `json:"deployment_count"`
 	WeightNumerator   string `json:"weight_numerator"`
 	WeightDenominator string `json:"weight_denominator"`
@@ -218,6 +269,7 @@ type LeaderboardDeploymentDto struct {
 	DeploymentID      string `json:"deployment_id"`
 	GroupID           string `json:"group_id,omitempty"`
 	ClaimState        string `json:"claim_state"`
+	EligibilityStatus string `json:"eligibility_status"`
 	MembershipState   string `json:"membership_state"`
 	WeightNumerator   string `json:"weight_numerator"`
 	WeightDenominator string `json:"weight_denominator"`
@@ -230,6 +282,26 @@ type LeaderboardDeploymentPageDto struct {
 	GroupID    string                     `json:"group_id"`
 	Items      []LeaderboardDeploymentDto `json:"items"`
 	NextCursor string                     `json:"next_cursor,omitempty"`
+}
+
+func IsOperatorClaimReviewReasonCode(value string) bool {
+	if len(value) < 3 || len(value) > 64 ||
+		value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	for _, character := range []byte(value[1:]) {
+		if (character >= 'a' && character <= 'z') ||
+			(character >= '0' && character <= '9') ||
+			character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func IsOperatorClaimEligibilityReasonCode(value string) bool {
+	return IsOperatorClaimReviewReasonCode(value)
 }
 
 func OperatorActionPayload(
@@ -299,9 +371,33 @@ func OperatorAuditMessage(
 	linkID string,
 	tokenID string,
 	clientTokenHash string,
+	sourceClaimActionID string,
+	sourcePrivateRecordHash string,
 	tokenExpiresAt string,
 	previousAuditHash string,
 ) []byte {
+	if sourceClaimActionID != "" || sourcePrivateRecordHash != "" {
+		return canonical(
+			"myscoutee-registry-operator-audit-v2",
+			strconv.FormatInt(auditIndex, 10),
+			actionID,
+			deploymentID,
+			subjectDeploymentID,
+			relatedDeploymentID,
+			action,
+			payloadHash,
+			acceptedAt,
+			claimState,
+			groupID,
+			linkID,
+			tokenID,
+			clientTokenHash,
+			sourceClaimActionID,
+			sourcePrivateRecordHash,
+			tokenExpiresAt,
+			previousAuditHash,
+		)
+	}
 	return canonical(
 		"myscoutee-registry-operator-audit-v1",
 		strconv.FormatInt(auditIndex, 10),
@@ -323,6 +419,30 @@ func OperatorAuditMessage(
 }
 
 func OperatorActionReceiptMessage(receipt OperatorActionReceipt) []byte {
+	if receipt.SourceClaimActionID != "" || receipt.SourcePrivateRecordHash != "" {
+		return canonical(
+			"myscoutee-registry-operator-action-receipt-v2",
+			strconv.FormatInt(receipt.AuditIndex, 10),
+			receipt.AuditHash,
+			receipt.PreviousAuditHash,
+			receipt.ActionID,
+			receipt.DeploymentID,
+			receipt.SubjectDeploymentID,
+			receipt.RelatedDeploymentID,
+			receipt.Action,
+			receipt.AcceptedAt,
+			receipt.ClaimState,
+			receipt.GroupID,
+			receipt.LinkID,
+			receipt.TokenID,
+			receipt.ClientTokenHash,
+			receipt.SourceClaimActionID,
+			receipt.SourcePrivateRecordHash,
+			receipt.TokenExpiresAt,
+			receipt.RegistryScope,
+			receipt.RegistryKeyID,
+		)
+	}
 	return canonical(
 		"myscoutee-registry-operator-action-receipt-v1",
 		strconv.FormatInt(receipt.AuditIndex, 10),
@@ -383,6 +503,26 @@ func OperatorClaimPrivateRecordMessage(
 }
 
 func OperatorClaimReviewHashMessage(receipt OperatorClaimReviewReceipt) []byte {
+	if receipt.ReasonCode != "" {
+		return canonical(
+			"myscoutee-registry-operator-claim-review-v2",
+			strconv.FormatInt(receipt.ReviewIndex, 10),
+			receipt.ReviewID,
+			receipt.DeploymentID,
+			receipt.ClaimActionID,
+			receipt.GroupID,
+			receipt.LegalName,
+			receipt.Decision,
+			receipt.ReviewerID,
+			receipt.ReviewReference,
+			receipt.ReasonCode,
+			receipt.IdempotencyKey,
+			receipt.ReviewedAt,
+			receipt.PreviousReviewHash,
+			receipt.RegistryScope,
+			receipt.RegistryKeyID,
+		)
+	}
 	return canonical(
 		"myscoutee-registry-operator-claim-review-v1",
 		strconv.FormatInt(receipt.ReviewIndex, 10),
@@ -412,7 +552,7 @@ func OperatorClaimReviewReceiptMessage(receipt OperatorClaimReviewReceipt) []byt
 
 func OperatorClaimStatusReceiptMessage(status OperatorClaimStatusReceipt) []byte {
 	return canonical(
-		"myscoutee-registry-operator-claim-status-receipt-v1",
+		"myscoutee-registry-operator-claim-status-receipt-v2",
 		status.DeploymentID,
 		status.ClaimActionID,
 		strconv.FormatInt(status.ClaimAuditIndex, 10),
@@ -425,8 +565,45 @@ func OperatorClaimStatusReceiptMessage(status OperatorClaimStatusReceipt) []byte
 		strconv.FormatInt(status.ReviewIndex, 10),
 		status.ReviewHash,
 		status.ApprovedAt,
+		status.EligibilityStatus,
+		status.EligibilityID,
+		strconv.FormatInt(status.EligibilityIndex, 10),
+		status.EligibilityHash,
 		status.RegistryScope,
 		status.RegistryKeyID,
+	)
+}
+
+func OperatorClaimEligibilityHashMessage(
+	receipt OperatorClaimEligibilityReceipt,
+) []byte {
+	return canonical(
+		"myscoutee-registry-operator-claim-eligibility-v1",
+		strconv.FormatInt(receipt.EligibilityIndex, 10),
+		receipt.EligibilityID,
+		receipt.DeploymentID,
+		receipt.ClaimActionID,
+		receipt.GroupID,
+		receipt.LegalName,
+		receipt.Decision,
+		receipt.ActorID,
+		receipt.DecisionReference,
+		receipt.ReasonCode,
+		receipt.IdempotencyKey,
+		receipt.DecidedAt,
+		receipt.PreviousEligibilityHash,
+		receipt.RegistryScope,
+		receipt.RegistryKeyID,
+	)
+}
+
+func OperatorClaimEligibilityReceiptMessage(
+	receipt OperatorClaimEligibilityReceipt,
+) []byte {
+	return canonical(
+		"myscoutee-registry-operator-claim-eligibility-receipt-v1",
+		receipt.EligibilityHash,
+		receipt.RegistryKeyID,
 	)
 }
 
@@ -440,15 +617,21 @@ func LeaderboardSnapshotMessage(snapshot LeaderboardSnapshotDto) []byte {
 
 func LeaderboardSnapshotHashMessage(snapshot LeaderboardSnapshotDto) []byte {
 	return canonical(
-		"myscoutee-registry-leaderboard-snapshot-hash-v1",
+		"myscoutee-registry-leaderboard-snapshot-hash-v3",
 		snapshot.SnapshotID,
 		snapshot.FormulaVersion,
 		snapshot.RulesetVersion,
 		snapshot.ThroughPeriod,
 		strconv.FormatInt(snapshot.ThroughLedgerIndex, 10),
 		strconv.FormatInt(snapshot.ThroughAuditIndex, 10),
+		strconv.FormatInt(snapshot.ThroughReviewIndex, 10),
+		strconv.FormatInt(snapshot.ThroughEligibilityIndex, 10),
+		strconv.FormatInt(snapshot.ThroughTransferEventIndex, 10),
 		snapshot.LedgerHeadHash,
 		snapshot.AuditHeadHash,
+		snapshot.ReviewHeadHash,
+		snapshot.EligibilityHeadHash,
+		snapshot.TransferEventHeadHash,
 		snapshot.FounderUnitsNumerator,
 		snapshot.FounderUnitsDenominator,
 		snapshot.FounderShareNumerator,

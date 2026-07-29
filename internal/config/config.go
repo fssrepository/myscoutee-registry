@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 )
 
 type Config struct {
@@ -14,8 +16,12 @@ type Config struct {
 	DatabasePath        string
 	SigningKeyPath      string
 	GenerateSigningKey  bool
+	GlobalIdentityVOPRFKeyRingPath string
+	GenerateGlobalIdentityVOPRFKey bool
+	DemoSeedEnabled     bool
 	TimestampSkew       time.Duration
 	MaxRequestBodyBytes int64
+	ValuationMultiplierBasisPoints int64
 	CheckpointInterval  time.Duration
 	ShutdownTimeout     time.Duration
 	HealthcheckURL      string
@@ -28,8 +34,17 @@ func Load() (Config, error) {
 		DatabasePath:        envOrDefault("REGISTRY_DATABASE_PATH", "/data/registry.db"),
 		SigningKeyPath:      envOrDefault("REGISTRY_SIGNING_KEY_PATH", "/data/registry-signing-key.pem"),
 		GenerateSigningKey:  true,
+		GlobalIdentityVOPRFKeyRingPath:
+			envOrDefault(
+				"REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH",
+				"/data/registry-global-identity-voprf-keyring.json",
+			),
+		GenerateGlobalIdentityVOPRFKey: true,
+		DemoSeedEnabled:     false,
 		TimestampSkew:       5 * time.Minute,
 		MaxRequestBodyBytes: 64 * 1024,
+		ValuationMultiplierBasisPoints:
+			protocol.SettlementDefaultValuationMultiplierBasisPoints,
 		CheckpointInterval:  time.Minute,
 		ShutdownTimeout:     10 * time.Second,
 		HealthcheckURL:      envOrDefault("REGISTRY_HEALTHCHECK_URL", "http://127.0.0.1:8080/healthz"),
@@ -37,6 +52,15 @@ func Load() (Config, error) {
 
 	var err error
 	if cfg.GenerateSigningKey, err = envBool("REGISTRY_GENERATE_SIGNING_KEY", cfg.GenerateSigningKey); err != nil {
+		return Config{}, err
+	}
+	if cfg.GenerateGlobalIdentityVOPRFKey, err = envBool(
+		"REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY",
+		cfg.GenerateGlobalIdentityVOPRFKey,
+	); err != nil {
+		return Config{}, err
+	}
+	if cfg.DemoSeedEnabled, err = envBool("REGISTRY_DEMO_SEED", cfg.DemoSeedEnabled); err != nil {
 		return Config{}, err
 	}
 	if cfg.TimestampSkew, err = envDuration("REGISTRY_TIMESTAMP_SKEW", cfg.TimestampSkew); err != nil {
@@ -49,6 +73,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.MaxRequestBodyBytes, err = envInt64("REGISTRY_MAX_REQUEST_BODY_BYTES", cfg.MaxRequestBodyBytes); err != nil {
+		return Config{}, err
+	}
+	if cfg.ValuationMultiplierBasisPoints, err = envInt64(
+		"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS",
+		cfg.ValuationMultiplierBasisPoints,
+	); err != nil {
 		return Config{}, err
 	}
 
@@ -64,6 +94,11 @@ func Load() (Config, error) {
 	if strings.TrimSpace(cfg.SigningKeyPath) == "" {
 		return Config{}, fmt.Errorf("REGISTRY_SIGNING_KEY_PATH must not be empty")
 	}
+	if strings.TrimSpace(cfg.GlobalIdentityVOPRFKeyRingPath) == "" {
+		return Config{}, fmt.Errorf(
+			"REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH must not be empty",
+		)
+	}
 	if cfg.TimestampSkew <= 0 {
 		return Config{}, fmt.Errorf("REGISTRY_TIMESTAMP_SKEW must be positive")
 	}
@@ -75,6 +110,14 @@ func Load() (Config, error) {
 	}
 	if cfg.MaxRequestBodyBytes < 1024 || cfg.MaxRequestBodyBytes > 1024*1024 {
 		return Config{}, fmt.Errorf("REGISTRY_MAX_REQUEST_BODY_BYTES must be between 1024 and 1048576")
+	}
+	if cfg.ValuationMultiplierBasisPoints <
+		protocol.SettlementMinimumBaseValuationMultiplierBasisPoints ||
+		cfg.ValuationMultiplierBasisPoints >
+			protocol.SettlementMaximumBaseValuationMultiplierBasisPoints {
+		return Config{}, fmt.Errorf(
+			"REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS must be between 1000 and 100000",
+		)
 	}
 	return cfg, nil
 }

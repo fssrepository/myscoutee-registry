@@ -100,9 +100,10 @@ func (sqliteStore *Store) VerifyLedger(ctx context.Context) error {
 
 func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 	rows, err := sqliteStore.db.QueryContext(ctx, `
-		SELECT
-			l.ledger_index,
-			l.deployment_id,
+			SELECT
+				l.ledger_index,
+				l.entry_type,
+				l.deployment_id,
 			l.period,
 			l.ruleset_version,
 			l.qualified_mau_count,
@@ -111,14 +112,17 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			w.ledger_index,
 			w.deployment_id,
 			w.period,
+			w.revision,
 			w.ruleset_version,
 			w.qualified_mau_count,
 			w.weight_numerator,
 			w.weight_denominator,
 			w.accepted_at,
-			w.source_entry_hash
+			w.source_entry_hash,
+			b.revision
 		FROM ledger_entries l
 		LEFT JOIN ledger_weight_rows w ON w.ledger_index = l.ledger_index
+		LEFT JOIN mau_batches b ON b.batch_id = l.batch_id
 		ORDER BY l.ledger_index`)
 	if err != nil {
 		return fmt.Errorf("read ledger weight rows: %w", err)
@@ -127,6 +131,7 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 	for rows.Next() {
 		var (
 			ledgerIndex       int64
+			entryType         string
 			deploymentID      string
 			period            string
 			rulesetVersion    string
@@ -137,15 +142,18 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			rowLedgerIndex       sql.NullInt64
 			rowDeploymentID      sql.NullString
 			rowPeriod            sql.NullString
+			rowRevision          sql.NullInt64
 			rowRulesetVersion    sql.NullString
 			rowQualifiedMAUCount sql.NullInt64
 			rowWeightNumerator   sql.NullInt64
 			rowWeightDenominator sql.NullInt64
 			rowAcceptedAt        sql.NullString
 			rowSourceEntryHash   sql.NullString
+			batchRevision        sql.NullInt64
 		)
 		if err := rows.Scan(
 			&ledgerIndex,
+			&entryType,
 			&deploymentID,
 			&period,
 			&rulesetVersion,
@@ -155,15 +163,37 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 			&rowLedgerIndex,
 			&rowDeploymentID,
 			&rowPeriod,
+			&rowRevision,
 			&rowRulesetVersion,
 			&rowQualifiedMAUCount,
 			&rowWeightNumerator,
 			&rowWeightDenominator,
 			&rowAcceptedAt,
 			&rowSourceEntryHash,
+			&batchRevision,
 		); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan ledger weight row: %w", err)
+		}
+		if entryType == protocol.RevenueEntryType ||
+			entryType == protocol.SettlementEntryType {
+			if rowLedgerIndex.Valid {
+				rows.Close()
+				return fmt.Errorf(
+					"non-MAU ledger entry %d unexpectedly has a weight row",
+					ledgerIndex,
+				)
+			}
+			continue
+		}
+		if entryType != protocol.InstallationEntryType &&
+			entryType != protocol.QualifiedMAUEntryType {
+			rows.Close()
+			return fmt.Errorf(
+				"ledger entry %d has unsupported type %q",
+				ledgerIndex,
+				entryType,
+			)
 		}
 		if !rowLedgerIndex.Valid {
 			rows.Close()
@@ -184,6 +214,11 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 		if !rowPeriod.Valid || rowPeriod.String != period {
 			rows.Close()
 			return fmt.Errorf("ledger weight row %d has a mismatched period", ledgerIndex)
+		}
+		if !rowRevision.Valid || !batchRevision.Valid ||
+			rowRevision.Int64 != batchRevision.Int64 {
+			rows.Close()
+			return fmt.Errorf("ledger weight row %d has a mismatched revision", ledgerIndex)
 		}
 		if !rowRulesetVersion.Valid || rowRulesetVersion.String != rulesetVersion {
 			rows.Close()
@@ -223,7 +258,11 @@ func (sqliteStore *Store) VerifyLedgerWeightRows(ctx context.Context) error {
 		SELECT w.ledger_index
 		FROM ledger_weight_rows w
 		LEFT JOIN ledger_entries l ON l.ledger_index = w.ledger_index
-		WHERE l.ledger_index IS NULL
+			WHERE l.ledger_index IS NULL
+			   OR l.entry_type NOT IN (
+			       'INSTALLATION_TEST_BATCH_ACCEPTED',
+			       'QMAU_BATCH_ACCEPTED'
+			   )
 		ORDER BY w.ledger_index
 		LIMIT 1`).Scan(&extraLedgerIndex)
 	if errors.Is(err, sql.ErrNoRows) {

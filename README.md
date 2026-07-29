@@ -4,45 +4,105 @@ A small, reusable signed deployment registry. The implemented foundation
 provides:
 
 - proof-of-possession deployment registration with Ed25519;
-- one accepted record kind: a zero-count `installation-test` MAU batch;
+- zero-count `installation-test` MAU batches that never affect weight;
+- signed `monthly-qmau` aggregate snapshots with linear immutable correction
+  revisions, opaque evidence commitments, and six-complete-month leaderboard
+  weighting;
+- signed daily aggregate revenue snapshots and immutable correction revisions,
+  separated by ISO-4217 settlement currency;
+- registry-calculated, signed monthly technical settlement revisions with
+  exact share-weighted 5% pool allocation, a bounded non-binding TTM
+  valuation, and immutable pinned revenue/claim/eligibility source rows;
 - a SQLite WAL append-only, hash-linked ledger;
-- a directly maintained leaderboard query row for every ledger entry, written
-  in the same SQLite transaction;
+- a compact RFC 9162 Certificate-Transparency-style Merkle Tree Hash index,
+  signed tree heads, and inclusion/consistency proofs without duplicating
+  ledger leaves;
+- directly maintained leaderboard weight and revenue query rows, written in
+  the same SQLite transaction as their authoritative ledger/source records;
 - signed registration and batch receipts plus completed-UTC-day checkpoints;
 - signed structured company-verification claims, append-only administrative
-  review receipts, direct signed status, and expiring grouping tokens;
+  review receipts, direct signed status, and short-lived single-use client
+  codes for reviewed company-data reuse or virtual grouping;
+- append-only, registry-signed claim eligibility suspension/reinstatement with
+  a transactionally maintained current row and snapshot-pinned leaderboard
+  exclusion that preserves visible measured weight;
 - transactionally maintained, versioned operator-network rows used directly by
   leaderboard queries;
 - signed, snapshot-bound cursor leaderboard reads;
+- privacy-preserving RFC 9497 VOPRF identity linking, append-only
+  link/correction/unlink audit, and directly maintained monthly
+  cross-deployment QMAU dedup snapshots without central raw identifiers;
 - a registry-signed, append-only operator announcement/update-manifest feed
   published only through a local CLI;
+- a registry-signed, hash-linked anomaly/case rail with same-transaction query
+  rows and local flag/clear/list/show CLI commands that never mutate claim or
+  accounting state;
+- a registry-local signed exit-review rail that freezes completed checkpoint,
+  Merkle, claim/group membership, eligibility, and settlement boundaries, with
+  effective-dated buyer/auditor decisions and no payment execution;
+- a two-phase registry-signed ownership-transfer rail that pins an exact
+  approved/eligible claim and verified exit decision, then changes effective
+  group membership only on an immutable manager completion boundary;
+- a registry-local final exit allocation rail that pins the verified exit,
+  completed-transfer or explicit no-transfer beneficiary, contractual/evidence
+  commitments, and exact JavaScript-safe conserved minor units per currency,
+  without payment execution;
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
-It does not yet implement global user deduplication, production MAU
-qualification, Firebase migration, beneficial-owner due diligence, or document
-upload/review. Company claims have an explicit local administrative approval
-boundary. With protocol-v1 accepting only zero-count installation tests, a
-real registry's measured deployment weights remain zero until the production
-MAU ruleset is introduced.
+It does not implement Firebase migration, beneficial-owner due diligence,
+document upload/review, payment execution, or a final legal payout. Global
+identity linking is explicit, consent-evidence-bound, and optional; unlinked
+QMAU remains counted without a central identity. The QMAU protocol accepts a deployment-signed aggregate
+and an opaque evidence commitment; the deployment remains responsible for
+applying `qmau-v1` to its private activity evidence. Company claims have an
+explicit local administrative approval boundary. The monthly technical
+settlement deterministically allocates the calculated 5% pool and publishes a
+clearly non-binding indicative value, but neither amount is a contractual
+entitlement, invoice, transfer instruction, buyer decision, or final legal
+allocation.
 
 The registration/ledger wire and signature format is
 [`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
 client-code grouping, audit, and leaderboard behavior is documented in
 [`docs/operator-network-v1.md`](docs/operator-network-v1.md).
+Privacy-safe cross-deployment identity linking and deduplicated QMAU are
+documented in
+[`docs/global-identity-v1.md`](docs/global-identity-v1.md).
+The registry-local anomaly/case audit rail is documented in
+[`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
+The registry-local record-date freeze and buyer/auditor decision rail is
+documented in
+[`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
+The non-payment prepare/approve/complete ownership-transfer rail is documented
+in
+[`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
+The non-payment contractual allocation, frozen settlement-source, and exact
+per-currency conservation rail is documented in
+[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
+The technical monthly allocation, bounded valuation, private signed history
+query, and revision rules are documented in
+[`docs/settlements-v1.md`](docs/settlements-v1.md).
 The local publication boundary, signed pull feed, and independently
 package-signed update manifest are documented in
 [`docs/announcements-v1.md`](docs/announcements-v1.md).
+Automated gates, the Explore production-package boundary, and the remaining
+release drills are tracked in
+[`docs/production-qualification.md`](docs/production-qualification.md).
 
-## Local development quick start
+## Isolated Explore/demo registry
 
-The local Compose setup creates a persistent volume, atomically creates the
-central Ed25519 key only on the first pristine start, and runs as numeric
-non-root UID/GID `65532`. A registry scope must be chosen explicitly:
+The local Compose setup runs the real Go service with a dedicated demo
+database, signing key, identity, and persistent volume. `start-demo` is
+explicitly gated by `REGISTRY_DEMO_SEED=true`, a `demo:` scope, and database
+and key filenames containing `demo`. It seeds through the normal signed
+registration, QMAU, revenue, claim, review, client-code, and announcement
+service paths. It then submits three deterministic signed revenue sources
+covering the valuation windows and invokes the ordinary registry settlement
+calculator. It does not insert domain fixtures with SQL.
 
 ```bash
 cp .env.example .env
-# Edit REGISTRY_SCOPE in .env for this independently governed instance.
 docker compose up --build
 curl http://127.0.0.1:8081/healthz
 ```
@@ -54,10 +114,33 @@ The health endpoint is `GET /healthz`. Another Compose service should use
 `http://registry:8080`; a host-side Java test should use
 `http://127.0.0.1:8081`.
 
-This loopback HTTP mapping is for local development. Production uses the
-separate TLS edge described below.
+The baseline has four genuine signed deployments, six complete QMAU months
+for each deployment, a two-deployment approved operator group created through
+a temporary client code, one pending claim, one unclaimed deployment, daily
+revenue, a completed-day checkpoint, two signed announcements, and a matching
+Merkle index. It also has an immutable June 2026 USD settlement with non-zero
+earlier/prior/recent three-month averages, acceleration, a 5% allocation, and
+the non-binding TTM value. Seeding is resumable and idempotent after
+interruption. Once the baseline is marked complete, later interactive demo
+writes are preserved on restart. On each guarded `start-demo`, the service
+also appends only the missing QMAU snapshots needed to keep all four
+deterministic deployments populated through the latest six complete UTC
+months. An older completed demo volume receives the settlement once through
+the same signed service/calculation paths. Existing snapshots, claims,
+announcements, settlements, and interactive records are not re-created or
+read back through a browser database.
 
-An empty registry returns health JSON shaped like:
+A server-backed Explore workspace may run the same optimized image internally
+with no host port, `command: ["start-demo"]`, and its own demo volume. Browser
+local data is only an offline fallback. A real central registry is a separate
+deployment using ordinary startup (no command and
+`REGISTRY_DEMO_SEED=false`), a non-demo scope, and a different
+database/key/volume. It is never seeded. The production package uses the same
+stripped, non-root, scratch-based registry image for Explore, tagged
+`myscoutee-registry:<version>-prod`; only its guarded command, demo identity,
+and isolated volumes differ from an ordinary registry deployment.
+
+An ordinary empty central registry returns health JSON shaped like:
 
 ```json
 {
@@ -224,12 +307,23 @@ follow the signing-key lifecycle rules below.
 | `POST` | `/v1/deployments/register` | `201` new, `200` signed duplicate |
 | `POST` | `/v1/mau/batches` | `201` appended, `200` idempotent duplicate |
 | `GET` | `/v1/mau/batches/{batch_id}/receipt` | Stored signed receipt |
+| `POST` | `/v1/revenue/batches` | `201` appended daily aggregate, `200` idempotent duplicate |
+| `GET` | `/v1/revenue/batches/{revbatch_id}/receipt` | Stored signed revenue receipt |
+| `POST` | `/v1/settlements/query` | Deployment-signed private history for that deployment's exact historical beneficiary memberships |
 | `GET` | `/v1/ledger/checkpoints/{YYYY-MM-DD}` | Completed UTC day checkpoint |
+| `GET` | `/v1/ledger/merkle/inclusion/{tree_size}/{ledger_index}` | Registry-signed RFC 9162-style inclusion proof |
+| `GET` | `/v1/ledger/merkle/consistency/{old_tree_size}/{new_tree_size}` | Registry-signed RFC 9162-style append-only consistency proof |
 | `POST` | `/v1/operator/actions` | Signed claim, client-token/group-link, or deployment-state action |
 | `GET` | `/v1/operator/claims/{deployment_id}` | Direct registry-signed company-verification status |
 | `GET` | `/v1/leaderboard?view=founder\|claimed\|unclaimed` | Signed snapshot-bound cursor page |
 | `GET` | `/v1/leaderboard/groups/{group_id}/deployments` | Cursor page of the deployments kept separate inside one virtual operator group |
 | `GET` | `/v1/announcements` | Registry-signed, snapshot-bound cursor feed of active operator notices and update manifests |
+| `GET` | `/v1/global-identities/voprf-keys/current` | Registry-attested active RFC 9497 VOPRF public key |
+| `POST` | `/v1/global-identities/evaluate` | Deployment-signed blinded VOPRF evaluation |
+| `POST` | `/v1/global-identities/links` | Append an opaque consent-bound identity link |
+| `POST` | `/v1/global-identities/link-actions` | Append `UNLINK` or key/correction action |
+| `POST` | `/v1/global-identities/presence-batches` | Submit the private opaque identities behind an accepted QMAU revision |
+| `GET` | `/v1/global-identities/dedup/{YYYY-MM}` | Latest aggregate globally deduplicated QMAU snapshot |
 | `GET` | `/healthz` | Storage and full integrity status |
 
 Errors are JSON:
@@ -251,6 +345,39 @@ The identity preflight is stable and creates no ledger entry. Clients verify
 its Ed25519 self-signature and deterministic key ID before asking an operator
 to pin the endpoint, scope, and key. It fails closed if full registry integrity
 verification fails.
+
+The global-identity endpoints never accept an email, phone number, Firebase
+UID, local profile ID, or plain identifier hash. Deployments locally normalize
+an eligible identifier, run the RFC 9497 `P256-SHA256` VOPRF flow, and send
+only the resulting domain-separated commitment. Public global-identity events
+contain aggregate counts and a snapshot commitment; opaque commitments remain
+in restricted direct tables. This is not anonymous PSI: an operator that
+controls both the VOPRF secret and the restricted commitments can
+dictionary-test likely identifiers offline. Separate and audit those access
+boundaries; a threshold or separately governed/HSM-backed OPRF is a future
+hardening option. See
+[`docs/global-identity-v1.md`](docs/global-identity-v1.md) for the exact wire,
+signature, correction, key-rotation, rate-limit, and privacy rules.
+The resulting deduplicated snapshot changes only the audited network total:
+it neither redistributes activity/weight between deployments nor changes
+leaderboard shares or payout inputs.
+Presence is delivered as independently signed, idempotent chunks. The Go
+limits of 4096 commitments per chunk and 4096 chunks per submission are
+memory/DoS safety bounds, not deployment or user limits. The Java sender uses
+512-item chunks under the default HTTP body limit, for a current interoperable
+ceiling of 2,097,152 commitments per deployment/period/revision submission.
+Partial submissions stay in audited append-only staging and cannot affect the
+current dedup snapshot.
+
+```bash
+docker compose exec -T registry \
+  /registry global-identity-dedup --period 2026-06
+
+docker compose exec -T registry \
+  /registry rotate-global-identity-key
+# Restart the registry after rotation. Old versions remain available only for
+# explicit correction; new links use the new active version.
+```
 
 ## Local announcement publication
 
@@ -284,7 +411,12 @@ Structured claims are accepted as `PENDING_REVIEW` and immediately retain or
 create their operator group and provisional leaderboard membership. The
 private registered address/contact is kept out of the public operator ledger,
 status, and leaderboard. It is stored in an access-limited append-only table
-linked to the public payload digest.
+linked to the public payload digest. Every company field, including the
+absolute HTTPS website, is required. A deployment whose own current claim is
+approved and remains in that claim's group may issue a short-lived, single-use
+client code; redeeming it on an unclaimed deployment creates another
+independently reviewable `PENDING_REVIEW` claim
+without asking the operator to re-enter the approved company data.
 
 The operational CLI requires the configured database, signing key, and
 registry identity to already exist. A missing or mistyped Compose volume fails
@@ -312,7 +444,46 @@ docker compose exec -T registry \
   --idempotency-key approve-example-2026-0042
 
 docker compose exec -T registry \
+  /registry suspend-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --actor-id network-eligibility-team \
+  --decision-reference case:2026-eligibility-0042 \
+  --reason-code policy-hold \
+  --idempotency-key suspend-example-2026-0042
+
+docker compose exec -T registry \
   /registry leaderboard --view claimed --limit 20
+
+docker compose exec -T registry \
+  /registry revenue --period 2026-07-27 --currency EUR
+
+docker compose exec -T registry \
+  /registry revenue --period 2026-07-27 --currency EUR \
+  --deployment-id dep_0123456789abcdef0123456789abcdef
+
+docker compose exec -T registry \
+  /registry revenue --period 2026-07-27 --currency EUR \
+  --group-id opg_0123456789abcdef0123456789abcdef
+
+docker compose exec -T registry \
+  /registry calculate-settlement --period 2026-06 --currency EUR
+
+docker compose exec -T registry \
+  /registry settlements --period 2026-06 --currency EUR --limit 20
+
+docker compose exec -T registry \
+  /registry settlements \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --currency EUR --limit 20
+
+docker compose exec -T registry \
+  /registry merkle-proof --ledger-index 1
+
+docker compose exec -T registry \
+  /registry merkle-consistency --old-tree-size 32 --new-tree-size 64
 ```
 
 Commands emit JSON. An exact approval retry exits `0` with `duplicate: true`;
@@ -322,10 +493,207 @@ CLI access is the review authority; the registry signature binds what it
 recorded but is not a separate human signature. Cursors and
 `next_deployment_id` values are opaque and must be copied unchanged.
 
+The raw revenue command reads the already-initialized local registry database
+and has no HTTP query endpoint. It reports one settlement currency at a time,
+performs no foreign-exchange conversion, and keeps
+`network_commission_pool_minor` equal to the global day/currency pool even
+when the other totals are filtered to one deployment or current claimed
+group. `reported_estimated_commission_minor` remains the sum of the selected
+rows' individually rounded estimates. The global pool is
+`floor(SUM(active commission_basis_minor) * 500 / 10000)`; it is not the sum
+of per-deployment rounded estimates and is not a payout instruction.
+
+`calculate-settlement` accepts only a completed UTC month and one currency. It
+appends a new immutable signed revision only when the pinned source boundary
+or exact source fingerprint changed. `settlements` is a local administrative
+query and can expose every beneficiary amount. The HTTP settlement-history
+endpoint is different: it requires a current registered deployment signature
+and returns only allocations whose immutable historical membership table
+contains that deployment. It is not linked from the public leaderboard and
+does not expose raw revenue rows.
+
 The complete list/show/approve flow, JSON examples, signed status receipt,
 cursor examples, exit codes, privacy/backup handling, and stale-target
 behavior are in
 [`docs/operator-network-v1.md`](docs/operator-network-v1.md).
+
+## Registry anomaly/case CLI
+
+Registry administrators can attach an auditable anomaly case to an existing
+deployment, claim action, operator group, QMAU batch, revenue batch, or ledger
+index. A case stores bounded references and SHA-256 evidence digests only; it
+does not store evidence bodies, personal review data, or remote credentials.
+Flagging or clearing a case never changes claim approval, measured MAU,
+revenue, leaderboard share, or legal eligibility.
+
+The CLI opens only the configured existing SQLite database and signing key. It
+appends a registry-signed hash-chain event and updates the directly queried
+case row in one transaction:
+
+```bash
+docker compose exec -T registry \
+  /registry flag-registry-case \
+  --subject-type deployment \
+  --subject-id dep_0123456789abcdef0123456789abcdef \
+  --category qmau-anomaly \
+  --severity warning \
+  --evidence-hash sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --reference review:2026-0042 \
+  --actor-id network-review-team \
+  --idempotency-key flag-review-2026-0042
+
+docker compose exec -T registry \
+  /registry list-registry-cases --status OPEN --limit 50
+
+docker compose exec -T registry \
+  /registry show-registry-case \
+  --case-id case_0123456789abcdef0123456789abcdef
+
+docker compose exec -T registry \
+  /registry clear-registry-case \
+  --case-id case_0123456789abcdef0123456789abcdef \
+  --reference resolution:2026-0042 \
+  --actor-id network-review-team \
+  --idempotency-key clear-review-2026-0042
+```
+
+Omit `--evidence-hash` only when no governed evidence artifact exists; the
+signed event then commits to the protocol zero hash. Never put names, e-mail
+addresses, document contents, or secrets in `reference`, `actor-id`, or any
+identifier field. The full signed format and pagination semantics are in
+[`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
+
+## Exit-review CLI
+
+An exit record freezes one exact approved claim generation at a completed UTC
+checkpoint. It commits to the ledger/Merkle prefix, operator audit/review/
+eligibility heads, every active claimed deployment in the exact group, and
+the latest settlement revision for each period/currency at that boundary.
+The target claim itself must be active and eligible when the record is frozen.
+Subsequent `verify`, `reject`, `dispute`, and `withdraw` decisions are
+effective-dated, registry-signed immutable events.
+
+```bash
+docker compose exec -T registry \
+  /registry freeze-exit-review \
+  --record-date 2026-07-28 \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --actor-role auditor \
+  --actor-id exit-audit-team \
+  --reference exit:2026-0042 \
+  --idempotency-key freeze-exit-2026-0042
+
+docker compose exec -T registry \
+  /registry list-exit-reviews --status review-pending --limit 50
+
+docker compose exec -T registry \
+  /registry decide-exit-review \
+  --review-id exr_0123456789abcdef0123456789abcdef \
+  --decision verify \
+  --effective-date 2026-07-29 \
+  --actor-role buyer \
+  --actor-id acquisition-audit \
+  --reference acquisition:2026-0042 \
+  --idempotency-key verify-exit-2026-0042
+```
+
+This rail neither transfers ownership nor executes or authorizes a payment.
+Only bounded non-personal actor/reference fields and SHA-256 evidence
+commitments are stored. Full command, transition, pagination, privacy, and
+verification rules are in
+[`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
+
+## Ownership-transfer CLI
+
+A transfer request pins one exact current approved/active/eligible claim,
+source group, current verified exit event/evidence commitment, and a different
+target group that itself has a current active approved eligible claim.
+Preparation and approval do not change membership. Only `complete` appends the
+effective-dated historical membership boundary; it never edits the old claim
+or eligibility rows.
+
+```bash
+docker compose exec -T registry \
+  /registry prepare-ownership-transfer \
+  --exit-review-id exr_0123456789abcdef0123456789abcdef \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --source-group-id opg_0123456789abcdef0123456789abcdef \
+  --target-group-id opg_fedcba9876543210fedcba9876543210 \
+  --exit-verification-event-hash sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --requester-id acquisition-request-system \
+  --reference transfer:2026-0042 \
+  --idempotency-key prepare-transfer-2026-0042
+
+docker compose exec -T registry \
+  /registry decide-ownership-transfer \
+  --transfer-id otf_0123456789abcdef0123456789abcdef \
+  --decision approve \
+  --effective-date 2026-07-29 \
+  --manager-id registry-transfer-manager \
+  --reference approval:2026-0042 \
+  --idempotency-key approve-transfer-2026-0042
+
+docker compose exec -T registry \
+  /registry complete-ownership-transfer \
+  --transfer-id otf_0123456789abcdef0123456789abcdef \
+  --effective-date 2026-07-29 \
+  --manager-id registry-transfer-manager \
+  --reference completion:2026-0042 \
+  --idempotency-key complete-transfer-2026-0042
+```
+
+Completed membership is snapshot-pinned: old leaderboard cursors retain the
+source group, while new snapshots use the target group's own verified profile
+label. This rail sends no money. A completed transfer can be pinned by the
+separate final allocation rail. Full transition, idempotency, stale-target,
+privacy, and allocation-boundary rules are in
+[`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
+
+## Final exit allocation CLI
+
+A final allocation copies only the exact settlement revisions already frozen
+inside a current verified-eligible exit. It allocates the exiting source
+group's technical network-pool amounts to either the exact completed-transfer
+target group or an explicit opaque no-transfer contract beneficiary.
+Currencies remain separate; every amount and per-currency sum is a
+non-negative JavaScript-safe integer, and allocated minor units must equal the
+frozen distributable total exactly.
+
+```bash
+docker compose exec -T registry \
+  /registry create-exit-allocation \
+  --exit-review-id exr_0123456789abcdef0123456789abcdef \
+  --exit-verification-event-hash sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --decision-mode completed-transfer \
+  --ownership-transfer-id otf_0123456789abcdef0123456789abcdef \
+  --ownership-transfer-completion-event-hash sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789 \
+  --contract-reference exit-contract:2026-0042 \
+  --contract-terms-hash sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+  --evidence-hash sha256:2222222222222222222222222222222222222222222222222222222222222222 \
+  --allocator-id registry-contract-manager \
+  --idempotency-key create-exit-allocation-2026-0042
+
+docker compose exec -T registry \
+  /registry verify-exit-allocation \
+  --allocation-id xal_0123456789abcdef0123456789abcdef \
+  --verifier-id registry-allocation-verifier \
+  --reference allocation-verification:2026-0042 \
+  --evidence-hash sha256:3333333333333333333333333333333333333333333333333333333333333333 \
+  --idempotency-key verify-exit-allocation-2026-0042
+```
+
+Use `--decision-mode no-transfer --beneficiary-id OPAQUE_ID` instead of the
+two ownership-transfer flags for an explicit no-transfer beneficiary.
+`show-exit-allocation` returns the full signed record and sources;
+`list-exit-allocations` reads the immutable direct state rows.
+
+This is contractual allocation evidence, not payout execution. It stores no
+bank details, invoice state, tax data, or payment-provider instruction. Exact
+commands, hashes, conservation rules, and verification semantics are in
+[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
 
 ## Configuration
 
@@ -336,14 +704,18 @@ behavior are in
 | `REGISTRY_DATABASE_PATH` | `/data/registry.db` | SQLite database |
 | `REGISTRY_SIGNING_KEY_PATH` | `/data/registry-signing-key.pem` | PKCS#8 Ed25519 PEM |
 | `REGISTRY_GENERATE_SIGNING_KEY` | `true` | Allow key creation only for a pristine first start |
+| `REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH` | `/data/registry-global-identity-voprf-keyring.json` | Versioned mode-0600 RFC 9497 VOPRF server keyring |
+| `REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY` | `true` | Generate the first VOPRF key when that subsystem is first initialized |
+| `REGISTRY_DEMO_SEED` | `false` | Guard accepted only with the explicit `start-demo` command |
 | `REGISTRY_TIMESTAMP_SKEW` | `5m` | Signed-request clock window |
 | `REGISTRY_MAX_REQUEST_BODY_BYTES` | `65536` | JSON body limit, 1 KiB-1 MiB |
+| `REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS` | `30000` | Technical TTM valuation base multiplier (30000 = 3x), bounded to 1000-100000 |
 | `REGISTRY_CHECKPOINT_INTERVAL` | `1m` | Background completed-day finalization |
 | `REGISTRY_SHUTDOWN_TIMEOUT` | `10s` | HTTP graceful shutdown timeout |
 | `REGISTRY_HEALTHCHECK_URL` | `http://127.0.0.1:8080/healthz` | Binary healthcheck target |
 
-Copy `.env.example` to `.env` and replace its example scope before starting
-Compose; the service intentionally has no scope default.
+`compose.yaml` supplies the isolated demo scope and paths. An ordinary central
+registry intentionally has no scope default and must never set the demo guard.
 
 ## Central signing key lifecycle
 
@@ -384,7 +756,9 @@ row. Subsequent `up` starts verify the persisted identity. If `/data` is lost
 while the external key remains, ordinary startup fails instead of silently
 resetting the ledger under the trusted key.
 
-Back up the database and signing key as one recovery unit. Stop/quiesce the
+Back up the database, signing key, and global-identity VOPRF keyring as one
+recovery unit. The VOPRF keyring is generated in the runtime data volume; it
+is never embedded in the image or Debian package. Stop/quiesce the
 service before a raw filesystem copy. For an online backup, use SQLite's online
 backup API or a storage-level atomic snapshot; copying a changing database,
 WAL, and SHM one after another is not a consistent backup. Restore the database
@@ -397,42 +771,92 @@ SQLite uses WAL, foreign keys, `synchronous=FULL`, one serialized connection,
 and append-only `UPDATE`/`DELETE` rejection triggers for identity,
 deployments, nonces, idempotency records, ledger entries, batches,
 leaderboard query rows, operator audit events, private claim submissions,
-claim reviews, versioned operator-network rows, announcements, and
-checkpoints.
+claim reviews, claim eligibility decisions, versioned operator-network rows,
+announcements, registry case
+events, and checkpoints.
 
-The accounting ledger is a linear SHA-256 hash chain, not a Merkle tree. Each
-entry commits to its canonical contents and the previous entry hash. Signed,
-hash-linked daily checkpoints commit to the completed-day ledger head. This
-provides full replay/tamper verification; it does not claim Merkle inclusion
-proofs.
+The authoritative accounting ledger remains a linear SHA-256 hash chain: each
+entry commits to its canonical contents and the previous entry hash. In the
+same append transaction, the registry stores only the newly completed internal
+nodes of an RFC 9162 Certificate-Transparency-style Merkle Tree Hash index.
+Ledger hashes are the leaves and are not duplicated in the Merkle table. For
+`n` ledger entries it stores exactly `n - popcount(n)` internal nodes (fewer
+than one stored node per entry), performs one leaf hash plus an amortized one
+parent hash per append, and produces `O(log n)` inclusion and consistency
+proofs. Registry-signed tree heads bind the scope, registry key, tree size,
+root, and generation time. The existing linear chain and signed daily
+checkpoints remain authoritative and independently verified.
 
-`ledger_weight_rows` is not a projection and is never rebuilt asynchronously.
-Accepting a batch performs two related inserts in one transaction: the
-authoritative ledger entry and its exact query-friendly weight row. If either
-insert fails, neither is committed. Integrity verification requires exactly
-one matching query row per ledger entry and rejects missing, extra, or
-mismatched rows.
+The complete operational state and Merkle index are audited at bootstrap,
+health checks, checkpoint finalization, and explicit verification commands.
+That successful audit establishes the immutable trusted prefix. Ordinary reads
+and writes compare SQLite's connection-local `data_version`, an `O(1)`
+operation. While it is unchanged, all commits came through the serialized,
+transactionally checked Store methods. When another connection (normally the
+local CLI) commits, the next request verifies the configured identity,
+required append-only triggers, cryptographic chain heads and predecessors,
+source/query boundary rows, signatures, and only the newly completed Merkle
+frontier before trusting the new revision. That boundary work is constant
+except for the `O(log n)` Merkle frontier. A failed complete audit latches the
+service fail-closed until a later complete audit succeeds.
+
+Generated inclusion and consistency proofs are also verified in-process before
+they are returned. Ordinary append and read paths therefore do not rebuild the
+ledger, receipt, operator, announcement, or Merkle history.
+
+`ledger_weight_rows`, `revenue_query_rows`, and the settlement source/allocation
+tables are not asynchronous projections and are never repaired from the
+ledger. An installation-test acceptance writes
+its authoritative ledger entry and exact weight row in one transaction. A
+revenue acceptance writes its ledger entry, immutable source batch, and one
+exact query row per reported currency in one transaction; an explicit
+zero-revenue snapshot deliberately has no currency row. If any required insert
+fails, none is committed. Integrity verification rejects missing, extra, or
+mismatched source/query rows. A settlement calculation likewise appends its
+registry-owned ledger/Merkle event and every pinned revenue, TTM, weight,
+historical membership, and exact allocation row in one transaction.
 
 On every restart and health check, the registry validates:
 
 - the central key/scope identity;
 - deployment public-key fingerprints, original request proofs, payload hashes,
   and central registration receipts;
-- MAU request proofs, commitments, batch-to-ledger fields, ledger hashes,
+- installation/QMAU request proofs, commitments, immutable linear QMAU
+  revision links, batch-to-ledger fields, direct weight rows, ledger hashes,
   receipt signatures, idempotency links, and initial nonce links;
-- ledger index/hash/timestamp monotonicity and the full checkpoint chain;
+- revenue request proofs, canonical currency aggregates, immutable revision
+  links, direct query rows, ledger entries, receipts, nonces, idempotency
+  links, and bounded active aggregates;
+- settlement revision links, registry receipt signatures, all four pinned
+  source-chain boundaries, exact revenue/TTM/weight/historical-membership
+  inputs, valuation arithmetic, largest-remainder conservation, allocation
+  hashes, direct rows, and the registry-owned ledger/Merkle append;
+- ledger index/hash/timestamp monotonicity, every compact Merkle internal node,
+  and the full checkpoint chain;
 - exact ledger/query-row cardinality and field equality;
 - the operator action hash chain, deployment signatures, replay/idempotency
   records, registry-signed action receipts, private claim-record hashes,
-  signed review chain, direct claim status, and versioned operator-network
-  query rows;
+  signed review and eligibility chains, direct claim status/current
+  eligibility, and versioned operator-network query rows;
 - the announcement hash chain, normalized nested-content hashes, publication
   idempotency hashes, registry signatures, and stored canonical JSON.
+- frozen exit-review checkpoint/Merkle/operator/settlement boundaries, exact
+  historical group membership, global and per-review signed event chains,
+  transition rules, and one same-transaction query row per event.
+- ownership-transfer claim/exit/target-group boundaries, record/event/
+  membership hashes, registry signatures, global and per-transfer chains,
+  transition/idempotency rules, and exact same-transaction query rows.
+- final exit allocation verified-exit/ownership boundaries, exact frozen
+  settlement revisions, contractual/evidence commitments, JavaScript-safe
+  per-currency conservation, registry signatures, global/per-record chains,
+  and exact same-transaction query rows.
 
-Registration, batch, operator-action, announcement-publication, and signed
-read-model operations fail closed when this verification fails. New ledger
-timestamps cannot precede registry creation, the current ledger head, or an
-already finalized day.
+Registration, MAU/revenue batch, operator-action, announcement-publication,
+and signed read-model operations fail closed when their operational integrity
+verification fails. Full Merkle failures additionally fail startup, health,
+checkpoint finalization, proof verification, and explicit audit commands.
+New ledger timestamps cannot precede registry creation, the current ledger
+head, or an already finalized day.
 
 Protocol v1 does not define recovery aliasing for a lost local installation
 idempotency key: that key is included in the commitment and therefore in the
@@ -470,3 +894,7 @@ additionally cover strict manifest validation, registry/package signature
 formats, expiry/filtering,
 snapshot-bound cursor traversal and tampering, append-only publication,
 live-volume CLI publication, and restart persistence.
+Revenue tests additionally cover real deployment signatures, immutable
+receipts, exact idempotent retries, correction chains, stale-correction
+rejection, explicit zero-revenue days, deterministic currency validation, and
+aggregate-level commission rounding.

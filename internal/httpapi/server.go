@@ -19,11 +19,14 @@ import (
 )
 
 const (
-	receiptPathPrefix          = "/v1/mau/batches/"
-	receiptPathSuffix          = "/receipt"
-	checkpointPathPrefix       = "/v1/ledger/checkpoints/"
-	leaderboardGroupPathPrefix = "/v1/leaderboard/groups/"
-	leaderboardGroupPathSuffix = "/deployments"
+	receiptPathPrefix           = "/v1/mau/batches/"
+	receiptPathSuffix           = "/receipt"
+	revenueReceiptPathPrefix    = "/v1/revenue/batches/"
+	checkpointPathPrefix        = "/v1/ledger/checkpoints/"
+	merkleInclusionPathPrefix   = "/v1/ledger/merkle/inclusion/"
+	merkleConsistencyPathPrefix = "/v1/ledger/merkle/consistency/"
+	leaderboardGroupPathPrefix  = "/v1/leaderboard/groups/"
+	leaderboardGroupPathSuffix  = "/deployments"
 )
 
 type Options struct {
@@ -112,9 +115,44 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		if requireMethod(response, request, http.MethodGet) {
 			api.identity(response, request)
 		}
+	case request.URL.Path == protocol.GlobalIdentityVOPRFKeyPath:
+		if requireMethod(response, request, http.MethodGet) {
+			api.globalIdentityVOPRFKey(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityEvaluatePath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityEvaluate(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityLinkPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityLink(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityLinkActionPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityLinkAction(response, request)
+		}
+	case request.URL.Path == protocol.GlobalIdentityPresenceBatchPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.globalIdentityPresenceBatch(response, request)
+		}
+	case strings.HasPrefix(
+		request.URL.Path,
+		protocol.GlobalIdentityDedupPathPrefix,
+	):
+		if requireMethod(response, request, http.MethodGet) {
+			api.globalIdentityDedup(response, request)
+		}
 	case request.URL.Path == protocol.BatchPath:
 		if requireMethod(response, request, http.MethodPost) {
 			api.submitBatch(response, request)
+		}
+	case request.URL.Path == protocol.RevenueBatchPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.submitRevenueBatch(response, request)
+		}
+	case request.URL.Path == protocol.SettlementQueryPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.settlementHistory(response, request)
 		}
 	case request.URL.Path == protocol.OperatorActionPath:
 		if requireMethod(response, request, http.MethodPost) {
@@ -142,9 +180,22 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		if requireMethod(response, request, http.MethodGet) {
 			api.receipt(response, request)
 		}
+	case strings.HasPrefix(request.URL.Path, revenueReceiptPathPrefix) &&
+		strings.HasSuffix(request.URL.Path, receiptPathSuffix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.revenueReceipt(response, request)
+		}
 	case strings.HasPrefix(request.URL.Path, checkpointPathPrefix):
 		if requireMethod(response, request, http.MethodGet) {
 			api.checkpoint(response, request)
+		}
+	case strings.HasPrefix(request.URL.Path, merkleInclusionPathPrefix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.merkleInclusion(response, request)
+		}
+	case strings.HasPrefix(request.URL.Path, merkleConsistencyPathPrefix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.merkleConsistency(response, request)
 		}
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
@@ -400,6 +451,139 @@ func (api *API) identity(response http.ResponseWriter, request *http.Request) {
 	writeJSON(response, http.StatusOK, result)
 }
 
+func (api *API) globalIdentityVOPRFKey(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	result, err := api.service.CurrentGlobalIdentityVOPRFKey(request.Context())
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) globalIdentityEvaluate(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var evaluation protocol.GlobalIdentityEvaluationRequest
+	if err := api.decodeJSON(response, request, &evaluation); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.EvaluateGlobalIdentity(
+		request.Context(),
+		evaluation,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityLink(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var link protocol.GlobalIdentityLinkRequest
+	if err := api.decodeJSON(response, request, &link); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.LinkGlobalIdentity(request.Context(), link)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityLinkAction(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var action protocol.GlobalIdentityLinkActionRequest
+	if err := api.decodeJSON(response, request, &action); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.ApplyGlobalIdentityLinkAction(
+		request.Context(),
+		action,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityPresenceBatch(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var batch protocol.GlobalIdentityPresenceBatchRequest
+	if err := api.decodeJSON(response, request, &batch); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.SubmitGlobalIdentityPresenceBatch(
+		request.Context(),
+		batch,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) globalIdentityDedup(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	period := strings.TrimPrefix(
+		request.URL.Path,
+		protocol.GlobalIdentityDedupPathPrefix,
+	)
+	if period == "" || strings.Contains(period, "/") {
+		writeError(
+			response,
+			http.StatusNotFound,
+			"not_found",
+			"endpoint not found",
+		)
+		return
+	}
+	result, err := api.service.GlobalIdentityDedupSnapshot(
+		request.Context(),
+		period,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
 func (api *API) register(response http.ResponseWriter, request *http.Request) {
 	var registration protocol.RegistrationRequest
 	if err := api.decodeJSON(response, request, &registration); err != nil {
@@ -436,6 +620,47 @@ func (api *API) submitBatch(response http.ResponseWriter, request *http.Request)
 	writeJSON(response, status, result)
 }
 
+func (api *API) submitRevenueBatch(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var batch protocol.RevenueBatchRequest
+	if err := api.decodeJSON(response, request, &batch); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.SubmitRevenueBatch(request.Context(), batch)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Duplicate {
+		status = http.StatusOK
+	}
+	writeJSON(response, status, result)
+}
+
+func (api *API) settlementHistory(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var query protocol.SettlementQueryRequest
+	if err := api.decodeJSON(response, request, &query); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.SettlementHistoryForDeployment(
+		request.Context(),
+		query,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
 func (api *API) receipt(response http.ResponseWriter, request *http.Request) {
 	batchID := strings.TrimSuffix(
 		strings.TrimPrefix(request.URL.Path, receiptPathPrefix),
@@ -446,6 +671,26 @@ func (api *API) receipt(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 	result, err := api.service.Receipt(request.Context(), batchID)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) revenueReceipt(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	batchID := strings.TrimSuffix(
+		strings.TrimPrefix(request.URL.Path, revenueReceiptPathPrefix),
+		receiptPathSuffix,
+	)
+	if batchID == "" || strings.Contains(batchID, "/") {
+		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
+		return
+	}
+	result, err := api.service.RevenueReceipt(request.Context(), batchID)
 	if err != nil {
 		api.writeServiceError(response, err)
 		return
@@ -465,6 +710,68 @@ func (api *API) checkpoint(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) merkleInclusion(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	treeSize, ledgerIndex, ok := parseTwoCanonicalInt64PathValues(
+		strings.TrimPrefix(request.URL.Path, merkleInclusionPathPrefix),
+	)
+	if !ok || treeSize < 0 || ledgerIndex < 1 {
+		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
+		return
+	}
+	result, err := api.service.MerkleInclusionProof(
+		request.Context(),
+		ledgerIndex,
+		treeSize,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) merkleConsistency(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	oldTreeSize, newTreeSize, ok := parseTwoCanonicalInt64PathValues(
+		strings.TrimPrefix(request.URL.Path, merkleConsistencyPathPrefix),
+	)
+	if !ok || oldTreeSize < 0 || newTreeSize < 0 {
+		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
+		return
+	}
+	result, err := api.service.MerkleConsistencyProof(
+		request.Context(),
+		oldTreeSize,
+		newTreeSize,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func parseTwoCanonicalInt64PathValues(value string) (int64, int64, bool) {
+	left, right, ok := strings.Cut(value, "/")
+	if !ok || left == "" || right == "" || strings.Contains(right, "/") {
+		return 0, 0, false
+	}
+	first, err := strconv.ParseInt(left, 10, 64)
+	if err != nil || strconv.FormatInt(first, 10) != left {
+		return 0, 0, false
+	}
+	second, err := strconv.ParseInt(right, 10, 64)
+	if err != nil || strconv.FormatInt(second, 10) != right {
+		return 0, 0, false
+	}
+	return first, second, true
 }
 
 func (api *API) health(response http.ResponseWriter, request *http.Request) {
@@ -630,9 +937,16 @@ func requestErrorStatus(code string) int {
 		return http.StatusUnauthorized
 	case "deployment_not_found",
 		"receipt_not_found",
+		"revenue_receipt_not_found",
 		"checkpoint_not_found",
 		"operator_reference_not_found",
-		"operator_claim_not_found":
+		"operator_claim_not_found",
+		"merkle_proof_not_found":
+		return http.StatusNotFound
+	case "global_identity_snapshot_not_found":
+		return http.StatusNotFound
+	case "global_identity_link_not_found",
+		"qmau_source_not_found":
 		return http.StatusNotFound
 	case "idempotency_conflict",
 		"replay_conflict",
@@ -641,14 +955,26 @@ func requestErrorStatus(code string) int {
 		"operator_claim_required",
 		"client_token_expired",
 		"client_token_revoked",
+		"client_token_used",
 		"deployment_inactive",
 		"operator_action_conflict":
+		return http.StatusConflict
+	case "global_identity_link_conflict",
+		"global_identity_presence_conflict":
+		return http.StatusConflict
+	case "global_identity_rate_limited":
+		return http.StatusTooManyRequests
+	case "revenue_revision_conflict",
+		"qmau_revision_conflict",
+		"revenue_aggregate_overflow":
 		return http.StatusConflict
 	case "registry_clock_before_checkpoint",
 		"registry_clock_before_ledger_head",
 		"registry_clock_before_announcement_head",
 		"registry_clock_before_identity",
 		"registry_integrity_unavailable":
+		return http.StatusServiceUnavailable
+	case "global_identity_unavailable":
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusBadRequest

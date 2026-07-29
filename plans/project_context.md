@@ -24,9 +24,21 @@ Each deployment has:
 - potentially its own Firebase project;
 - potentially, later, a different authentication provider;
 - its own application database and user data;
-- a deployment identity registered with the central accounting service.
+- an optional deployment identity, created and registered only after an
+  authenticated operator explicitly selects and confirms a signed registry.
 
-The installer should be able to create a deployment key pair. The private key remains on the deployment server. The public key is registered centrally.
+The installer does not contact a registry and does not create a deployment key
+pair. In the local operator UI, registry inspection is read-only. After the
+authenticated operator confirms the selected registry's signed identity, the
+Java backend creates the deployment key pair, keeps the private key on the
+deployment server, and registers only the public key over HTTPS.
+
+An active registry endpoint is not edited in place. To use any other endpoint,
+even one presenting the same signed registry identity at a new domain, the
+operator first requests signed central deactivation. Deactivation withdraws
+the claim; Java archives the old deployment code, receipts, and idempotency
+state, clears the active binding, preserves the node key pair, and then allows
+a fresh explicit registration. No claim or ledger history is copied.
 
 Suggested deployment identifier:
 
@@ -164,24 +176,32 @@ The implementation should keep these models separable because the final choice i
 
 The purpose of the central system is not generic analytics. It is exit-related accounting.
 
-A user should count only after satisfying a versioned definition of a qualified monthly active user.
+A user counts only after satisfying a versioned definition of a qualified
+monthly active user. The implemented first ruleset is `qmau-v1`: a distinct
+local human account that is not an administrator, demo account, or test
+account must perform at least two substantive actions on at least two separate
+days in the applicable rolling 30-day activity window. Substantive actions are
+rating, joining, messaging, hosting, booking, or verified attendance.
 
-The initial MAU rule is not finalized. Possible requirements include:
-
-- authenticated user;
-- verified email or equivalent verified identity;
-- at least one meaningful application action;
-- optional minimum session/activity threshold;
-- exclusion of blocked, deleted, test, or flagged users.
-
-Do not hard-code the final definition into irreversible ledger logic. Store a ruleset version with every MAU snapshot or event.
+The deployment evaluates this rule against its private durable evidence. The
+central registry accepts only the signed non-negative aggregate and an opaque
+SHA-256 evidence commitment; this does not let the registry prove the
+deployment's claim is truthful. Store the ruleset version with every snapshot,
+and introduce changed definitions as new ruleset versions rather than
+rewriting accepted history.
 
 Example:
 
 ```text
-ruleset_version = "mau-v1"
+ruleset_version = "qmau-v1"
 period          = "2026-07"
 ```
+
+Corrections are immutable linear revisions: revision 1 has no predecessor and
+each later revision supersedes exactly the current active prior snapshot.
+Leaderboard weight uses the latest revision for each of the six most recent
+complete UTC months and calculates their arithmetic mean. Missing months
+contribute zero to the fixed six-month denominator.
 
 ### Local versus global deduplication
 
@@ -221,7 +241,10 @@ Important properties:
 - this does not provide global cross-deployment deduplication;
 - the mapping needed for audits or migration must remain outside the public ledger.
 
-An alternative is for the central service to issue period-specific identifiers after validating an identity. That is stronger but more centralized. Keep the design open to either approach.
+The current QMAU wire format sends neither these pseudonyms nor raw supporting
+events; it sends only the count and opaque evidence commitment. Period
+pseudonyms remain a possible private audit artifact or future explicitly
+versioned protocol, not a current central table.
 
 ## 9. Central ledger model
 
@@ -237,7 +260,9 @@ Suggested properties:
 - monotonically increasing ledger index;
 - each entry commits to the previous entry hash;
 - signed acceptance receipt returned to the submitting deployment;
-- periodic Merkle root or snapshot hash;
+- a compact RFC 9162-style Merkle Tree Hash index over immutable ledger-entry
+  hashes, with signed tree heads plus inclusion and append-only consistency
+  proofs;
 - centrally signed daily or monthly checkpoints;
 - ruleset version stored with accounting records;
 - no silent edits or deletes;
@@ -250,8 +275,8 @@ Example logical entry:
   "ledger_index": 12345,
   "deployment_id": "dep_...",
   "period": "2026-07",
-  "ruleset_version": "mau-v1",
-  "entry_type": "MAU_BATCH_ACCEPTED",
+  "ruleset_version": "qmau-v1",
+  "entry_type": "QMAU_BATCH_ACCEPTED",
   "batch_hash": "sha256:...",
   "qualified_mau_count": 1250,
   "previous_entry_hash": "sha256:...",
@@ -270,7 +295,11 @@ Example receipt:
 }
 ```
 
-The ledger may store individual pseudonymous MAU commitments or only batch commitments plus auditable supporting data, depending on privacy, cost, and audit requirements.
+The current ledger stores aggregate batch commitments only. Ledger entry
+hashes remain linked linearly and are also leaves in the compact Merkle index;
+the Merkle table stores only completed internal subtree nodes, not duplicated
+leaves or individual user commitments. Supporting evidence remains private to
+the deployment for later audit.
 
 ## 10. Exit and migration model
 
@@ -404,16 +433,17 @@ The server should reject:
 
 These are intentionally unresolved. Codex should not silently choose permanent answers without explaining the trade-offs.
 
-1. Does the central service validate every Firebase/Auth token, or only signed deployment batches?
-2. What exact activity qualifies a user as MAU?
-3. Is MAU counted per deployment, or is some form of cross-deployment deduplication required later?
-4. Are individual period pseudonyms stored centrally, or only aggregate counts with Merkle commitments?
-5. Who holds the HMAC period keys?
-6. How are independent operators audited without exposing raw personal data?
-7. What is the correction/dispute process for an accepted batch?
-8. How is the exit weight calculated: latest month, average, median, or another window?
-9. How are project ownership and migration obligations represented contractually?
-10. When should SQLite be replaced by PostgreSQL?
+1. Will a future ruleset require central Firebase/Auth-token validation, or
+   continue to accept only signed deployment aggregates?
+2. Is any form of cross-deployment human deduplication required later?
+3. Will a future audit protocol disclose period pseudonyms, zero-knowledge
+   proofs, or only evidence under contractual review?
+4. Who holds any future HMAC period keys?
+5. How are independent operators audited without exposing raw personal data?
+6. What contractual dispute process applies after an immutable correction?
+7. How are project ownership and migration obligations represented
+   contractually?
+8. When should SQLite be replaced by PostgreSQL?
 
 ## 15. Instructions for Codex
 
@@ -437,15 +467,19 @@ When working on this project:
 
 ## 16. Recommended first implementation milestone
 
-Build only the deployment registration and signed batch-receipt path:
+Build only the operator-confirmed deployment registration and signed
+batch-receipt path:
 
-1. Generate an Ed25519 key pair during installation.
-2. Register the public key and receive a `deployment_id`.
-3. Submit a signed, idempotent test MAU batch.
-4. Validate the signature and replay protection centrally.
-5. Append the accepted batch to a hash-linked ledger.
-6. Return a centrally signed receipt.
-7. Generate a signed daily checkpoint.
-8. Add tests for signature failure, replay, duplicate batch, and ledger-chain verification.
+1. Install without registry traffic or node-identity creation.
+2. Let the authenticated operator inspect and confirm a signed registry
+   identity in the local UI.
+3. Have the Java backend generate an Ed25519 key pair after that confirmation.
+4. Register the public key and receive a `deployment_id`.
+5. Submit a signed, idempotent test MAU batch.
+6. Validate the signature and replay protection centrally.
+7. Append the accepted batch to a hash-linked ledger.
+8. Return a centrally signed receipt.
+9. Generate a signed daily checkpoint.
+10. Add tests for signature failure, replay, duplicate batch, and ledger-chain verification.
 
 Do not implement cross-project account merging or global human deduplication in this milestone.

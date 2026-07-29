@@ -40,32 +40,34 @@ type OperatorActionInput struct {
 }
 
 type OperatorAuditEvent struct {
-	AuditIndex          int64
-	ActionID            string
-	DeploymentID        string
-	SubjectDeploymentID string
-	RelatedDeploymentID string
-	Action              string
-	RequestTimestamp    string
-	Nonce               string
-	IdempotencyKey      string
-	PayloadHash         string
-	RequestHash         string
-	DeploymentSignature []byte
-	OperatorName        string
-	OperatorAvatarURL   string
-	ClaimState          string
-	GroupID             string
-	LinkID              string
-	TokenID             string
-	ClientTokenHash     string
-	TokenTTLSeconds     int64
-	TokenExpiresAt      string
-	AcceptedAt          string
-	PreviousAuditHash   string
-	AuditHash           string
-	RegistryKeyID       string
-	ReceiptSignature    []byte
+	AuditIndex              int64
+	ActionID                string
+	DeploymentID            string
+	SubjectDeploymentID     string
+	RelatedDeploymentID     string
+	Action                  string
+	RequestTimestamp        string
+	Nonce                   string
+	IdempotencyKey          string
+	PayloadHash             string
+	RequestHash             string
+	DeploymentSignature     []byte
+	OperatorName            string
+	OperatorAvatarURL       string
+	ClaimState              string
+	GroupID                 string
+	LinkID                  string
+	TokenID                 string
+	ClientTokenHash         string
+	SourceClaimActionID     string
+	SourcePrivateRecordHash string
+	TokenTTLSeconds         int64
+	TokenExpiresAt          string
+	AcceptedAt              string
+	PreviousAuditHash       string
+	AuditHash               string
+	RegistryKeyID           string
+	ReceiptSignature        []byte
 }
 
 type OperatorAuditSigner func(OperatorAuditEvent) ([]byte, error)
@@ -104,7 +106,48 @@ type OperatorClaimStatus struct {
 	ApprovedAt        string
 	UpdatedAt         string
 	PrivateRecordHash string
+	EligibilityState  string
+	EligibilityID     string
+	EligibilityIndex  int64
+	EligibilityHash   string
 }
+
+type OperatorClaimEligibilityInput struct {
+	RegistryScope          string
+	DeploymentID           string
+	ClaimActionID          string
+	GroupID                string
+	LegalName              string
+	Decision               string
+	ActorID                string
+	DecisionReference      string
+	ReasonCode             string
+	IdempotencyKey         string
+	CandidateEligibilityID string
+	DecidedAt              string
+	RegistryKeyID          string
+}
+
+type OperatorClaimEligibility struct {
+	EligibilityIndex        int64
+	EligibilityID           string
+	DeploymentID            string
+	ClaimActionID           string
+	GroupID                 string
+	LegalName               string
+	Decision                string
+	ActorID                 string
+	DecisionReference       string
+	ReasonCode              string
+	IdempotencyKey          string
+	DecidedAt               string
+	PreviousEligibilityHash string
+	EligibilityHash         string
+	RegistryKeyID           string
+	Signature               []byte
+}
+
+type OperatorClaimEligibilitySigner func(OperatorClaimEligibility) ([]byte, error)
 
 type OperatorClaimReviewInput struct {
 	RegistryScope     string
@@ -112,8 +155,10 @@ type OperatorClaimReviewInput struct {
 	ClaimActionID     string
 	GroupID           string
 	LegalName         string
+	Decision          string
 	ReviewerID        string
 	ReviewReference   string
+	ReasonCode        string
 	IdempotencyKey    string
 	CandidateReviewID string
 	ReviewedAt        string
@@ -130,6 +175,7 @@ type OperatorClaimReview struct {
 	Decision           string
 	ReviewerID         string
 	ReviewReference    string
+	ReasonCode         string
 	IdempotencyKey     string
 	ReviewedAt         string
 	PreviousReviewHash string
@@ -152,54 +198,72 @@ type OperatorClaimPage struct {
 }
 
 type LeaderboardBoundary struct {
-	LedgerIndex int64
-	AuditIndex  int64
-	LedgerHash  string
-	AuditHash   string
-	CreatedAt   string
+	LedgerIndex        int64
+	AuditIndex         int64
+	ReviewIndex        int64
+	EligibilityIndex   int64
+	TransferEventIndex int64
+	LedgerHash         string
+	AuditHash          string
+	ReviewHash         string
+	EligibilityHash    string
+	TransferEventHash  string
+	CreatedAt          string
 }
 
 type LeaderboardRecord struct {
-	RowID           string
-	View            string
-	GroupID         string
-	Label           string
-	AvatarURL       string
-	ClaimState      string
-	DeploymentCount int64
-	Weight          int64
+	RowID            string
+	View             string
+	GroupID          string
+	Label            string
+	AvatarURL        string
+	ClaimState       string
+	EligibilityState string
+	DeploymentCount  int64
+	Weight           int64
+	SortWeight       int64
 }
 
 type LeaderboardDeploymentRecord struct {
-	DeploymentID    string
-	GroupID         string
-	ClaimState      string
-	MembershipState string
-	Weight          int64
+	DeploymentID     string
+	GroupID          string
+	ClaimState       string
+	EligibilityState string
+	MembershipState  string
+	Weight           int64
+	SortWeight       int64
 }
 
 type LeaderboardQuery struct {
-	View               string
-	FromPeriod         string
-	ThroughPeriod      string
-	ThroughLedgerIndex int64
-	ThroughAuditIndex  int64
-	Limit              int
-	AfterWeight        int64
-	AfterID            string
-	HasAfter           bool
+	View                      string
+	FromPeriod                string
+	ThroughPeriod             string
+	ThroughLedgerIndex        int64
+	ThroughAuditIndex         int64
+	ThroughReviewIndex        int64
+	ThroughEligibilityIndex   int64
+	ThroughTransferEventIndex int64
+	TransferEffectiveDate     string
+	Limit                     int
+	AfterWeight               int64
+	AfterID                   string
+	HasAfter                  bool
 }
 
 type LeaderboardDeploymentQuery struct {
-	GroupID            string
-	FromPeriod         string
-	ThroughPeriod      string
-	ThroughLedgerIndex int64
-	ThroughAuditIndex  int64
-	Limit              int
-	AfterWeight        int64
-	AfterID            string
-	HasAfter           bool
+	GroupID                   string
+	FromPeriod                string
+	ThroughPeriod             string
+	ThroughLedgerIndex        int64
+	ThroughAuditIndex         int64
+	ThroughReviewIndex        int64
+	ThroughEligibilityIndex   int64
+	ThroughTransferEventIndex int64
+	TransferEffectiveDate     string
+	Limit                     int
+	AfterWeight               int64
+	AfterID                   string
+	HasAfter                  bool
 }
 
 type LeaderboardTotals struct {
@@ -217,11 +281,17 @@ type OperatorNetworkStore interface {
 	OperatorClaimStatus(context.Context, string) (OperatorClaimStatus, error)
 	OperatorClaimSubmission(context.Context, string) (OperatorClaimSubmission, OperatorClaimStatus, error)
 	OperatorClaims(context.Context, OperatorClaimQuery) (OperatorClaimPage, error)
-	ApproveOperatorClaim(
+	DecideOperatorClaim(
 		context.Context,
 		OperatorClaimReviewInput,
 		OperatorClaimReviewSigner,
 	) (OperatorClaimReview, bool, error)
+	DecideOperatorClaimEligibility(
+		context.Context,
+		OperatorClaimEligibilityInput,
+		OperatorClaimEligibilitySigner,
+	) (OperatorClaimEligibility, bool, error)
+	OperatorClaimEligibilityHead(context.Context) (OperatorClaimEligibility, error)
 	LeaderboardBoundary(context.Context) (LeaderboardBoundary, error)
 	LeaderboardTotals(
 		context.Context,
@@ -229,6 +299,27 @@ type OperatorNetworkStore interface {
 		string,
 		int64,
 		int64,
+		int64,
+	) (LeaderboardTotals, error)
+	LeaderboardTotalsAtEligibility(
+		context.Context,
+		string,
+		string,
+		int64,
+		int64,
+		int64,
+		int64,
+	) (LeaderboardTotals, error)
+	LeaderboardTotalsAtOwnershipTransfer(
+		context.Context,
+		string,
+		string,
+		int64,
+		int64,
+		int64,
+		int64,
+		int64,
+		string,
 	) (LeaderboardTotals, error)
 	LeaderboardRows(context.Context, LeaderboardQuery) ([]LeaderboardRecord, error)
 	LeaderboardDeployments(

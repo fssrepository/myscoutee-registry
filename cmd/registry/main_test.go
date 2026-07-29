@@ -41,6 +41,109 @@ func TestPublishAnnouncementCLIHelpDoesNotRequireConfiguration(t *testing.T) {
 	}
 }
 
+func TestRevenueCLIHelpDoesNotRequireConfiguration(t *testing.T) {
+	var output bytes.Buffer
+	if err := runRevenue([]string{"--help"}, &output); err != nil {
+		t.Fatalf("revenue help failed: %v", err)
+	}
+	if !strings.Contains(output.String(), "network_commission_pool_minor") {
+		t.Fatalf("revenue help omitted pool semantics: %s", output.String())
+	}
+}
+
+func TestMerkleVerifierCLIsAcceptSignedProofsAndRejectTampering(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate Merkle CLI key: %v", err)
+	}
+	encodedPublicKey, publicKeyDER, err := protocol.EncodePublicKey(publicKey)
+	if err != nil {
+		t.Fatalf("encode Merkle CLI key: %v", err)
+	}
+	entryHash := protocol.Digest([]byte("cli-merkle-entry"))
+	leafHash, err := protocol.MerkleLeafHash(entryHash)
+	if err != nil {
+		t.Fatalf("hash Merkle CLI leaf: %v", err)
+	}
+	head := protocol.MerkleTreeHead{
+		ProtocolVersion:   protocol.Version,
+		RegistryScope:     "example:cli-merkle",
+		TreeSize:          1,
+		RootHash:          leafHash,
+		GeneratedAt:       "2026-07-29T00:00:00Z",
+		RegistryKeyID:     protocol.RegistryKeyID(publicKeyDER),
+		RegistryPublicKey: encodedPublicKey,
+	}
+	head.Signature = protocol.EncodeSignature(
+		ed25519.Sign(privateKey, protocol.MerkleTreeHeadMessage(head)),
+	)
+	inclusion := protocol.MerkleInclusionProof{
+		LedgerIndex:     1,
+		LedgerEntryHash: entryHash,
+		LeafHash:        leafHash,
+		AuditPath:       []string{},
+		TreeHead:        head,
+	}
+	encodedInclusion, err := json.Marshal(inclusion)
+	if err != nil {
+		t.Fatalf("encode Merkle CLI inclusion proof: %v", err)
+	}
+	var output bytes.Buffer
+	if err := runVerifyMerkleProof(
+		[]string{"--file", "-"},
+		bytes.NewReader(encodedInclusion),
+		&output,
+	); err != nil {
+		t.Fatalf("verify valid Merkle inclusion proof through CLI: %v", err)
+	}
+	var inclusionResult struct {
+		Valid bool `json:"valid"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &inclusionResult); err != nil ||
+		!inclusionResult.Valid {
+		t.Fatalf("unexpected inclusion verifier output: %s", output.String())
+	}
+
+	consistency := protocol.MerkleConsistencyProof{
+		OldTreeSize: 0,
+		OldRootHash: protocol.MerkleEmptyRoot(),
+		AuditPath:   []string{},
+		TreeHead:    head,
+	}
+	encodedConsistency, err := json.Marshal(consistency)
+	if err != nil {
+		t.Fatalf("encode Merkle CLI consistency proof: %v", err)
+	}
+	output.Reset()
+	if err := runVerifyMerkleConsistency(
+		[]string{"--file", "-"},
+		bytes.NewReader(encodedConsistency),
+		&output,
+	); err != nil {
+		t.Fatalf("verify valid Merkle consistency proof through CLI: %v", err)
+	}
+	var consistencyResult struct {
+		Valid bool `json:"valid"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &consistencyResult); err != nil ||
+		!consistencyResult.Valid {
+		t.Fatalf("unexpected consistency verifier output: %s", output.String())
+	}
+
+	inclusion.TreeHead.RootHash = protocol.Digest([]byte("tampered"))
+	encodedTampered, err := json.Marshal(inclusion)
+	if err != nil {
+		t.Fatalf("encode tampered Merkle CLI proof: %v", err)
+	}
+	if err := runVerifyMerkleProof(
+		[]string{"--file", "-"},
+		bytes.NewReader(encodedTampered),
+		&output,
+	); err == nil {
+		t.Fatal("Merkle verifier CLI accepted tampered proof")
+	}
+}
+
 func TestPublishAnnouncementCLIUsesStrictFileAndLiveSQLiteVolume(t *testing.T) {
 	directory := t.TempDir()
 	t.Setenv("REGISTRY_SCOPE", "example:cli-announcements")
@@ -333,6 +436,95 @@ func TestOperatorClaimReviewAndLeaderboardCLIFlow(t *testing.T) {
 	}
 }
 
+func TestRegistryCaseCLIFlow(t *testing.T) {
+	deploymentID, _ := seedStructuredCLIClaim(t)
+	evidenceHash := "sha256:" + strings.Repeat("a", 64)
+	flagArgs := []string{
+		"--subject-type", protocol.RegistryCaseSubjectDeployment,
+		"--subject-id", deploymentID,
+		"--category", "qmau-anomaly",
+		"--severity", protocol.RegistryCaseSeverityWarning,
+		"--evidence-hash", evidenceHash,
+		"--reference", "review:cli-case-0001",
+		"--actor-id", "network-review-team",
+		"--idempotency-key", "flag_cli_case_0001",
+	}
+	var output bytes.Buffer
+	if err := runFlagRegistryCase(flagArgs, &output); err != nil {
+		t.Fatalf("flag registry case: %v", err)
+	}
+	var flagged protocol.RegistryCaseMutationResult
+	if err := json.Unmarshal(output.Bytes(), &flagged); err != nil {
+		t.Fatalf("decode registry case flag: %v", err)
+	}
+	if flagged.Duplicate ||
+		flagged.Case.Status != protocol.RegistryCaseStatusOpen ||
+		flagged.Case.SubjectID != deploymentID ||
+		flagged.Event.Signature == "" {
+		t.Fatalf("unexpected registry case flag result: %+v", flagged)
+	}
+
+	output.Reset()
+	if err := runFlagRegistryCase(flagArgs, &output); err != nil {
+		t.Fatalf("repeat registry case flag: %v", err)
+	}
+	var duplicate protocol.RegistryCaseMutationResult
+	if err := json.Unmarshal(output.Bytes(), &duplicate); err != nil ||
+		!duplicate.Duplicate ||
+		duplicate.Case.CaseID != flagged.Case.CaseID {
+		t.Fatalf(
+			"registry case flag retry was not idempotent: %+v, error=%v",
+			duplicate,
+			err,
+		)
+	}
+
+	output.Reset()
+	if err := runListRegistryCases(
+		[]string{"--status", protocol.RegistryCaseStatusOpen, "--limit", "10"},
+		&output,
+	); err != nil {
+		t.Fatalf("list open registry cases: %v", err)
+	}
+	var page protocol.RegistryCasePage
+	if err := json.Unmarshal(output.Bytes(), &page); err != nil ||
+		len(page.Items) != 1 ||
+		page.Items[0].CaseID != flagged.Case.CaseID {
+		t.Fatalf("unexpected open registry case page: %+v, error=%v", page, err)
+	}
+
+	clearArgs := []string{
+		"--case-id", flagged.Case.CaseID,
+		"--reference", "resolution:cli-case-0001",
+		"--actor-id", "network-review-team",
+		"--idempotency-key", "clear_cli_case_0001",
+	}
+	output.Reset()
+	if err := runClearRegistryCase(clearArgs, &output); err != nil {
+		t.Fatalf("clear registry case: %v", err)
+	}
+	var cleared protocol.RegistryCaseMutationResult
+	if err := json.Unmarshal(output.Bytes(), &cleared); err != nil ||
+		cleared.Case.Status != protocol.RegistryCaseStatusCleared ||
+		cleared.Case.FlagEvidenceHash != evidenceHash ||
+		cleared.Case.ClearEventIndex <= cleared.Case.FlagEventIndex {
+		t.Fatalf("unexpected cleared registry case: %+v, error=%v", cleared, err)
+	}
+
+	output.Reset()
+	if err := runShowRegistryCase(
+		[]string{"--case-id", flagged.Case.CaseID},
+		&output,
+	); err != nil {
+		t.Fatalf("show cleared registry case: %v", err)
+	}
+	var shown protocol.RegistryCase
+	if err := json.Unmarshal(output.Bytes(), &shown); err != nil ||
+		shown.Status != protocol.RegistryCaseStatusCleared {
+		t.Fatalf("show did not return cleared registry case: %+v, error=%v", shown, err)
+	}
+}
+
 func TestOperatorOperationalCLIFailsClosedWithoutInitializedRegistry(t *testing.T) {
 	directory := t.TempDir()
 	stateDirectory := filepath.Join(directory, "mistyped-volume")
@@ -383,6 +575,24 @@ func TestOperatorOperationalCLIFailsClosedWithoutInitializedRegistry(t *testing.
 			name: "leaderboard",
 			run: func() error {
 				return runLeaderboard(nil, io.Discard)
+			},
+		},
+		{
+			name: "revenue",
+			run: func() error {
+				return runRevenue(
+					[]string{
+						"--period", "2026-07-27",
+						"--currency", "EUR",
+					},
+					io.Discard,
+				)
+			},
+		},
+		{
+			name: "registry cases",
+			run: func() error {
+				return runListRegistryCases(nil, io.Discard)
 			},
 		},
 	}
