@@ -66,8 +66,11 @@ const leaderboardStateCTE = `
 			COALESCE(state.claimed, 0) AS claimed,
 			CASE
 				WHEN state.claim_state = 'pending-review'
-				 AND review.review_index IS NOT NULL
+				 AND review.decision = 'approved'
 					THEN 'approved'
+				WHEN state.claim_state = 'pending-review'
+				 AND review.decision = 'rejected'
+					THEN 'rejected'
 				ELSE COALESCE(state.claim_state, '')
 			END AS claim_state,
 			COALESCE(state.active, 1) AS active,
@@ -99,8 +102,11 @@ const leaderboardStateCTE = `
 			state.operator_avatar_url,
 			CASE
 				WHEN state.profile_claim_state = 'pending-review'
-				 AND review.review_index IS NOT NULL
+				 AND review.decision = 'approved'
 					THEN 'approved'
+				WHEN state.profile_claim_state = 'pending-review'
+				 AND review.decision = 'rejected'
+					THEN 'rejected'
 				ELSE state.profile_claim_state
 			END AS claim_state,
 			ROW_NUMBER() OVER (

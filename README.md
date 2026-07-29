@@ -25,6 +25,9 @@ provides:
 - signed, snapshot-bound cursor leaderboard reads;
 - a registry-signed, append-only operator announcement/update-manifest feed
   published only through a local CLI;
+- a registry-signed, hash-linked anomaly/case rail with same-transaction query
+  rows and local flag/clear/list/show CLI commands that never mutate claim or
+  accounting state;
 - fail-closed integrity verification on startup, health checks, writes, and
   checkpoint finalization.
 
@@ -41,6 +44,8 @@ The registration/ledger wire and signature format is
 [`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
 client-code grouping, audit, and leaderboard behavior is documented in
 [`docs/operator-network-v1.md`](docs/operator-network-v1.md).
+The registry-local anomaly/case audit rail is documented in
+[`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
 The local publication boundary, signed pull feed, and independently
 package-signed update manifest are documented in
 [`docs/announcements-v1.md`](docs/announcements-v1.md).
@@ -398,6 +403,52 @@ cursor examples, exit codes, privacy/backup handling, and stale-target
 behavior are in
 [`docs/operator-network-v1.md`](docs/operator-network-v1.md).
 
+## Registry anomaly/case CLI
+
+Registry administrators can attach an auditable anomaly case to an existing
+deployment, claim action, operator group, QMAU batch, revenue batch, or ledger
+index. A case stores bounded references and SHA-256 evidence digests only; it
+does not store evidence bodies, personal review data, or remote credentials.
+Flagging or clearing a case never changes claim approval, measured MAU,
+revenue, leaderboard share, or legal eligibility.
+
+The CLI opens only the configured existing SQLite database and signing key. It
+appends a registry-signed hash-chain event and updates the directly queried
+case row in one transaction:
+
+```bash
+docker compose exec -T registry \
+  /registry flag-registry-case \
+  --subject-type deployment \
+  --subject-id dep_0123456789abcdef0123456789abcdef \
+  --category qmau-anomaly \
+  --severity warning \
+  --evidence-hash sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --reference review:2026-0042 \
+  --actor-id network-review-team \
+  --idempotency-key flag-review-2026-0042
+
+docker compose exec -T registry \
+  /registry list-registry-cases --status OPEN --limit 50
+
+docker compose exec -T registry \
+  /registry show-registry-case \
+  --case-id case_0123456789abcdef0123456789abcdef
+
+docker compose exec -T registry \
+  /registry clear-registry-case \
+  --case-id case_0123456789abcdef0123456789abcdef \
+  --reference resolution:2026-0042 \
+  --actor-id network-review-team \
+  --idempotency-key clear-review-2026-0042
+```
+
+Omit `--evidence-hash` only when no governed evidence artifact exists; the
+signed event then commits to the protocol zero hash. Never put names, e-mail
+addresses, document contents, or secrets in `reference`, `actor-id`, or any
+identifier field. The full signed format and pagination semantics are in
+[`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
+
 ## Configuration
 
 | Environment variable | Default | Meaning |
@@ -469,8 +520,8 @@ SQLite uses WAL, foreign keys, `synchronous=FULL`, one serialized connection,
 and append-only `UPDATE`/`DELETE` rejection triggers for identity,
 deployments, nonces, idempotency records, ledger entries, batches,
 leaderboard query rows, operator audit events, private claim submissions,
-claim reviews, versioned operator-network rows, announcements, and
-checkpoints.
+claim reviews, versioned operator-network rows, announcements, registry case
+events, and checkpoints.
 
 The authoritative accounting ledger remains a linear SHA-256 hash chain: each
 entry commits to its canonical contents and the previous entry hash. In the

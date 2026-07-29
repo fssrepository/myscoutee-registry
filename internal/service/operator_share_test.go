@@ -29,6 +29,17 @@ func TestLeaderboardShareExcludesPendingClaim(t *testing.T) {
 		t.Fatalf("pending claim share = %s, want 0", pending.RatString())
 	}
 
+	rejected := registry.leaderboardShare(
+		"claimed",
+		protocol.OperatorClaimStateRejected,
+		600,
+		totals,
+		snapshot,
+	)
+	if rejected.Sign() != 0 {
+		t.Fatalf("rejected claim share = %s, want 0", rejected.RatString())
+	}
+
 	approved := registry.leaderboardShare(
 		"claimed",
 		protocol.OperatorClaimStateApproved,

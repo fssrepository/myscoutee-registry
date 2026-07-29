@@ -114,8 +114,10 @@ type OperatorClaimReviewInput struct {
 	ClaimActionID     string
 	GroupID           string
 	LegalName         string
+	Decision          string
 	ReviewerID        string
 	ReviewReference   string
+	ReasonCode        string
 	IdempotencyKey    string
 	CandidateReviewID string
 	ReviewedAt        string
@@ -132,6 +134,7 @@ type OperatorClaimReview struct {
 	Decision           string
 	ReviewerID         string
 	ReviewReference    string
+	ReasonCode         string
 	IdempotencyKey     string
 	ReviewedAt         string
 	PreviousReviewHash string
@@ -225,7 +228,7 @@ type OperatorNetworkStore interface {
 	OperatorClaimStatus(context.Context, string) (OperatorClaimStatus, error)
 	OperatorClaimSubmission(context.Context, string) (OperatorClaimSubmission, OperatorClaimStatus, error)
 	OperatorClaims(context.Context, OperatorClaimQuery) (OperatorClaimPage, error)
-	ApproveOperatorClaim(
+	DecideOperatorClaim(
 		context.Context,
 		OperatorClaimReviewInput,
 		OperatorClaimReviewSigner,

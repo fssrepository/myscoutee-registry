@@ -938,8 +938,10 @@ func (registry *Service) leaderboardShare(
 	if view == "founder" {
 		return founder
 	}
+	shareEligibleClaim := claimState == protocol.OperatorClaimStateClaimed ||
+		claimState == protocol.OperatorClaimStateApproved
 	if view != "claimed" ||
-		claimState == protocol.OperatorClaimStatePendingReview ||
+		!shareEligibleClaim ||
 		totals.ClaimedWeight <= 0 ||
 		weight <= 0 {
 		return new(big.Rat)

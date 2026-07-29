@@ -28,6 +28,8 @@ var (
 	ErrDeploymentInactive           = errors.New("deployment is inactive")
 	ErrAnnouncementConflict         = errors.New("announcement publication ID was already used with different contents")
 	ErrAnnouncementClockBeforeHead  = errors.New("accepted_at is before the current announcement head")
+	ErrRegistryCaseAlreadyCleared   = errors.New("registry case is already cleared")
+	ErrRegistryCaseClockBeforeHead  = errors.New("accepted_at is before the current registry case head")
 	ErrRevenueRevisionConflict      = errors.New("revenue revision does not extend the current active batch")
 	ErrQualifiedMAURevisionConflict = errors.New("QMAU revision does not extend the current active snapshot")
 	ErrRevenueAggregateOverflow     = errors.New("revenue aggregate exceeds the supported signed integer range")
@@ -236,4 +238,5 @@ type Store interface {
 
 	OperatorNetworkStore
 	AnnouncementStore
+	RegistryCaseStore
 }

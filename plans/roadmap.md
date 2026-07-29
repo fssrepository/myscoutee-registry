@@ -150,8 +150,12 @@ Deliverables:
 - explicit operator authority and access-policy keys, separate from moderation
   admin authority;
 - operator authorization through the deployment's configured identity provider
-  (Firebase in the current production path), with an explicit operator
-  allowlist/bootstrap policy and no installer-generated shared password;
+  (Firebase in the configured production path), with an explicit operator
+  allowlist/bootstrap policy; a generic install may generate one
+  deployment-local, cryptographically random bootstrap credential, print its
+  plaintext once, and retain only its root-protected digest. It is never a
+  packaged or cross-deployment shared password and remains a recovery login
+  until that deployment owner explicitly replaces or disables it;
 - prepare/inspect/confirm enrollment flow: preparation records only a
   candidate, inspection verifies the read-only registry identity preflight,
   and confirmation of that exact endpoint/scope/key tuple is the first
@@ -304,11 +308,11 @@ Deliverables:
 - provisional leaderboard presentation: a claimed operator name may appear
   before human validation, but claim verification, grouping status, audit
   status, and any later exit-eligibility status remain visibly distinct;
-- pending-review claims appear as yellow leaderboard rows and are excluded from
-  approved-share allocation; the row shows an `Under review` badge instead of
-  an approved percentage. The separate large workspace action still keeps
-  `Claim share` as its primary label and changes only its secondary status to
-  `Under review`;
+- pending-review claims appear as yellow leaderboard rows with an `Under
+  review` marker and retain their measured percentage badge for transparency;
+  that percentage is excluded from approved-share allocation. The separate
+  large workspace action still keeps `Claim share` as its primary label and
+  changes only its secondary status to `Under review`;
 - claim, registration, deactivation, and client-code responses return targeted
   leaderboard mutations so the local signal store can insert, remove, or
   reorder cached rows without invalidating the complete cursor-paginated list;
@@ -459,6 +463,13 @@ Exit criteria:
 
 Goal: make the system operable across regions and auditable at contractual
 scale.
+
+Status: the first fraud-review foundation is implemented as a
+registry-signed, hash-linked anomaly/case rail with local flag/clear/list/show
+CLI commands, typed existing-subject checks, and same-transaction query rows.
+It records observations only and deliberately does not infer suspension,
+eligibility, payout, or legal-exit decisions. The remaining deliverables below
+are still open unless an earlier milestone explicitly implements them.
 
 Deliverables:
 

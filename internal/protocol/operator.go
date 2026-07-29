@@ -24,12 +24,15 @@ const (
 	OperatorClaimStateClaimed       = "claimed"
 	OperatorClaimStatePendingReview = "pending-review"
 	OperatorClaimStateApproved      = "approved"
+	OperatorClaimStateRejected      = "rejected"
 	OperatorClaimStateWithdrawn     = "withdrawn"
 
 	OperatorClaimReviewApproved = "approved"
+	OperatorClaimReviewRejected = "rejected"
 
 	OperatorVerificationStatusPendingReview = "PENDING_REVIEW"
 	OperatorVerificationStatusApproved      = "APPROVED"
+	OperatorVerificationStatusRejected      = "REJECTED"
 	OperatorVerificationStatusWithdrawn     = "WITHDRAWN"
 
 	LeaderboardFormulaVersion = "six-complete-month-average-v1"
@@ -129,6 +132,7 @@ type OperatorClaimReviewReceipt struct {
 	Decision           string `json:"decision"`
 	ReviewerID         string `json:"reviewer_id"`
 	ReviewReference    string `json:"review_reference"`
+	ReasonCode         string `json:"reason_code,omitempty"`
 	IdempotencyKey     string `json:"idempotency_key"`
 	ReviewedAt         string `json:"reviewed_at"`
 	PreviousReviewHash string `json:"previous_review_hash"`
@@ -232,6 +236,22 @@ type LeaderboardDeploymentPageDto struct {
 	GroupID    string                     `json:"group_id"`
 	Items      []LeaderboardDeploymentDto `json:"items"`
 	NextCursor string                     `json:"next_cursor,omitempty"`
+}
+
+func IsOperatorClaimReviewReasonCode(value string) bool {
+	if len(value) < 3 || len(value) > 64 ||
+		value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	for _, character := range []byte(value[1:]) {
+		if (character >= 'a' && character <= 'z') ||
+			(character >= '0' && character <= '9') ||
+			character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func OperatorActionPayload(
@@ -433,6 +453,26 @@ func OperatorClaimPrivateRecordMessage(
 }
 
 func OperatorClaimReviewHashMessage(receipt OperatorClaimReviewReceipt) []byte {
+	if receipt.ReasonCode != "" {
+		return canonical(
+			"myscoutee-registry-operator-claim-review-v2",
+			strconv.FormatInt(receipt.ReviewIndex, 10),
+			receipt.ReviewID,
+			receipt.DeploymentID,
+			receipt.ClaimActionID,
+			receipt.GroupID,
+			receipt.LegalName,
+			receipt.Decision,
+			receipt.ReviewerID,
+			receipt.ReviewReference,
+			receipt.ReasonCode,
+			receipt.IdempotencyKey,
+			receipt.ReviewedAt,
+			receipt.PreviousReviewHash,
+			receipt.RegistryScope,
+			receipt.RegistryKeyID,
+		)
+	}
 	return canonical(
 		"myscoutee-registry-operator-claim-review-v1",
 		strconv.FormatInt(receipt.ReviewIndex, 10),

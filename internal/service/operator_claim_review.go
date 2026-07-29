@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -16,6 +17,12 @@ const (
 	maxOperatorClaimListLimit     = 200
 )
 
+var (
+	operatorClaimReviewAuditIDPattern = regexp.MustCompile(
+		`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,239}$`,
+	)
+)
+
 type OperatorClaimApproval struct {
 	DeploymentID    string
 	ClaimActionID   string
@@ -26,38 +33,115 @@ type OperatorClaimApproval struct {
 	IdempotencyKey  string
 }
 
+type OperatorClaimRejection struct {
+	DeploymentID    string
+	ClaimActionID   string
+	GroupID         string
+	LegalName       string
+	ReviewerID      string
+	ReviewReference string
+	ReasonCode      string
+	IdempotencyKey  string
+}
+
 func (registry *Service) ApproveOperatorClaim(
 	ctx context.Context,
 	approval OperatorClaimApproval,
 ) (protocol.OperatorClaimReviewResult, error) {
-	if !deploymentIDPattern.MatchString(approval.DeploymentID) {
+	return registry.decideOperatorClaim(ctx, store.OperatorClaimReviewInput{
+		DeploymentID:    approval.DeploymentID,
+		ClaimActionID:   approval.ClaimActionID,
+		GroupID:         approval.GroupID,
+		LegalName:       approval.LegalName,
+		Decision:        protocol.OperatorClaimReviewApproved,
+		ReviewerID:      approval.ReviewerID,
+		ReviewReference: approval.ReviewReference,
+		IdempotencyKey:  approval.IdempotencyKey,
+	})
+}
+
+func (registry *Service) RejectOperatorClaim(
+	ctx context.Context,
+	rejection OperatorClaimRejection,
+) (protocol.OperatorClaimReviewResult, error) {
+	return registry.decideOperatorClaim(ctx, store.OperatorClaimReviewInput{
+		DeploymentID:    rejection.DeploymentID,
+		ClaimActionID:   rejection.ClaimActionID,
+		GroupID:         rejection.GroupID,
+		LegalName:       rejection.LegalName,
+		Decision:        protocol.OperatorClaimReviewRejected,
+		ReviewerID:      rejection.ReviewerID,
+		ReviewReference: rejection.ReviewReference,
+		ReasonCode:      rejection.ReasonCode,
+		IdempotencyKey:  rejection.IdempotencyKey,
+	})
+}
+
+func (registry *Service) decideOperatorClaim(
+	ctx context.Context,
+	input store.OperatorClaimReviewInput,
+) (protocol.OperatorClaimReviewResult, error) {
+	if !deploymentIDPattern.MatchString(input.DeploymentID) {
 		return protocol.OperatorClaimReviewResult{}, fmt.Errorf("deployment_id is malformed")
 	}
-	if !operatorActionIDPattern.MatchString(approval.ClaimActionID) {
+	if !operatorActionIDPattern.MatchString(input.ClaimActionID) {
 		return protocol.OperatorClaimReviewResult{}, fmt.Errorf("claim_action_id is malformed")
 	}
-	if !operatorGroupIDPattern.MatchString(approval.GroupID) {
+	if !operatorGroupIDPattern.MatchString(input.GroupID) {
 		return protocol.OperatorClaimReviewResult{}, fmt.Errorf("group_id is malformed")
 	}
-	if err := validateClaimText("legal_name", approval.LegalName, 160); err != nil {
+	if err := validateClaimText("legal_name", input.LegalName, 160); err != nil {
 		return protocol.OperatorClaimReviewResult{}, err
 	}
-	if err := validateClaimText("reviewer_id", approval.ReviewerID, 120); err != nil {
+	if err := validateClaimText("reviewer_id", input.ReviewerID, 120); err != nil {
 		return protocol.OperatorClaimReviewResult{}, err
 	}
 	if err := validateClaimText(
 		"review_reference",
-		approval.ReviewReference,
+		input.ReviewReference,
 		240,
 	); err != nil {
 		return protocol.OperatorClaimReviewResult{}, err
 	}
-	if err := validateToken("idempotency_key", approval.IdempotencyKey); err != nil {
+	switch input.Decision {
+	case protocol.OperatorClaimReviewApproved:
+		if input.ReasonCode != "" {
+			return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
+				"reason_code must be empty for approval",
+			)
+		}
+	case protocol.OperatorClaimReviewRejected:
+		if !operatorClaimReviewAuditIDPattern.MatchString(input.ReviewerID) {
+			return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
+				"reviewer_id must be a non-personal audit identifier",
+			)
+		}
+		if !operatorClaimReviewAuditIDPattern.MatchString(input.ReviewReference) {
+			return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
+				"review_reference must be a non-personal audit reference",
+			)
+		}
+		if !protocol.IsOperatorClaimReviewReasonCode(input.ReasonCode) {
+			return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
+				"reason_code must be a 3-64 character lowercase token",
+			)
+		}
+	default:
+		return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
+			"operator claim review decision is invalid",
+		)
+	}
+	if err := validateToken("idempotency_key", input.IdempotencyKey); err != nil {
 		return protocol.OperatorClaimReviewResult{}, err
+	}
+	decisionNoun := "approval"
+	if input.Decision == protocol.OperatorClaimReviewRejected {
+		decisionNoun = "rejection"
 	}
 	if err := registry.verifyOperationalState(ctx); err != nil {
 		return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
-			"registry integrity verification failed before claim approval: %w",
+			"registry integrity verification failed before claim %s: %w",
+			decisionNoun,
 			err,
 		)
 	}
@@ -68,21 +152,13 @@ func (registry *Service) ApproveOperatorClaim(
 			err,
 		)
 	}
-	review, duplicate, err := registry.store.ApproveOperatorClaim(
+	input.RegistryScope = registry.registryScope
+	input.CandidateReviewID = reviewID
+	input.ReviewedAt = registry.canonicalNow().Format(time.RFC3339)
+	input.RegistryKeyID = registry.signingKey.KeyID()
+	review, duplicate, err := registry.store.DecideOperatorClaim(
 		ctx,
-		store.OperatorClaimReviewInput{
-			RegistryScope:     registry.registryScope,
-			DeploymentID:      approval.DeploymentID,
-			ClaimActionID:     approval.ClaimActionID,
-			GroupID:           approval.GroupID,
-			LegalName:         approval.LegalName,
-			ReviewerID:        approval.ReviewerID,
-			ReviewReference:   approval.ReviewReference,
-			IdempotencyKey:    approval.IdempotencyKey,
-			CandidateReviewID: reviewID,
-			ReviewedAt:        registry.canonicalNow().Format(time.RFC3339),
-			RegistryKeyID:     registry.signingKey.KeyID(),
-		},
+		input,
 		func(review store.OperatorClaimReview) ([]byte, error) {
 			receipt := registry.operatorClaimReviewReceipt(review)
 			return registry.signingKey.Sign(
@@ -99,7 +175,8 @@ func (registry *Service) ApproveOperatorClaim(
 			)
 		case errors.Is(err, store.ErrOperatorClaimStale):
 			return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
-				"approval target is stale; run show-operator-claim and copy the current identifiers: %w",
+				"%s target is stale; run show-operator-claim and copy the current identifiers: %w",
+				decisionNoun,
 				err,
 			)
 		case errors.Is(err, store.ErrOperatorClaimAlreadyReviewed):
@@ -118,7 +195,8 @@ func (registry *Service) ApproveOperatorClaim(
 	}
 	if err := registry.VerifyState(ctx); err != nil {
 		return protocol.OperatorClaimReviewResult{}, fmt.Errorf(
-			"verify registry after claim approval: %w",
+			"verify registry after claim %s: %w",
+			decisionNoun,
 			err,
 		)
 	}
@@ -264,6 +342,7 @@ func (registry *Service) operatorClaimReviewReceipt(
 		Decision:           review.Decision,
 		ReviewerID:         review.ReviewerID,
 		ReviewReference:    review.ReviewReference,
+		ReasonCode:         review.ReasonCode,
 		IdempotencyKey:     review.IdempotencyKey,
 		ReviewedAt:         review.ReviewedAt,
 		PreviousReviewHash: review.PreviousReviewHash,
@@ -320,11 +399,13 @@ func operatorVerificationState(value string, fromPublic bool) (string, error) {
 			return protocol.OperatorClaimStatePendingReview, nil
 		case protocol.OperatorVerificationStatusApproved:
 			return protocol.OperatorClaimStateApproved, nil
+		case protocol.OperatorVerificationStatusRejected:
+			return protocol.OperatorClaimStateRejected, nil
 		case protocol.OperatorVerificationStatusWithdrawn:
 			return protocol.OperatorClaimStateWithdrawn, nil
 		default:
 			return "", fmt.Errorf(
-				"status must be PENDING_REVIEW, APPROVED, or WITHDRAWN",
+				"status must be PENDING_REVIEW, APPROVED, REJECTED, or WITHDRAWN",
 			)
 		}
 	}
@@ -333,6 +414,8 @@ func operatorVerificationState(value string, fromPublic bool) (string, error) {
 		return protocol.OperatorVerificationStatusPendingReview, nil
 	case protocol.OperatorClaimStateApproved:
 		return protocol.OperatorVerificationStatusApproved, nil
+	case protocol.OperatorClaimStateRejected:
+		return protocol.OperatorVerificationStatusRejected, nil
 	case protocol.OperatorClaimStateWithdrawn:
 		return protocol.OperatorVerificationStatusWithdrawn, nil
 	default:

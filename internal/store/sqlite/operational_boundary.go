@@ -95,7 +95,7 @@ func (sqliteStore *Store) VerifyOperationalBoundary(
 func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 	ctx context.Context,
 ) error {
-	const expectedTriggers = 36
+	const expectedTriggers = 38
 	var triggerCount int
 	if err := sqliteStore.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -136,6 +136,8 @@ func (sqliteStore *Store) verifyAppendOnlyTriggerBoundary(
 			'revenue_query_rows_no_delete',
 			'ledger_merkle_nodes_no_update',
 			'ledger_merkle_nodes_no_delete',
+			'registry_case_events_no_update',
+			'registry_case_events_no_delete',
 			'demo_seed_metadata_guard_update',
 			'demo_seed_metadata_no_delete'
 		  )`).Scan(&triggerCount); err != nil {
@@ -702,6 +704,7 @@ func (sqliteStore *Store) verifyClaimReviewBoundary(
 			decision,
 			reviewer_id,
 			review_reference,
+			reason_code,
 			idempotency_key,
 			reviewed_at,
 			previous_review_hash,
@@ -730,10 +733,14 @@ func (sqliteStore *Store) verifyClaimReviewBoundary(
 		return nil
 	}
 	head := reviews[0]
+	validDecision := (head.Decision == protocol.OperatorClaimReviewApproved &&
+		head.ReasonCode == "") ||
+		(head.Decision == protocol.OperatorClaimReviewRejected &&
+			protocol.IsOperatorClaimReviewReasonCode(head.ReasonCode))
 	if head.ReviewIndex < 1 ||
 		!validHexID(head.ReviewID, "opr_", 32) ||
 		head.RegistryKeyID != registryKeyID ||
-		head.Decision != protocol.OperatorClaimReviewApproved ||
+		!validDecision ||
 		!validPersistedTimestamp(head.ReviewedAt) {
 		return inconsistentMessage("operational claim-review head has invalid metadata")
 	}

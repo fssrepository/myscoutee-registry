@@ -337,7 +337,8 @@ func verifiedApprovedOperatorSource(
 		return store.OperatorClaimSubmission{}, false, state.Claimed
 	}
 	review, approved := reviews[state.ClaimActionID]
-	if !approved {
+	if !approved ||
+		review.Decision != protocol.OperatorClaimReviewApproved {
 		return submission, false, false
 	}
 	reviewedAt, reviewErr := time.Parse(time.RFC3339Nano, review.ReviewedAt)
@@ -393,6 +394,7 @@ func (sqliteStore *Store) verifiedOperatorClaimReviewRows(
 			decision,
 			reviewer_id,
 			review_reference,
+			reason_code,
 			idempotency_key,
 			reviewed_at,
 			previous_review_hash,
@@ -417,10 +419,14 @@ func (sqliteStore *Store) verifiedOperatorClaimReviewRows(
 		}
 		action, actionExists := actions[review.ClaimActionID]
 		submission, submissionExists := submissions[review.ClaimActionID]
+		validDecision := (review.Decision == protocol.OperatorClaimReviewApproved &&
+			review.ReasonCode == "") ||
+			(review.Decision == protocol.OperatorClaimReviewRejected &&
+				protocol.IsOperatorClaimReviewReasonCode(review.ReasonCode))
 		if review.ReviewIndex != expectedIndex ||
 			!validHexID(review.ReviewID, "opr_", 32) ||
 			review.PreviousReviewHash != previousHash ||
-			review.Decision != protocol.OperatorClaimReviewApproved ||
+			!validDecision ||
 			review.RegistryKeyID != registryKeyID ||
 			!actionExists ||
 			!submissionExists ||
@@ -542,14 +548,21 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 		}
 	}
 	for deploymentID, status := range expected {
-		review, approved := reviews[status.ClaimActionID]
-		if approved {
+		review, reviewed := reviews[status.ClaimActionID]
+		if reviewed {
 			status.ReviewID = review.ReviewID
 			status.ReviewIndex = review.ReviewIndex
 			status.ReviewHash = review.ReviewHash
-			status.ApprovedAt = review.ReviewedAt
+			if review.Decision == protocol.OperatorClaimReviewApproved {
+				status.ApprovedAt = review.ReviewedAt
+			}
 			if status.VerificationState == protocol.OperatorClaimStatePendingReview {
-				status.VerificationState = protocol.OperatorClaimStateApproved
+				switch review.Decision {
+				case protocol.OperatorClaimReviewApproved:
+					status.VerificationState = protocol.OperatorClaimStateApproved
+				case protocol.OperatorClaimReviewRejected:
+					status.VerificationState = protocol.OperatorClaimStateRejected
+				}
 				status.UpdatedAt = review.ReviewedAt
 			}
 			expected[deploymentID] = status

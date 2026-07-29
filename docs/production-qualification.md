@@ -15,6 +15,32 @@ go build -trimpath -o /tmp/myscoutee-registry ./cmd/registry
 docker build -t myscoutee-registry:qualification .
 ```
 
+With the Java backend repository checked out beside this repository, run the
+real cross-language rail gate separately:
+
+```bash
+./scripts/qualify-java-rails.sh
+```
+
+Set `MYSCOUTEE_BACKEND_ROOT` when the repositories are not siblings. The runner
+builds the current Go command, starts it on loopback with disposable SQLite and
+signing-key paths, and runs only
+`OperatorGoRegistryRailQualificationTest`. The Java test uses disposable
+embedded Mongo for the real outbox repositories. It does not start Docker, the
+Java application, Redis, the frontend, or a development stack.
+
+This gate proves, with Java-generated Ed25519 requests consumed by the Go HTTP
+server:
+
+- accepted QMAU and revenue delivery with Go-signed receipts;
+- response loss after Go acceptance, durable Java outbox recovery through a
+  new service/repository instance, and exact idempotent retry;
+- the same recovery after restarting the Go process over its original SQLite
+  database and signing key;
+- duplicate receipts, QMAU and revenue correction/supersession revisions, Go
+  rejection of invalid Java request signatures, and Java rejection of a
+  tampered Go receipt signature.
+
 The test suite uses real temporary SQLite databases, real Ed25519 keys, and
 in-process HTTP servers. The relevant release gates cover:
 
@@ -95,8 +121,9 @@ The following require the actual candidate Java package, Go image, installer,
 host storage, TLS endpoint, and supported upgrade sources. They cannot be
 truthfully marked complete by this repository alone:
 
-1. Java-to-Go canonical QMAU/revenue/signature compatibility against the exact
-   release artifacts.
+1. Re-run the Java-to-Go QMAU/revenue/signature rail gate against the exact
+   release artifacts, rather than only the source-built Go command and Java
+   test runtime used by the automated gate.
 2. Install, restart, power-loss, registry-outage, and retry drills on every
    supported deployment topology.
 3. Online SQLite backup or storage-snapshot restore with the matching signing

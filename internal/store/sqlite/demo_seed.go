@@ -30,6 +30,8 @@ type DemoSeedExpectedState struct {
 	ClaimReviews         int64
 	ClaimStatuses        int64
 	Announcements        int64
+	RegistryCaseEvents   int64
+	RegistryCases        int64
 }
 
 type demoSeedMarker struct {
@@ -236,7 +238,9 @@ func demoDomainRecordCount(ctx context.Context, tx *sql.Tx) (int64, error) {
 			(SELECT COUNT(*) FROM operator_claim_verification_submissions) +
 			(SELECT COUNT(*) FROM operator_claim_reviews) +
 			(SELECT COUNT(*) FROM operator_claim_status) +
-			(SELECT COUNT(*) FROM announcements)`).Scan(&count); err != nil {
+			(SELECT COUNT(*) FROM announcements) +
+			(SELECT COUNT(*) FROM registry_case_events) +
+			(SELECT COUNT(*) FROM registry_cases)`).Scan(&count); err != nil {
 		return 0, fmt.Errorf("inspect demo seed target database: %w", err)
 	}
 	return count, nil
@@ -265,7 +269,9 @@ func readDemoSeedExpectedState(
 			(SELECT COUNT(*) FROM operator_claim_verification_submissions),
 			(SELECT COUNT(*) FROM operator_claim_reviews),
 			(SELECT COUNT(*) FROM operator_claim_status),
-			(SELECT COUNT(*) FROM announcements)`).Scan(
+			(SELECT COUNT(*) FROM announcements),
+			(SELECT COUNT(*) FROM registry_case_events),
+			(SELECT COUNT(*) FROM registry_cases)`).Scan(
 		&state.Deployments,
 		&state.UsedNonces,
 		&state.IdempotencyRecords,
@@ -283,6 +289,8 @@ func readDemoSeedExpectedState(
 		&state.ClaimReviews,
 		&state.ClaimStatuses,
 		&state.Announcements,
+		&state.RegistryCaseEvents,
+		&state.RegistryCases,
 	); err != nil {
 		return DemoSeedExpectedState{}, fmt.Errorf(
 			"inspect completed demo seed state: %w",

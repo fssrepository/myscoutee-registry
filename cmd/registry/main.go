@@ -44,6 +44,16 @@ func main() {
 		err = runShowOperatorClaim(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "approve-operator-claim" {
 		err = runApproveOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "reject-operator-claim" {
+		err = runRejectOperatorClaim(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "list-registry-cases" {
+		err = runListRegistryCases(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "show-registry-case" {
+		err = runShowRegistryCase(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "flag-registry-case" {
+		err = runFlagRegistryCase(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "clear-registry-case" {
+		err = runClearRegistryCase(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "leaderboard" {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
@@ -58,7 +68,7 @@ func main() {
 		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|leaderboard|revenue|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
+			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|leaderboard|revenue|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {
@@ -148,7 +158,7 @@ func runListOperatorClaims(args []string, stdout io.Writer) error {
 	status := flags.String(
 		"status",
 		"PENDING_REVIEW",
-		"PENDING_REVIEW, APPROVED, or WITHDRAWN",
+		"PENDING_REVIEW, APPROVED, REJECTED, or WITHDRAWN",
 	)
 	limit := flags.Int("limit", 50, "number of summary rows (1-200)")
 	afterDeploymentID := flags.String(

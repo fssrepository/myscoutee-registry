@@ -121,6 +121,7 @@ scope, and registry key. Status is one of:
 
 - `PENDING_REVIEW`
 - `APPROVED`
+- `REJECTED`
 - `WITHDRAWN`
 
 Pending response example:
@@ -147,26 +148,28 @@ Pending response example:
 ```
 
 The mutable current-status row is written in the same transaction as claim,
-withdrawal, deployment deactivation, or approval. Reads query that row
+withdrawal, deployment deactivation, approval, or rejection. Reads query that row
 directly. Integrity verification independently reconstructs the expected value
 from signed append-only sources and rejects a mismatch; it does not serve or
 repair reconstructed state.
 
-Approval changes the current status receipt and appends the immutable,
-hash-linked review record. The provisional group membership already exists, so
-approval does not append an operator-network action. A fresh leaderboard
+Approval or rejection changes the current status receipt and appends one
+immutable, hash-linked review record for the exact pending claim. The provisional
+group membership already exists, so a review decision does not append an
+operator-network action. A fresh leaderboard
 snapshot captures the review-chain head as a third internal boundary alongside
 the audit and ledger heads; an existing signed cursor remains pinned to its
 earlier review boundary.
 
 Leaderboard presentation selects an active, currently claimed group profile
-and derives approval only from an immutable review of that exact claim action
-at or before the captured review boundary. It does not read mutable current
-claim status. Structured profiles therefore expose `pending-review` or
-`approved`; legacy profiles retain their signed `claimed` state. A pending
-profile remains visible with its measured weight, but it has zero eligible
-sort/allocation weight and zero share. Approval makes that exact claim boundary
-eligible without changing its immutable measured ledger rows.
+and derives the decision only from an immutable review of that exact claim
+action at or before the captured review boundary. It does not read mutable
+current claim status. Structured profiles therefore expose `pending-review`,
+`approved`, or `rejected`; legacy profiles retain their signed `claimed` state.
+A pending or rejected profile remains visible with its measured weight, but it
+has zero eligible sort/allocation weight and zero share. Approval makes that
+exact claim boundary eligible without changing its immutable measured ledger
+rows.
 
 ## Other signed operator actions
 
@@ -337,7 +340,7 @@ docker compose exec -T registry \
   --after-deployment-id dep_fedcba9876543210fedcba9876543210
 ```
 
-`--status` accepts `PENDING_REVIEW`, `APPROVED`, or `WITHDRAWN`. List output
+`--status` accepts `PENDING_REVIEW`, `APPROVED`, `REJECTED`, or `WITHDRAWN`. List output
 never includes the private address or contact.
 
 Inspect one private submission only in an access-controlled terminal:
@@ -416,6 +419,35 @@ new submission instead.
 audit identifiers. Local registry CLI access is the approval authority. The
 registry signature proves what that authority recorded; it does not prove a
 separate person's identity.
+
+Reject the same optimistic-lock boundary with bounded, non-personal audit
+identifiers and a machine-readable reason code:
+
+```bash
+docker compose exec -T registry \
+  /registry reject-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --reviewer-id network-review-team \
+  --review-reference case:2026-0043 \
+  --reason-code identity-not-verified \
+  --idempotency-key reject-example-2026-0043
+```
+
+Rejection appends to the same signed review chain and changes only that pending
+claim generation to `REJECTED`. The receipt commits to `decision: rejected` and
+`reason_code`; the status receipt commits to the review index/hash without
+publishing the private claim submission. `reason_code` is a 3–64 character
+lowercase token. Do not place names, email addresses, notes, evidence bodies, or
+other personal data in the reviewer, reference, or reason fields.
+
+A rejected claim is not share-eligible. Rejection does not suspend or
+deactivate the deployment, withdraw the claim, rewrite measured history, or
+make any payout, dispute, ownership, or exit-eligibility decision. A later
+submission is a new signed claim generation and returns to `PENDING_REVIEW`;
+the rejected review remains immutable.
 
 CLI exit behavior:
 
