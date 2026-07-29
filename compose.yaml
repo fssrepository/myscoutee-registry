@@ -1,25 +1,27 @@
 services:
-  # This service starts without fake announcements. The local binary's
-  # publish-announcement command appends reviewed JSON to this persistent WAL
-  # database while the HTTP process remains running.
+  # This is the isolated server-backed Explore/demo registry. start-demo is
+  # fail-closed, requires the explicit guard and demo scope/path names, and
+  # creates its baseline only through the normal signed service methods.
   registry:
     build:
       context: .
     image: ${LOCAL_REGISTRY_IMAGE:-myscoutee-registry:1.0.0-dev}
     restart: unless-stopped
+    command: ["start-demo"]
     ports:
       - "${REGISTRY_BIND_ADDRESS:-127.0.0.1}:${REGISTRY_PORT:-8081}:8080"
     environment:
       REGISTRY_LISTEN_ADDR: ":8080"
-      REGISTRY_SCOPE: "${REGISTRY_SCOPE:?set an explicit registry scope}"
-      REGISTRY_DATABASE_PATH: "/data/registry.db"
-      REGISTRY_SIGNING_KEY_PATH: "/data/registry-signing-key.pem"
+      REGISTRY_SCOPE: "${REGISTRY_SCOPE:-demo:myscoutee}"
+      REGISTRY_DATABASE_PATH: "/data/registry-demo.db"
+      REGISTRY_SIGNING_KEY_PATH: "/data/registry-demo-signing-key.pem"
       REGISTRY_GENERATE_SIGNING_KEY: "${REGISTRY_GENERATE_SIGNING_KEY:-true}"
+      REGISTRY_DEMO_SEED: "true"
       REGISTRY_TIMESTAMP_SKEW: "${REGISTRY_TIMESTAMP_SKEW:-5m}"
       REGISTRY_CHECKPOINT_INTERVAL: "${REGISTRY_CHECKPOINT_INTERVAL:-1m}"
       REGISTRY_HEALTHCHECK_URL: "http://127.0.0.1:8080/healthz"
     volumes:
-      - registry-data:/data
+      - registry-demo-data:/data
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -30,4 +32,4 @@ services:
     stop_grace_period: 15s
 
 volumes:
-  registry-data:
+  registry-demo-data:

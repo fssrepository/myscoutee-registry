@@ -281,7 +281,7 @@ func operatorClaimReviewHeadTx(
 
 func operatorClaimReviewHeadQuery(
 	ctx context.Context,
-	queryer operatorAuditQueryer,
+	queryer operatorActionQuerier,
 ) (store.OperatorClaimReview, error) {
 	review, err := scanOperatorClaimReview(queryer.QueryRowContext(ctx, `
 		SELECT

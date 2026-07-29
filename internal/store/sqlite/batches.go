@@ -64,6 +64,9 @@ func (sqliteStore *Store) AcceptInstallationBatch(
 	if err := ensureAcceptedAtAfterCheckpoint(ctx, tx, input.AcceptedAt); err != nil {
 		return store.BatchRecord{}, false, err
 	}
+	if err := ensureQualifiedMAURevision(ctx, tx, input); err != nil {
+		return store.BatchRecord{}, false, err
+	}
 
 	head, err := ledgerHeadTx(ctx, tx)
 	if err != nil {
@@ -72,11 +75,15 @@ func (sqliteStore *Store) AcceptInstallationBatch(
 	if err := ensureAcceptedAtNotBeforeHead(input.AcceptedAt, head.AcceptedAt); err != nil {
 		return store.BatchRecord{}, false, err
 	}
+	entryType := protocol.InstallationEntryType
+	if input.Kind == protocol.QualifiedMAUKind {
+		entryType = protocol.QualifiedMAUEntryType
+	}
 	entry := protocol.LedgerEntry{
 		ProtocolVersion:   protocol.Version,
 		RegistryScope:     input.RegistryScope,
 		LedgerIndex:       head.LedgerIndex + 1,
-		EntryType:         protocol.InstallationEntryType,
+		EntryType:         entryType,
 		DeploymentID:      input.DeploymentID,
 		BatchID:           input.CandidateBatchID,
 		Kind:              input.Kind,
@@ -128,21 +135,26 @@ func (sqliteStore *Store) AcceptInstallationBatch(
 	if err != nil {
 		return store.BatchRecord{}, false, fmt.Errorf("append ledger entry: %w", err)
 	}
+	if err := appendMerkleEntryTx(ctx, tx, entry.LedgerIndex, entry.EntryHash); err != nil {
+		return store.BatchRecord{}, false, err
+	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO ledger_weight_rows (
 			ledger_index,
 			deployment_id,
 			period,
+			revision,
 			ruleset_version,
 			qualified_mau_count,
 			weight_numerator,
 			weight_denominator,
 			accepted_at,
 			source_entry_hash
-		) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
 		entry.LedgerIndex,
 		entry.DeploymentID,
 		entry.Period,
+		input.Revision,
 		entry.RulesetVersion,
 		entry.QualifiedMAUCount,
 		entry.QualifiedMAUCount,
@@ -168,11 +180,13 @@ func (sqliteStore *Store) AcceptInstallationBatch(
 			ruleset_version,
 			qualified_mau_count,
 			commitment_hash,
+			revision,
+			supersedes_batch_id,
 			payload_hash,
 			accepted_at,
 			ledger_index,
 			receipt_signature
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		input.CandidateBatchID,
 		input.DeploymentID,
 		input.IdempotencyKey,
@@ -184,6 +198,8 @@ func (sqliteStore *Store) AcceptInstallationBatch(
 		input.RulesetVersion,
 		input.QualifiedMAUCount,
 		input.CommitmentHash,
+		input.Revision,
+		input.SupersedesBatchID,
 		input.PayloadHash,
 		input.AcceptedAt,
 		entry.LedgerIndex,
@@ -224,11 +240,51 @@ func (sqliteStore *Store) AcceptInstallationBatch(
 		RulesetVersion:    input.RulesetVersion,
 		QualifiedMAUCount: input.QualifiedMAUCount,
 		CommitmentHash:    input.CommitmentHash,
+		Revision:          input.Revision,
+		SupersedesBatchID: input.SupersedesBatchID,
 		PayloadHash:       input.PayloadHash,
 		AcceptedAt:        input.AcceptedAt,
 		LedgerEntry:       entry,
 		ReceiptSignature:  append([]byte(nil), receiptSignature...),
 	}, false, nil
+}
+
+func ensureQualifiedMAURevision(
+	ctx context.Context,
+	tx *sql.Tx,
+	input store.BatchInput,
+) error {
+	if input.Kind != protocol.QualifiedMAUKind {
+		return nil
+	}
+	var latestBatchID string
+	var latestRevision int64
+	err := tx.QueryRowContext(ctx, `
+		SELECT batch_id, revision
+		FROM mau_batches
+		WHERE deployment_id = ?
+		  AND period = ?
+		  AND kind = ?
+		ORDER BY revision DESC
+		LIMIT 1`,
+		input.DeploymentID,
+		input.Period,
+		protocol.QualifiedMAUKind,
+	).Scan(&latestBatchID, &latestRevision)
+	if errors.Is(err, sql.ErrNoRows) {
+		if input.Revision != 1 || input.SupersedesBatchID != "" {
+			return store.ErrQualifiedMAURevisionConflict
+		}
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read current QMAU revision: %w", err)
+	}
+	if input.Revision != latestRevision+1 ||
+		input.SupersedesBatchID != latestBatchID {
+		return store.ErrQualifiedMAURevisionConflict
+	}
+	return nil
 }
 
 func batchNonce(input store.BatchInput, batchID string) acceptedNonce {
@@ -344,6 +400,8 @@ func batchRecordByIDQuery(
 			b.ruleset_version,
 			b.qualified_mau_count,
 			b.commitment_hash,
+			b.revision,
+			b.supersedes_batch_id,
 			b.payload_hash,
 			b.accepted_at,
 			b.receipt_signature,
@@ -370,6 +428,8 @@ func batchRecordByIDQuery(
 		&record.RulesetVersion,
 		&record.QualifiedMAUCount,
 		&record.CommitmentHash,
+		&record.Revision,
+		&record.SupersedesBatchID,
 		&record.PayloadHash,
 		&record.AcceptedAt,
 		&record.ReceiptSignature,

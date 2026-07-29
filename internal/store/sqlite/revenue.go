@@ -168,6 +168,9 @@ func (sqliteStore *Store) AcceptRevenueBatch(
 			err,
 		)
 	}
+	if err := appendMerkleEntryTx(ctx, tx, entry.LedgerIndex, entry.EntryHash); err != nil {
+		return store.RevenueBatchRecord{}, false, err
+	}
 
 	var supersedes any
 	if input.SupersedesBatchID != "" {

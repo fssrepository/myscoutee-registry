@@ -19,12 +19,14 @@ import (
 )
 
 const (
-	receiptPathPrefix          = "/v1/mau/batches/"
-	receiptPathSuffix          = "/receipt"
-	revenueReceiptPathPrefix   = "/v1/revenue/batches/"
-	checkpointPathPrefix       = "/v1/ledger/checkpoints/"
-	leaderboardGroupPathPrefix = "/v1/leaderboard/groups/"
-	leaderboardGroupPathSuffix = "/deployments"
+	receiptPathPrefix           = "/v1/mau/batches/"
+	receiptPathSuffix           = "/receipt"
+	revenueReceiptPathPrefix    = "/v1/revenue/batches/"
+	checkpointPathPrefix        = "/v1/ledger/checkpoints/"
+	merkleInclusionPathPrefix   = "/v1/ledger/merkle/inclusion/"
+	merkleConsistencyPathPrefix = "/v1/ledger/merkle/consistency/"
+	leaderboardGroupPathPrefix  = "/v1/leaderboard/groups/"
+	leaderboardGroupPathSuffix  = "/deployments"
 )
 
 type Options struct {
@@ -155,6 +157,14 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	case strings.HasPrefix(request.URL.Path, checkpointPathPrefix):
 		if requireMethod(response, request, http.MethodGet) {
 			api.checkpoint(response, request)
+		}
+	case strings.HasPrefix(request.URL.Path, merkleInclusionPathPrefix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.merkleInclusion(response, request)
+		}
+	case strings.HasPrefix(request.URL.Path, merkleConsistencyPathPrefix):
+		if requireMethod(response, request, http.MethodGet) {
+			api.merkleConsistency(response, request)
 		}
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
@@ -518,6 +528,68 @@ func (api *API) checkpoint(response http.ResponseWriter, request *http.Request) 
 	writeJSON(response, http.StatusOK, result)
 }
 
+func (api *API) merkleInclusion(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	treeSize, ledgerIndex, ok := parseTwoCanonicalInt64PathValues(
+		strings.TrimPrefix(request.URL.Path, merkleInclusionPathPrefix),
+	)
+	if !ok || treeSize < 0 || ledgerIndex < 1 {
+		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
+		return
+	}
+	result, err := api.service.MerkleInclusionProof(
+		request.Context(),
+		ledgerIndex,
+		treeSize,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func (api *API) merkleConsistency(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	oldTreeSize, newTreeSize, ok := parseTwoCanonicalInt64PathValues(
+		strings.TrimPrefix(request.URL.Path, merkleConsistencyPathPrefix),
+	)
+	if !ok || oldTreeSize < 0 || newTreeSize < 0 {
+		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
+		return
+	}
+	result, err := api.service.MerkleConsistencyProof(
+		request.Context(),
+		oldTreeSize,
+		newTreeSize,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
+}
+
+func parseTwoCanonicalInt64PathValues(value string) (int64, int64, bool) {
+	left, right, ok := strings.Cut(value, "/")
+	if !ok || left == "" || right == "" || strings.Contains(right, "/") {
+		return 0, 0, false
+	}
+	first, err := strconv.ParseInt(left, 10, 64)
+	if err != nil || strconv.FormatInt(first, 10) != left {
+		return 0, 0, false
+	}
+	second, err := strconv.ParseInt(right, 10, 64)
+	if err != nil || strconv.FormatInt(second, 10) != right {
+		return 0, 0, false
+	}
+	return first, second, true
+}
+
 func (api *API) health(response http.ResponseWriter, request *http.Request) {
 	head, err := api.service.Health(request.Context())
 	if err != nil {
@@ -684,7 +756,8 @@ func requestErrorStatus(code string) int {
 		"revenue_receipt_not_found",
 		"checkpoint_not_found",
 		"operator_reference_not_found",
-		"operator_claim_not_found":
+		"operator_claim_not_found",
+		"merkle_proof_not_found":
 		return http.StatusNotFound
 	case "idempotency_conflict",
 		"replay_conflict",
@@ -698,6 +771,7 @@ func requestErrorStatus(code string) int {
 		"operator_action_conflict":
 		return http.StatusConflict
 	case "revenue_revision_conflict",
+		"qmau_revision_conflict",
 		"revenue_aggregate_overflow":
 		return http.StatusConflict
 	case "registry_clock_before_checkpoint",

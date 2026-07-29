@@ -1503,6 +1503,8 @@ func TestClientTokenApprovalCannotAuthorizePastIssue(t *testing.T) {
 		Action:          protocol.OperatorActionIssueClientToken,
 		TokenTTLSeconds: 300,
 	})
+	request.Timestamp = fixture.clock.Now().Format(time.RFC3339)
+	resignOperatorAction(t, issuer.privateKey, &request)
 	statusCode, body := jsonRequest(
 		t,
 		http.MethodPost,

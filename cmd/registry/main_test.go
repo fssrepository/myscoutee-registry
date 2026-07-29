@@ -51,6 +51,99 @@ func TestRevenueCLIHelpDoesNotRequireConfiguration(t *testing.T) {
 	}
 }
 
+func TestMerkleVerifierCLIsAcceptSignedProofsAndRejectTampering(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate Merkle CLI key: %v", err)
+	}
+	encodedPublicKey, publicKeyDER, err := protocol.EncodePublicKey(publicKey)
+	if err != nil {
+		t.Fatalf("encode Merkle CLI key: %v", err)
+	}
+	entryHash := protocol.Digest([]byte("cli-merkle-entry"))
+	leafHash, err := protocol.MerkleLeafHash(entryHash)
+	if err != nil {
+		t.Fatalf("hash Merkle CLI leaf: %v", err)
+	}
+	head := protocol.MerkleTreeHead{
+		ProtocolVersion:   protocol.Version,
+		RegistryScope:     "example:cli-merkle",
+		TreeSize:          1,
+		RootHash:          leafHash,
+		GeneratedAt:       "2026-07-29T00:00:00Z",
+		RegistryKeyID:     protocol.RegistryKeyID(publicKeyDER),
+		RegistryPublicKey: encodedPublicKey,
+	}
+	head.Signature = protocol.EncodeSignature(
+		ed25519.Sign(privateKey, protocol.MerkleTreeHeadMessage(head)),
+	)
+	inclusion := protocol.MerkleInclusionProof{
+		LedgerIndex:     1,
+		LedgerEntryHash: entryHash,
+		LeafHash:        leafHash,
+		AuditPath:       []string{},
+		TreeHead:        head,
+	}
+	encodedInclusion, err := json.Marshal(inclusion)
+	if err != nil {
+		t.Fatalf("encode Merkle CLI inclusion proof: %v", err)
+	}
+	var output bytes.Buffer
+	if err := runVerifyMerkleProof(
+		[]string{"--file", "-"},
+		bytes.NewReader(encodedInclusion),
+		&output,
+	); err != nil {
+		t.Fatalf("verify valid Merkle inclusion proof through CLI: %v", err)
+	}
+	var inclusionResult struct {
+		Valid bool `json:"valid"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &inclusionResult); err != nil ||
+		!inclusionResult.Valid {
+		t.Fatalf("unexpected inclusion verifier output: %s", output.String())
+	}
+
+	consistency := protocol.MerkleConsistencyProof{
+		OldTreeSize: 0,
+		OldRootHash: protocol.MerkleEmptyRoot(),
+		AuditPath:   []string{},
+		TreeHead:    head,
+	}
+	encodedConsistency, err := json.Marshal(consistency)
+	if err != nil {
+		t.Fatalf("encode Merkle CLI consistency proof: %v", err)
+	}
+	output.Reset()
+	if err := runVerifyMerkleConsistency(
+		[]string{"--file", "-"},
+		bytes.NewReader(encodedConsistency),
+		&output,
+	); err != nil {
+		t.Fatalf("verify valid Merkle consistency proof through CLI: %v", err)
+	}
+	var consistencyResult struct {
+		Valid bool `json:"valid"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &consistencyResult); err != nil ||
+		!consistencyResult.Valid {
+		t.Fatalf("unexpected consistency verifier output: %s", output.String())
+	}
+
+	inclusion.TreeHead.RootHash = protocol.Digest([]byte("tampered"))
+	encodedTampered, err := json.Marshal(inclusion)
+	if err != nil {
+		t.Fatalf("encode tampered Merkle CLI proof: %v", err)
+	}
+	if err := runVerifyMerkleProof(
+		[]string{"--file", "-"},
+		bytes.NewReader(encodedTampered),
+		&output,
+	); err == nil {
+		t.Fatal("Merkle verifier CLI accepted tampered proof")
+	}
+}
+
 func TestPublishAnnouncementCLIUsesStrictFileAndLiveSQLiteVolume(t *testing.T) {
 	directory := t.TempDir()
 	t.Setenv("REGISTRY_SCOPE", "example:cli-announcements")

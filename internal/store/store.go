@@ -29,6 +29,7 @@ var (
 	ErrAnnouncementConflict         = errors.New("announcement publication ID was already used with different contents")
 	ErrAnnouncementClockBeforeHead  = errors.New("accepted_at is before the current announcement head")
 	ErrRevenueRevisionConflict      = errors.New("revenue revision does not extend the current active batch")
+	ErrQualifiedMAURevisionConflict = errors.New("QMAU revision does not extend the current active snapshot")
 	ErrRevenueAggregateOverflow     = errors.New("revenue aggregate exceeds the supported signed integer range")
 )
 
@@ -87,6 +88,8 @@ type BatchInput struct {
 	RulesetVersion      string
 	QualifiedMAUCount   int64
 	CommitmentHash      string
+	Revision            int64
+	SupersedesBatchID   string
 	AcceptedAt          string
 	CheckpointDate      string
 }
@@ -100,6 +103,8 @@ type BatchRecord struct {
 	RulesetVersion    string
 	QualifiedMAUCount int64
 	CommitmentHash    string
+	Revision          int64
+	SupersedesBatchID string
 	PayloadHash       string
 	AcceptedAt        string
 	LedgerEntry       protocol.LedgerEntry
@@ -117,6 +122,30 @@ type CheckpointRecord struct {
 	Checkpoint protocol.Checkpoint
 	Signature  []byte
 }
+
+type MerkleInclusionRecord struct {
+	LedgerIndex     int64
+	TreeSize        int64
+	LedgerEntryHash string
+	LeafHash        string
+	RootHash        string
+	AuditPath       []string
+}
+
+type MerkleConsistencyRecord struct {
+	OldTreeSize int64
+	NewTreeSize int64
+	OldRootHash string
+	NewRootHash string
+	AuditPath   []string
+}
+
+// OperationalRevision is a connection-local view of SQLite's data_version.
+// It changes when another database connection commits. The service uses it to
+// keep the fully audited startup state on the fast path while still requiring
+// a bounded cryptographic head check before accepting externally committed
+// CLI changes.
+type OperationalRevision int64
 
 type BatchReceiptSigner func(entry protocol.LedgerEntry, checkpointDate string) ([]byte, error)
 type CheckpointSigner func(checkpoint protocol.Checkpoint) ([]byte, error)
@@ -193,7 +222,12 @@ type Store interface {
 	RevenueSummary(context.Context, RevenueQuery) (protocol.RevenueSummary, error)
 
 	LedgerHead(context.Context) (LedgerHead, error)
+	OperationalRevision(context.Context) (OperationalRevision, error)
+	VerifyOperationalBoundary(context.Context, ed25519.PublicKey, string, string) error
 	VerifyLedger(context.Context) error
+	VerifyMerkleTree(context.Context) error
+	MerkleInclusionProof(context.Context, int64, int64) (MerkleInclusionRecord, error)
+	MerkleConsistencyProof(context.Context, int64, int64) (MerkleConsistencyRecord, error)
 	VerifyLedgerWeightRows(context.Context) error
 	VerifyRecords(context.Context, ed25519.PublicKey, string, string) error
 	FinalizeCompletedCheckpoints(context.Context, time.Time, string, string, CheckpointSigner) ([]CheckpointRecord, error)

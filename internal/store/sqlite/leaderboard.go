@@ -125,14 +125,26 @@ const leaderboardStateCTE = `
 		FROM group_profile_ranked
 		WHERE rank = 1
 	),
-	deployment_weights AS (
+	weight_revisions AS (
 		SELECT
 			deployment_id,
-			COALESCE(SUM(weight_numerator), 0) AS weight
+			period,
+			weight_numerator,
+			ROW_NUMBER() OVER (
+				PARTITION BY deployment_id, period
+				ORDER BY revision DESC, ledger_index DESC
+			) AS rank
 		FROM ledger_weight_rows
 		WHERE ledger_index <= (SELECT ledger_bound FROM bounds)
 		  AND period >= (SELECT from_period FROM bounds)
 		  AND period <= (SELECT through_period FROM bounds)
+	),
+	deployment_weights AS (
+		SELECT
+			deployment_id,
+			COALESCE(SUM(weight_numerator), 0) AS weight
+		FROM weight_revisions
+		WHERE rank = 1
 			GROUP BY deployment_id
 	),
 	weighted_memberships AS (
