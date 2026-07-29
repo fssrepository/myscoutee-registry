@@ -4,7 +4,10 @@ This document fixes the wire and signature format for deployment registration,
 the non-accounting installation test, production aggregate qualified-monthly-
 active-user (QMAU) snapshots/corrections, aggregate daily revenue
 snapshots/corrections, signed receipts, daily checkpoints, and RFC 9162-style
-Merkle proofs. It does not define global-human deduplication.
+Merkle proofs. The registry-owned monthly allocation and private signed
+deployment-history extension is specified in
+[`settlements-v1.md`](settlements-v1.md). It does not define global-human
+deduplication.
 
 ## Encoding rules
 
@@ -654,11 +657,12 @@ foreign-exchange conversion. With `--deployment-id` or `--group-id`, captured,
 refunded, net, basis, payment-count, batch-count, and
 `reported_estimated_commission_minor` fields describe only the selected
 breakdown, while `network_commission_pool_minor` deliberately remains the
-registry-wide active pool for that UTC day and currency. The registry does not
-derive a legal share-weighted allocation. QMAU weight is independently
-auditable, but applying it to revenue would be a settlement policy outside
-this protocol. This is an auditable technical pool calculation, not a legal
-settlement or payout decision.
+registry-wide active pool for that UTC day and currency. The separately
+versioned [`settlements-v1.md`](settlements-v1.md) extension can apply the
+auditable QMAU weight boundary to a completed month's aggregated technical
+pool. That extension is deliberately non-binding and does not turn either the
+daily revenue receipt or monthly allocation into a legal settlement, payment,
+or payout decision.
 
 ## Compact Merkle proofs
 

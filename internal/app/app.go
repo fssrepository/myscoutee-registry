@@ -172,6 +172,7 @@ func bootstrap(
 	registryService := service.New(registryStore, signingKey, service.Options{
 		TimestampSkew: cfg.TimestampSkew,
 		RegistryScope: registryScope,
+		ValuationMultiplierBasisPoints: cfg.ValuationMultiplierBasisPoints,
 		Now:           now,
 		NewID:         options.NewID,
 		Logger:        options.Logger,
@@ -252,6 +253,7 @@ func InitializeProvisioned(
 	registryService := service.New(registryStore, signingKey, service.Options{
 		TimestampSkew: cfg.TimestampSkew,
 		RegistryScope: cfg.RegistryScope,
+		ValuationMultiplierBasisPoints: cfg.ValuationMultiplierBasisPoints,
 		Now:           now,
 		NewID:         options.NewID,
 		Logger:        options.Logger,

@@ -10,6 +10,7 @@ import (
 	"github.com/fssrepository/myscoutee-registry/internal/app"
 	"github.com/fssrepository/myscoutee-registry/internal/config"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
+	"github.com/fssrepository/myscoutee-registry/internal/store"
 )
 
 func TestSeedCreatesAuditableIdempotentDemoRegistry(t *testing.T) {
@@ -22,7 +23,7 @@ func TestSeedCreatesAuditableIdempotentDemoRegistry(t *testing.T) {
 	}
 	if first.AlreadySeeded ||
 		first.RegistryScope != cfg.RegistryScope ||
-		first.LedgerEntries != 32 ||
+		first.LedgerEntries != 36 ||
 		len(first.DeploymentIDs) != 4 ||
 		first.DeploymentIDs[3] != deterministicID("dep_", 4) {
 		t.Fatalf("unexpected first seed summary: %+v", first)
@@ -32,7 +33,7 @@ func TestSeedCreatesAuditableIdempotentDemoRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repeat demo seed: %v", err)
 	}
-	if !second.AlreadySeeded || second.LedgerEntries != 32 {
+	if !second.AlreadySeeded || second.LedgerEntries != 36 {
 		t.Fatalf("repeat seed was not an idempotent no-op: %+v", second)
 	}
 
@@ -101,10 +102,43 @@ func TestSeedCreatesAuditableIdempotentDemoRegistry(t *testing.T) {
 		t.Fatalf("unexpected seeded revenue: %+v", revenue)
 	}
 
+	settlements, err := runtime.Service.SettlementHistoryForAdmin(
+		context.Background(),
+		store.SettlementHistoryQuery{
+			Period:       "2026-06",
+			CurrencyCode: "USD",
+			Limit:        20,
+		},
+	)
+	if err != nil {
+		t.Fatalf("query seeded settlement: %v", err)
+	}
+	if len(settlements.Items) != 2 {
+		t.Fatalf(
+			"seeded settlement allocations = %+v, want founder and operator",
+			settlements.Items,
+		)
+	}
+	item := settlements.Items[0]
+	if item.EarlierThreeMonthAverageMinor != 30_000 ||
+		item.PriorThreeMonthAverageMinor != 40_000 ||
+		item.RecentThreeMonthAverageMinor != 60_000 ||
+		item.PriorGrowthBasisPoints != 3_333 ||
+		item.RecentGrowthBasisPoints != 5_000 ||
+		item.AccelerationBasisPoints != 1_667 ||
+		item.ValuationAdjustmentBasisPoints != 1_666 ||
+		item.EffectiveValuationMultiplierBasisPoints != 34_998 ||
+		item.TTMCommissionBasisMinor != 390_000 ||
+		item.TTMNetworkCommissionPoolMinor != 19_500 ||
+		item.IndicativeNetworkValueMinor != 1_364_922 ||
+		!item.ValuationIsNonBinding {
+		t.Fatalf("unexpected seeded settlement valuation: %+v", item)
+	}
+
 	proof, err := runtime.Service.MerkleInclusionProof(
 		context.Background(),
 		1,
-		32,
+		36,
 	)
 	if err != nil {
 		t.Fatalf("read seeded Merkle proof: %v", err)
@@ -191,8 +225,8 @@ func TestSeededDemoBackupRestorePreservesIdentityLedgerAndMerkle(t *testing.T) {
 	}
 	proof, err := restoredRuntime.Service.MerkleInclusionProof(
 		context.Background(),
-		32,
-		32,
+		36,
+		36,
 	)
 	if err != nil {
 		t.Fatalf("read restored Merkle proof: %v", err)
@@ -280,7 +314,7 @@ func TestSeedResumesOnlyAnExplicitlyMarkedPartialDemo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume explicitly marked partial demo seed: %v", err)
 	}
-	if resumed.AlreadySeeded || resumed.LedgerEntries != 32 {
+	if resumed.AlreadySeeded || resumed.LedgerEntries != 36 {
 		t.Fatalf("unexpected resumed seed summary: %+v", resumed)
 	}
 }

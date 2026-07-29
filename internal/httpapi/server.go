@@ -123,6 +123,10 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		if requireMethod(response, request, http.MethodPost) {
 			api.submitRevenueBatch(response, request)
 		}
+	case request.URL.Path == protocol.SettlementQueryPath:
+		if requireMethod(response, request, http.MethodPost) {
+			api.settlementHistory(response, request)
+		}
 	case request.URL.Path == protocol.OperatorActionPath:
 		if requireMethod(response, request, http.MethodPost) {
 			api.operatorAction(response, request)
@@ -475,6 +479,26 @@ func (api *API) submitRevenueBatch(
 		status = http.StatusOK
 	}
 	writeJSON(response, status, result)
+}
+
+func (api *API) settlementHistory(
+	response http.ResponseWriter,
+	request *http.Request,
+) {
+	var query protocol.SettlementQueryRequest
+	if err := api.decodeJSON(response, request, &query); err != nil {
+		api.writeDecodeError(response, err)
+		return
+	}
+	result, err := api.service.SettlementHistoryForDeployment(
+		request.Context(),
+		query,
+	)
+	if err != nil {
+		api.writeServiceError(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
 }
 
 func (api *API) receipt(response http.ResponseWriter, request *http.Request) {

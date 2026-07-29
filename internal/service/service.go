@@ -30,6 +30,7 @@ var (
 type Options struct {
 	TimestampSkew time.Duration
 	RegistryScope string
+	ValuationMultiplierBasisPoints int64
 	Now           func() time.Time
 	NewID         func(prefix string) (string, error)
 	Logger        *slog.Logger
@@ -40,6 +41,7 @@ type Service struct {
 	signingKey    *identity.SigningKey
 	timestampSkew time.Duration
 	registryScope string
+	valuationMultiplierBasisPoints int64
 	now           func() time.Time
 	newID         func(prefix string) (string, error)
 	logger        *slog.Logger
@@ -65,11 +67,17 @@ func New(registryStore store.Store, signingKey *identity.SigningKey, options Opt
 		logger = slog.Default()
 	}
 	registryScope := options.RegistryScope
+	valuationMultiplier := options.ValuationMultiplierBasisPoints
+	if valuationMultiplier <= 0 {
+		valuationMultiplier =
+			protocol.SettlementDefaultValuationMultiplierBasisPoints
+	}
 	return &Service{
 		store:         registryStore,
 		signingKey:    signingKey,
 		timestampSkew: options.TimestampSkew,
 		registryScope: registryScope,
+		valuationMultiplierBasisPoints: valuationMultiplier,
 		now:           now,
 		newID:         newID,
 		logger:        logger,
@@ -597,6 +605,14 @@ func (registry *Service) verifyCompleteOperationalState(ctx context.Context) err
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify registry records: %w", err)
+	}
+	if err := registry.store.VerifySettlements(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify settlements: %w", err)
 	}
 	if err := registry.store.VerifyCheckpoints(
 		ctx,

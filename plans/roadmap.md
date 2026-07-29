@@ -114,6 +114,9 @@ Deliverables:
   scope, identity, SQLite/key volume, and Java-client state volume; it has no
   host port, cannot share production/operator registry state, and direct plain
   HTTP is confined to these explicit internal development/Explore networks;
+  its seed uses normal signed revenue submissions and the ordinary settlement
+  calculator to provide a deterministic private allocation/value history,
+  while the real production registry remains unseeded;
 - SQLite in WAL mode on a persistent volume;
 - atomic nonce/idempotency enforcement;
 - append-only, hash-linked ledger;
@@ -535,10 +538,13 @@ Exit criteria:
 - the production QMAU ruleset;
 - whether central token validation is required for every counted identity;
 - the global-link consent and privacy model;
-- the final weight window and founder/operator allocation formula;
-- share-weighted revenue allocation and legal settlement, which require an
-  immutable production weight snapshot and cannot be inferred from the current
-  zero-count installation-test records;
+- contractual changes to the versioned technical six-month weight window,
+  founder minimum, operator-group allocation, or non-binding valuation formula;
+- payment execution and final legal settlement. The immutable
+  `share-weighted-settlement-v1` technical allocation and bounded
+  `three-month-acceleration-valuation-v1` estimate now exist, but they do not
+  define contractual entitlement, tax treatment, exit record date,
+  buyer/auditor approval, or final payout;
 - claim retroactivity and transfer terms;
 - the preferred external operator/company identity provider;
 - the forum provider;

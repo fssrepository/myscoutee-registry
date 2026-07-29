@@ -62,6 +62,10 @@ func main() {
 		err = runLeaderboard(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "revenue" {
 		err = runRevenue(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "calculate-settlement" {
+		err = runCalculateSettlement(os.Args[2:], os.Stdout)
+	} else if len(os.Args) >= 2 && os.Args[1] == "settlements" {
+		err = runSettlements(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "merkle-proof" {
 		err = runMerkleProof(os.Args[2:], os.Stdout)
 	} else if len(os.Args) >= 2 && os.Args[1] == "merkle-consistency" {
@@ -72,7 +76,7 @@ func main() {
 		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|leaderboard|revenue|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
+			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|leaderboard|revenue|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {

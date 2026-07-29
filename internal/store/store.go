@@ -33,6 +33,10 @@ var (
 	ErrAnnouncementClockBeforeHead  = errors.New("accepted_at is before the current announcement head")
 	ErrRegistryCaseAlreadyCleared   = errors.New("registry case is already cleared")
 	ErrRegistryCaseClockBeforeHead  = errors.New("accepted_at is before the current registry case head")
+	ErrExitReviewAlreadyFrozen      = errors.New("the claim generation already has a frozen exit review")
+	ErrExitReviewClaimBoundary      = errors.New("the claim generation is not active and eligible at the record-date boundary")
+	ErrExitReviewTransition         = errors.New("exit review transition is not allowed from the current status")
+	ErrExitReviewClockBeforeHead    = errors.New("accepted_at is before the current exit-review head")
 	ErrRevenueRevisionConflict      = errors.New("revenue revision does not extend the current active batch")
 	ErrQualifiedMAURevisionConflict = errors.New("QMAU revision does not extend the current active snapshot")
 	ErrRevenueAggregateOverflow     = errors.New("revenue aggregate exceeds the supported signed integer range")
@@ -242,4 +246,6 @@ type Store interface {
 	OperatorNetworkStore
 	AnnouncementStore
 	RegistryCaseStore
+	SettlementStore
+	ExitReviewStore
 }
