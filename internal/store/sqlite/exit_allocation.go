@@ -485,6 +485,11 @@ func (sqliteStore *Store) VerifyExitAllocation(
 	if err != nil {
 		return store.ExitAllocationEvent{}, store.ExitAllocation{}, false, err
 	}
+	requestedBeneficiaryID := current.Record.BeneficiaryID
+	if current.Record.DecisionMode ==
+		protocol.ExitAllocationDecisionCompletedTransfer {
+		requestedBeneficiaryID = ""
+	}
 	beneficiaryType, beneficiaryID, transferIndex, transferHash, err :=
 		resolveExitAllocationDecisionTx(
 			ctx,
@@ -493,7 +498,7 @@ func (sqliteStore *Store) VerifyExitAllocation(
 			current.Record.DecisionMode,
 			current.Record.OwnershipTransferID,
 			current.Record.OwnershipTransferCompletionEventHash,
-			current.Record.BeneficiaryID,
+			requestedBeneficiaryID,
 		)
 	if err != nil {
 		return store.ExitAllocationEvent{}, store.ExitAllocation{}, false, err

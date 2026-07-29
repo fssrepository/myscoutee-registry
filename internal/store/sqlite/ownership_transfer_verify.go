@@ -66,13 +66,24 @@ func (sqliteStore *Store) verifiedOwnershipTransferRecords(
 	if err != nil {
 		return nil, inconsistent("read ownership transfer records", err)
 	}
-	defer rows.Close()
-	records := make(map[string]store.OwnershipTransferRecord)
+	baseRecords := make([]store.OwnershipTransferRecord, 0)
 	for rows.Next() {
 		record, err := scanOwnershipTransferRecord(rows)
 		if err != nil {
+			rows.Close()
 			return nil, inconsistent("scan ownership transfer record", err)
 		}
+		baseRecords = append(baseRecords, record)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, inconsistent("iterate ownership transfer records", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, inconsistent("close ownership transfer records", err)
+	}
+	records := make(map[string]store.OwnershipTransferRecord)
+	for _, record := range baseRecords {
 		if !validHexID(record.TransferID, "otf_", 32) ||
 			record.RulesetVersion !=
 				protocol.OwnershipTransferRulesetVersion ||
@@ -194,9 +205,6 @@ func (sqliteStore *Store) verifiedOwnershipTransferRecords(
 			)
 		}
 		records[record.TransferID] = record
-	}
-	if err := rows.Err(); err != nil {
-		return nil, inconsistent("iterate ownership transfer records", err)
 	}
 	return records, nil
 }
@@ -516,13 +524,24 @@ func (sqliteStore *Store) verifyOwnershipTransferMemberships(
 	if err != nil {
 		return inconsistent("read ownership transfer memberships", err)
 	}
-	defer rows.Close()
-	seen := make(map[string]bool)
+	memberships := make([]store.OwnershipTransferMembership, 0)
 	for rows.Next() {
 		membership, err := scanOwnershipTransferMembership(rows)
 		if err != nil {
+			rows.Close()
 			return inconsistent("scan ownership transfer membership", err)
 		}
+		memberships = append(memberships, membership)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return inconsistent("iterate ownership transfer memberships", err)
+	}
+	if err := rows.Close(); err != nil {
+		return inconsistent("close ownership transfer memberships", err)
+	}
+	seen := make(map[string]bool)
+	for _, membership := range memberships {
 		record, recordExists := records[membership.TransferID]
 		event, eventExists := events[membership.CompletionEventIndex]
 		head, headExists := latest[membership.TransferID]
@@ -600,9 +619,6 @@ func (sqliteStore *Store) verifyOwnershipTransferMemberships(
 			)
 		}
 		seen[membership.TransferID] = true
-	}
-	if err := rows.Err(); err != nil {
-		return inconsistent("iterate ownership transfer memberships", err)
 	}
 	completed := 0
 	for transferID, event := range latest {

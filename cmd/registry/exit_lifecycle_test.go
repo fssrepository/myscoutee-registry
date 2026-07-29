@@ -31,13 +31,81 @@ type exitLifecycleClaim struct {
 }
 
 type exitLifecycleFixture struct {
-	config           config.Config
-	databasePath     string
-	recordDate       string
-	effectiveDate    string
-	settlementPeriod string
-	source           exitLifecycleClaim
-	target           exitLifecycleClaim
+	config        config.Config
+	databasePath  string
+	recordDate    string
+	effectiveDate string
+	source        exitLifecycleClaim
+	target        exitLifecycleClaim
+}
+
+func TestPreparedOwnershipTransferSurvivesCLIReopen(t *testing.T) {
+	fixture := newExitLifecycleFixture(t)
+	frozen := runExitLifecycleCLI[protocol.ExitReviewMutationResult](
+		t,
+		runFreezeExitReview,
+		[]string{
+			"--record-date", fixture.recordDate,
+			"--deployment-id", fixture.source.deploymentID,
+			"--claim-action-id", fixture.source.claimActionID,
+			"--group-id", fixture.source.groupID,
+			"--actor-role", protocol.ExitReviewActorBuyer,
+			"--actor-id", "reopen-buyer",
+			"--reference", "deal:reopen-regression",
+			"--idempotency-key", "freeze-reopen-regression-0001",
+		},
+	)
+	verified := runExitLifecycleCLI[protocol.ExitReviewMutationResult](
+		t,
+		runDecideExitReview,
+		[]string{
+			"--review-id", frozen.Review.Record.ReviewID,
+			"--decision", protocol.ExitReviewActionVerify,
+			"--effective-date", fixture.effectiveDate,
+			"--actor-role", protocol.ExitReviewActorAuditor,
+			"--actor-id", "reopen-auditor",
+			"--reference", "audit:reopen-regression",
+			"--idempotency-key", "verify-reopen-regression-0001",
+		},
+	)
+	prepared := runExitLifecycleCLI[protocol.OwnershipTransferMutationResult](
+		t,
+		runPrepareOwnershipTransfer,
+		ownershipPrepareArgs(
+			fixture,
+			frozen.Review.Record.ReviewID,
+			verified.Event.EventHash,
+			"prepare-reopen-regression-0001",
+		),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	runtime, err := app.BootstrapExisting(ctx, fixture.config, app.Options{})
+	if err != nil {
+		t.Fatalf(
+			"reopen registry containing a prepared transfer without verifier deadlock: %v",
+			err,
+		)
+	}
+	defer runtime.Close()
+	stored, err := runtime.Store.OwnershipTransfer(
+		ctx,
+		prepared.Transfer.Record.TransferID,
+	)
+	if err != nil ||
+		stored.Status != protocol.OwnershipTransferStatusPrepared ||
+		stored.LatestEventHash != prepared.Event.EventHash {
+		t.Fatalf("reopened prepared transfer = %+v, error=%v", stored, err)
+	}
+	if err := runtime.Store.VerifyOwnershipTransfers(
+		ctx,
+		runtime.SigningKey.PublicKey(),
+		runtime.SigningKey.KeyID(),
+		fixture.config.RegistryScope,
+	); err != nil {
+		t.Fatalf("verify prepared transfer after reopen: %v", err)
+	}
 }
 
 func TestExitOwnershipAndFinalAllocationCLILifecycle(t *testing.T) {
@@ -445,7 +513,7 @@ func TestExitOwnershipAndFinalAllocationCLILifecycle(t *testing.T) {
 		t,
 		runVerifyExitAllocation,
 		secondAllocationVerifyArgs,
-		"state transition is not allowed",
+		"transition is not allowed",
 	)
 
 	assertExitLifecycleLists(
@@ -594,13 +662,12 @@ func newExitLifecycleFixture(t *testing.T) exitLifecycleFixture {
 	}
 
 	return exitLifecycleFixture{
-		config:           cfg,
-		databasePath:     databasePath,
-		recordDate:       recordDay.Format("2006-01-02"),
-		effectiveDate:    today.Format("2006-01-02"),
-		settlementPeriod: settlementMonth.Format("2006-01"),
-		source:           source,
-		target:           target,
+		config:        cfg,
+		databasePath:  databasePath,
+		recordDate:    recordDay.Format("2006-01-02"),
+		effectiveDate: today.Format("2006-01-02"),
+		source:        source,
+		target:        target,
 	}
 }
 
