@@ -436,6 +436,95 @@ func TestOperatorClaimReviewAndLeaderboardCLIFlow(t *testing.T) {
 	}
 }
 
+func TestRegistryCaseCLIFlow(t *testing.T) {
+	deploymentID, _ := seedStructuredCLIClaim(t)
+	evidenceHash := "sha256:" + strings.Repeat("a", 64)
+	flagArgs := []string{
+		"--subject-type", protocol.RegistryCaseSubjectDeployment,
+		"--subject-id", deploymentID,
+		"--category", "qmau-anomaly",
+		"--severity", protocol.RegistryCaseSeverityWarning,
+		"--evidence-hash", evidenceHash,
+		"--reference", "review:cli-case-0001",
+		"--actor-id", "network-review-team",
+		"--idempotency-key", "flag_cli_case_0001",
+	}
+	var output bytes.Buffer
+	if err := runFlagRegistryCase(flagArgs, &output); err != nil {
+		t.Fatalf("flag registry case: %v", err)
+	}
+	var flagged protocol.RegistryCaseMutationResult
+	if err := json.Unmarshal(output.Bytes(), &flagged); err != nil {
+		t.Fatalf("decode registry case flag: %v", err)
+	}
+	if flagged.Duplicate ||
+		flagged.Case.Status != protocol.RegistryCaseStatusOpen ||
+		flagged.Case.SubjectID != deploymentID ||
+		flagged.Event.Signature == "" {
+		t.Fatalf("unexpected registry case flag result: %+v", flagged)
+	}
+
+	output.Reset()
+	if err := runFlagRegistryCase(flagArgs, &output); err != nil {
+		t.Fatalf("repeat registry case flag: %v", err)
+	}
+	var duplicate protocol.RegistryCaseMutationResult
+	if err := json.Unmarshal(output.Bytes(), &duplicate); err != nil ||
+		!duplicate.Duplicate ||
+		duplicate.Case.CaseID != flagged.Case.CaseID {
+		t.Fatalf(
+			"registry case flag retry was not idempotent: %+v, error=%v",
+			duplicate,
+			err,
+		)
+	}
+
+	output.Reset()
+	if err := runListRegistryCases(
+		[]string{"--status", protocol.RegistryCaseStatusOpen, "--limit", "10"},
+		&output,
+	); err != nil {
+		t.Fatalf("list open registry cases: %v", err)
+	}
+	var page protocol.RegistryCasePage
+	if err := json.Unmarshal(output.Bytes(), &page); err != nil ||
+		len(page.Items) != 1 ||
+		page.Items[0].CaseID != flagged.Case.CaseID {
+		t.Fatalf("unexpected open registry case page: %+v, error=%v", page, err)
+	}
+
+	clearArgs := []string{
+		"--case-id", flagged.Case.CaseID,
+		"--reference", "resolution:cli-case-0001",
+		"--actor-id", "network-review-team",
+		"--idempotency-key", "clear_cli_case_0001",
+	}
+	output.Reset()
+	if err := runClearRegistryCase(clearArgs, &output); err != nil {
+		t.Fatalf("clear registry case: %v", err)
+	}
+	var cleared protocol.RegistryCaseMutationResult
+	if err := json.Unmarshal(output.Bytes(), &cleared); err != nil ||
+		cleared.Case.Status != protocol.RegistryCaseStatusCleared ||
+		cleared.Case.FlagEvidenceHash != evidenceHash ||
+		cleared.Case.ClearEventIndex <= cleared.Case.FlagEventIndex {
+		t.Fatalf("unexpected cleared registry case: %+v, error=%v", cleared, err)
+	}
+
+	output.Reset()
+	if err := runShowRegistryCase(
+		[]string{"--case-id", flagged.Case.CaseID},
+		&output,
+	); err != nil {
+		t.Fatalf("show cleared registry case: %v", err)
+	}
+	var shown protocol.RegistryCase
+	if err := json.Unmarshal(output.Bytes(), &shown); err != nil ||
+		shown.Status != protocol.RegistryCaseStatusCleared {
+		t.Fatalf("show did not return cleared registry case: %+v, error=%v", shown, err)
+	}
+}
+
 func TestOperatorOperationalCLIFailsClosedWithoutInitializedRegistry(t *testing.T) {
 	directory := t.TempDir()
 	stateDirectory := filepath.Join(directory, "mistyped-volume")
@@ -498,6 +587,12 @@ func TestOperatorOperationalCLIFailsClosedWithoutInitializedRegistry(t *testing.
 					},
 					io.Discard,
 				)
+			},
+		},
+		{
+			name: "registry cases",
+			run: func() error {
+				return runListRegistryCases(nil, io.Discard)
 			},
 		},
 	}

@@ -603,12 +603,20 @@ func approvedOperatorClaimSubmissionTx(
 ) (store.OperatorClaimSubmission, error) {
 	var claimActionID, approvedAt string
 	if err := tx.QueryRowContext(ctx, `
-		SELECT claim_action_id, approved_at
+		SELECT
+			operator_claim_status.claim_action_id,
+			operator_claim_status.approved_at
 		FROM operator_claim_status
-		WHERE deployment_id = ?
-		  AND group_id = ?
-		  AND verification_state = 'approved'
-		  AND approved_at <> ''`,
+		JOIN operator_claim_eligibility_current eligibility
+		  ON eligibility.deployment_id =
+			operator_claim_status.deployment_id
+		 AND eligibility.claim_action_id =
+			operator_claim_status.claim_action_id
+		WHERE operator_claim_status.deployment_id = ?
+		  AND operator_claim_status.group_id = ?
+		  AND operator_claim_status.verification_state = 'approved'
+		  AND eligibility.eligibility_state = 'active'
+		  AND operator_claim_status.approved_at <> ''`,
 		deploymentID,
 		groupID,
 	).Scan(&claimActionID, &approvedAt); err != nil {
@@ -855,7 +863,7 @@ func writeOperatorClaimStateTx(
 		if event.ClaimState != protocol.OperatorClaimStateWithdrawn {
 			return nil
 		}
-		if _, err := tx.ExecContext(ctx, `
+		statusResult, err := tx.ExecContext(ctx, `
 			UPDATE operator_claim_status
 			SET verification_state = ?,
 			    updated_at = ?
@@ -863,8 +871,34 @@ func writeOperatorClaimStateTx(
 			protocol.OperatorClaimStateWithdrawn,
 			event.AcceptedAt,
 			event.SubjectDeploymentID,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf("withdraw current operator claim status: %w", err)
+		}
+		statusRows, err := statusResult.RowsAffected()
+		if err != nil {
+			return fmt.Errorf(
+				"count withdrawn current operator claim status: %w",
+				err,
+			)
+		}
+		eligibilityResult, err := tx.ExecContext(ctx, `
+			UPDATE operator_claim_eligibility_current
+			SET eligibility_state = ?,
+			    updated_at = ?
+			WHERE deployment_id = ?`,
+			protocol.OperatorEligibilityInactive,
+			event.AcceptedAt,
+			event.SubjectDeploymentID,
+		)
+		if err != nil {
+			return fmt.Errorf("withdraw current operator claim eligibility: %w", err)
+		}
+		eligibilityRows, err := eligibilityResult.RowsAffected()
+		if err != nil ||
+			(statusRows == 1 && eligibilityRows != 1) ||
+			(statusRows == 0 && eligibilityRows != 0) {
+			return store.ErrInconsistentState
 		}
 	}
 	return nil
@@ -975,6 +1009,48 @@ func writePendingOperatorClaimTx(
 		privateRecordHash,
 	); err != nil {
 		return fmt.Errorf("write current operator claim status: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO operator_claim_eligibility_current (
+			deployment_id,
+			claim_action_id,
+			group_id,
+			legal_name,
+			eligibility_state,
+			approved_review_index,
+			approved_review_hash,
+			eligibility_id,
+			eligibility_index,
+			eligibility_hash,
+			updated_at,
+			source_claim_audit_index,
+			source_claim_audit_hash
+		) VALUES (?, ?, ?, ?, ?, 0, ?, '', 0, ?, ?, ?, ?)
+		ON CONFLICT(deployment_id) DO UPDATE SET
+			claim_action_id = excluded.claim_action_id,
+			group_id = excluded.group_id,
+			legal_name = excluded.legal_name,
+			eligibility_state = excluded.eligibility_state,
+			approved_review_index = 0,
+			approved_review_hash = excluded.approved_review_hash,
+			eligibility_id = '',
+			eligibility_index = 0,
+			eligibility_hash = excluded.eligibility_hash,
+			updated_at = excluded.updated_at,
+			source_claim_audit_index = excluded.source_claim_audit_index,
+			source_claim_audit_hash = excluded.source_claim_audit_hash`,
+		event.DeploymentID,
+		event.ActionID,
+		event.GroupID,
+		source.LegalName,
+		protocol.OperatorEligibilityInactive,
+		protocol.OperatorClaimReviewZeroHash,
+		protocol.OperatorClaimEligibilityZeroHash,
+		event.AcceptedAt,
+		event.AuditIndex,
+		event.AuditHash,
+	); err != nil {
+		return fmt.Errorf("write current operator claim eligibility: %w", err)
 	}
 	return nil
 }

@@ -196,6 +196,104 @@ func TestLeaderboardPendingClaimKeepsMeasuredWeightButIsNotEligible(t *testing.T
 		rows[0].SortWeight != 600 {
 		t.Fatalf("approved leaderboard rows = %+v", rows)
 	}
+
+	insertLeaderboardEligibilitySuspension(
+		t,
+		registryStore,
+		pendingAction,
+		pendingDeployment,
+		pendingGroup,
+	)
+	suspendedTotals, err := registryStore.LeaderboardTotalsAtEligibility(
+		context.Background(),
+		"2026-01",
+		"2026-06",
+		2,
+		2,
+		1,
+		1,
+	)
+	if err != nil {
+		t.Fatalf("read suspended leaderboard totals: %v", err)
+	}
+	if suspendedTotals.MeasuredWeight != 900 ||
+		suspendedTotals.ClaimedWeight != 300 {
+		t.Fatalf(
+			"suspended leaderboard totals = %+v",
+			suspendedTotals,
+		)
+	}
+	rows, err = registryStore.LeaderboardRows(
+		context.Background(),
+		store.LeaderboardQuery{
+			View:                    "claimed",
+			FromPeriod:              "2026-01",
+			ThroughPeriod:           "2026-06",
+			ThroughLedgerIndex:      2,
+			ThroughAuditIndex:       2,
+			ThroughReviewIndex:      1,
+			ThroughEligibilityIndex: 1,
+			Limit:                   10,
+		},
+	)
+	if err != nil {
+		t.Fatalf("read suspended leaderboard rows: %v", err)
+	}
+	if len(rows) != 2 ||
+		rows[1].RowID != pendingGroup ||
+		rows[1].Weight != 600 ||
+		rows[1].SortWeight != 0 ||
+		rows[1].EligibilityState !=
+			protocol.OperatorEligibilitySuspended {
+		t.Fatalf("suspended leaderboard rows = %+v", rows)
+	}
+}
+
+func insertLeaderboardEligibilitySuspension(
+	t *testing.T,
+	registryStore *Store,
+	actionID string,
+	deploymentID string,
+	groupID string,
+) {
+	t.Helper()
+	if _, err := registryStore.db.Exec(`
+		INSERT INTO operator_claim_eligibility_events (
+			eligibility_index,
+			eligibility_id,
+			deployment_id,
+			claim_action_id,
+			group_id,
+			legal_name,
+			decision,
+			actor_id,
+			decision_reference,
+			reason_code,
+			idempotency_key,
+			decided_at,
+			previous_eligibility_hash,
+			eligibility_hash,
+			registry_key_id,
+			signature
+		) VALUES (
+			1, ?, ?, ?, ?, ?, 'suspend', ?, ?, ?, ?, ?, ?, ?, ?, zeroblob(64)
+		)`,
+		"ope_00000000000000000000000000000001",
+		deploymentID,
+		actionID,
+		groupID,
+		"Pending Cooperative",
+		"leaderboard-eligibility",
+		"case:leaderboard-suspension",
+		"policy-hold",
+		"suspend-leaderboard-pending",
+		"2026-07-28T00:00:04Z",
+		protocol.OperatorClaimEligibilityZeroHash,
+		"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		"registry-key",
+	); err != nil {
+		t.Fatalf("insert leaderboard eligibility suspension: %v", err)
+	}
 }
 
 func insertLeaderboardApproval(

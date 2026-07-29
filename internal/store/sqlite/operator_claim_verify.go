@@ -76,11 +76,24 @@ func (sqliteStore *Store) verifyOperatorClaimReviews(
 	if err := verifyOperatorActionSemantics(actions, submissions, reviews); err != nil {
 		return err
 	}
+	eligibilities, err := sqliteStore.verifiedOperatorClaimEligibilityRows(
+		ctx,
+		actions,
+		submissions,
+		reviews,
+		ed25519.PublicKey(registryPublicKey),
+		registryKeyID,
+		registryScope,
+	)
+	if err != nil {
+		return err
+	}
 	return sqliteStore.verifyOperatorClaimStatusRows(
 		ctx,
 		actions,
 		submissions,
 		reviews,
+		eligibilities,
 	)
 }
 
@@ -337,7 +350,8 @@ func verifiedApprovedOperatorSource(
 		return store.OperatorClaimSubmission{}, false, state.Claimed
 	}
 	review, approved := reviews[state.ClaimActionID]
-	if !approved {
+	if !approved ||
+		review.Decision != protocol.OperatorClaimReviewApproved {
 		return submission, false, false
 	}
 	reviewedAt, reviewErr := time.Parse(time.RFC3339Nano, review.ReviewedAt)
@@ -393,6 +407,7 @@ func (sqliteStore *Store) verifiedOperatorClaimReviewRows(
 			decision,
 			reviewer_id,
 			review_reference,
+			reason_code,
 			idempotency_key,
 			reviewed_at,
 			previous_review_hash,
@@ -417,10 +432,14 @@ func (sqliteStore *Store) verifiedOperatorClaimReviewRows(
 		}
 		action, actionExists := actions[review.ClaimActionID]
 		submission, submissionExists := submissions[review.ClaimActionID]
+		validDecision := (review.Decision == protocol.OperatorClaimReviewApproved &&
+			review.ReasonCode == "") ||
+			(review.Decision == protocol.OperatorClaimReviewRejected &&
+				protocol.IsOperatorClaimReviewReasonCode(review.ReasonCode))
 		if review.ReviewIndex != expectedIndex ||
 			!validHexID(review.ReviewID, "opr_", 32) ||
 			review.PreviousReviewHash != previousHash ||
-			review.Decision != protocol.OperatorClaimReviewApproved ||
+			!validDecision ||
 			review.RegistryKeyID != registryKeyID ||
 			!actionExists ||
 			!submissionExists ||
@@ -494,6 +513,7 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 	actions map[string]verifiedOperatorAction,
 	submissions map[string]store.OperatorClaimSubmission,
 	reviews map[string]store.OperatorClaimReview,
+	eligibilities map[string]store.OperatorClaimEligibility,
 ) error {
 	ordered := make([]store.OperatorAuditEvent, 0, len(actions))
 	for _, action := range actions {
@@ -542,18 +562,47 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 		}
 	}
 	for deploymentID, status := range expected {
-		review, approved := reviews[status.ClaimActionID]
-		if approved {
+		review, reviewed := reviews[status.ClaimActionID]
+		if reviewed {
 			status.ReviewID = review.ReviewID
 			status.ReviewIndex = review.ReviewIndex
 			status.ReviewHash = review.ReviewHash
-			status.ApprovedAt = review.ReviewedAt
+			if review.Decision == protocol.OperatorClaimReviewApproved {
+				status.ApprovedAt = review.ReviewedAt
+			}
 			if status.VerificationState == protocol.OperatorClaimStatePendingReview {
-				status.VerificationState = protocol.OperatorClaimStateApproved
+				switch review.Decision {
+				case protocol.OperatorClaimReviewApproved:
+					status.VerificationState = protocol.OperatorClaimStateApproved
+				case protocol.OperatorClaimReviewRejected:
+					status.VerificationState = protocol.OperatorClaimStateRejected
+				}
 				status.UpdatedAt = review.ReviewedAt
 			}
 			expected[deploymentID] = status
 		}
+	}
+	for deploymentID, status := range expected {
+		status.EligibilityState = protocol.OperatorEligibilityInactive
+		status.EligibilityHash =
+			protocol.OperatorClaimEligibilityZeroHash
+		if status.VerificationState ==
+			protocol.OperatorClaimStateApproved {
+			status.EligibilityState = protocol.OperatorEligibilityActive
+		}
+		if eligibility, exists := eligibilities[status.ClaimActionID]; exists {
+			status.EligibilityID = eligibility.EligibilityID
+			status.EligibilityIndex = eligibility.EligibilityIndex
+			status.EligibilityHash = eligibility.EligibilityHash
+			if status.VerificationState ==
+				protocol.OperatorClaimStateApproved &&
+				eligibility.Decision ==
+					protocol.OperatorClaimEligibilitySuspend {
+				status.EligibilityState =
+					protocol.OperatorEligibilitySuspended
+			}
+		}
+		expected[deploymentID] = status
 	}
 
 	rows, err := sqliteStore.db.QueryContext(
@@ -589,5 +638,9 @@ func (sqliteStore *Store) verifyOperatorClaimStatusRows(
 			len(expected),
 		)
 	}
-	return nil
+	return sqliteStore.verifyOperatorClaimEligibilityCurrentRows(
+		ctx,
+		expected,
+		eligibilities,
+	)
 }

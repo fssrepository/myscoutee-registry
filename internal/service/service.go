@@ -529,8 +529,11 @@ func (registry *Service) VerifyState(ctx context.Context) error {
 // connection-local data_version is unchanged, all writes came through this
 // process's transactionally checked Store methods. When a second connection
 // (normally the local registry CLI) commits, the cryptographic chain heads,
-// source/projection boundary rows, and newly completed Merkle frontier are
-// checked before the new revision becomes trusted.
+// source/projection boundary rows, newly completed Merkle frontier, and the
+// complete low-volume administrator case chain are checked before the new
+// revision becomes trusted. Case verification deliberately remains a full
+// replay in v1 because its mutable query rows otherwise have no safe bounded
+// trust boundary.
 func (registry *Service) verifyOperationalState(ctx context.Context) error {
 	registry.integrityMutex.Lock()
 	defer registry.integrityMutex.Unlock()
@@ -556,6 +559,14 @@ func (registry *Service) verifyOperationalState(ctx context.Context) error {
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify operational trust boundary: %w", err)
+	}
+	if err := registry.store.VerifyRegistryCases(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify registry case boundary: %w", err)
 	}
 	after, err := registry.store.OperationalRevision(ctx)
 	if err != nil {
@@ -610,6 +621,14 @@ func (registry *Service) verifyCompleteOperationalState(ctx context.Context) err
 		registry.registryScope,
 	); err != nil {
 		return fmt.Errorf("verify announcements: %w", err)
+	}
+	if err := registry.store.VerifyRegistryCases(
+		ctx,
+		registry.signingKey.PublicKey(),
+		registry.signingKey.KeyID(),
+		registry.registryScope,
+	); err != nil {
+		return fmt.Errorf("verify registry cases: %w", err)
 	}
 	return nil
 }

@@ -26,7 +26,31 @@ const operatorClaimStatusSelect = `
 		review_hash,
 		approved_at,
 		updated_at,
-		private_record_hash
+		private_record_hash,
+		COALESCE((
+			SELECT eligibility_state
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), 'inactive'),
+		COALESCE((
+			SELECT eligibility_id
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), ''),
+		COALESCE((
+			SELECT eligibility_index
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), 0),
+		COALESCE((
+			SELECT eligibility_hash
+			FROM operator_claim_eligibility_current eligibility
+			WHERE eligibility.deployment_id =
+				operator_claim_status.deployment_id
+		), '` + protocol.OperatorClaimEligibilityZeroHash + `')
 	FROM operator_claim_status`
 
 func (sqliteStore *Store) OperatorClaimStatus(
@@ -117,11 +141,19 @@ func (sqliteStore *Store) OperatorClaims(
 	return page, nil
 }
 
-func (sqliteStore *Store) ApproveOperatorClaim(
+func (sqliteStore *Store) DecideOperatorClaim(
 	ctx context.Context,
 	input store.OperatorClaimReviewInput,
 	signReview store.OperatorClaimReviewSigner,
 ) (store.OperatorClaimReview, bool, error) {
+	if (input.Decision == protocol.OperatorClaimReviewApproved &&
+		input.ReasonCode != "") ||
+		(input.Decision == protocol.OperatorClaimReviewRejected &&
+			!protocol.IsOperatorClaimReviewReasonCode(input.ReasonCode)) ||
+		(input.Decision != protocol.OperatorClaimReviewApproved &&
+			input.Decision != protocol.OperatorClaimReviewRejected) {
+		return store.OperatorClaimReview{}, false, store.ErrInconsistentState
+	}
 	tx, err := sqliteStore.db.BeginTx(ctx, nil)
 	if err != nil {
 		return store.OperatorClaimReview{}, false, fmt.Errorf("begin operator claim review: %w", err)
@@ -137,8 +169,10 @@ func (sqliteStore *Store) ApproveOperatorClaim(
 			existing.ClaimActionID != input.ClaimActionID ||
 			existing.GroupID != input.GroupID ||
 			existing.LegalName != input.LegalName ||
+			existing.Decision != input.Decision ||
 			existing.ReviewerID != input.ReviewerID ||
-			existing.ReviewReference != input.ReviewReference {
+			existing.ReviewReference != input.ReviewReference ||
+			existing.ReasonCode != input.ReasonCode {
 			return store.OperatorClaimReview{}, false, store.ErrIdempotencyConflict
 		}
 		if err := tx.Commit(); err != nil {
@@ -188,9 +222,10 @@ func (sqliteStore *Store) ApproveOperatorClaim(
 		ClaimActionID:      input.ClaimActionID,
 		GroupID:            input.GroupID,
 		LegalName:          input.LegalName,
-		Decision:           protocol.OperatorClaimReviewApproved,
+		Decision:           input.Decision,
 		ReviewerID:         input.ReviewerID,
 		ReviewReference:    input.ReviewReference,
+		ReasonCode:         input.ReasonCode,
 		IdempotencyKey:     input.IdempotencyKey,
 		ReviewedAt:         input.ReviewedAt,
 		PreviousReviewHash: head.ReviewHash,
@@ -213,13 +248,14 @@ func (sqliteStore *Store) ApproveOperatorClaim(
 			decision,
 			reviewer_id,
 			review_reference,
+			reason_code,
 			idempotency_key,
 			reviewed_at,
 			previous_review_hash,
 			review_hash,
 			registry_key_id,
 			signature
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		review.ReviewIndex,
 		review.ReviewID,
 		review.DeploymentID,
@@ -229,6 +265,7 @@ func (sqliteStore *Store) ApproveOperatorClaim(
 		review.Decision,
 		review.ReviewerID,
 		review.ReviewReference,
+		review.ReasonCode,
 		review.IdempotencyKey,
 		review.ReviewedAt,
 		review.PreviousReviewHash,
@@ -237,6 +274,12 @@ func (sqliteStore *Store) ApproveOperatorClaim(
 		review.Signature,
 	); err != nil {
 		return store.OperatorClaimReview{}, false, fmt.Errorf("append operator claim review: %w", err)
+	}
+	nextState := protocol.OperatorClaimStateApproved
+	approvedAt := review.ReviewedAt
+	if review.Decision == protocol.OperatorClaimReviewRejected {
+		nextState = protocol.OperatorClaimStateRejected
+		approvedAt = ""
 	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE operator_claim_status
@@ -249,20 +292,60 @@ func (sqliteStore *Store) ApproveOperatorClaim(
 		WHERE deployment_id = ?
 		  AND claim_action_id = ?
 		  AND verification_state = ?`,
-		protocol.OperatorClaimStateApproved,
+		nextState,
 		review.ReviewID,
 		review.ReviewIndex,
 		review.ReviewHash,
-		review.ReviewedAt,
+		approvedAt,
 		review.ReviewedAt,
 		review.DeploymentID,
 		review.ClaimActionID,
 		protocol.OperatorClaimStatePendingReview,
 	)
 	if err != nil {
-		return store.OperatorClaimReview{}, false, fmt.Errorf("update approved operator claim status: %w", err)
+		return store.OperatorClaimReview{}, false, fmt.Errorf(
+			"update decided operator claim status: %w",
+			err,
+		)
 	}
 	affected, err := result.RowsAffected()
+	if err != nil || affected != 1 {
+		return store.OperatorClaimReview{}, false, store.ErrOperatorClaimStale
+	}
+	eligibilityState := protocol.OperatorEligibilityActive
+	approvedReviewIndex := review.ReviewIndex
+	approvedReviewHash := review.ReviewHash
+	if review.Decision == protocol.OperatorClaimReviewRejected {
+		eligibilityState = protocol.OperatorEligibilityInactive
+		approvedReviewIndex = 0
+		approvedReviewHash = protocol.OperatorClaimReviewZeroHash
+	}
+	result, err = tx.ExecContext(ctx, `
+		UPDATE operator_claim_eligibility_current
+		SET eligibility_state = ?,
+		    approved_review_index = ?,
+		    approved_review_hash = ?,
+		    eligibility_id = '',
+		    eligibility_index = 0,
+		    eligibility_hash = ?,
+		    updated_at = ?
+		WHERE deployment_id = ?
+		  AND claim_action_id = ?`,
+		eligibilityState,
+		approvedReviewIndex,
+		approvedReviewHash,
+		protocol.OperatorClaimEligibilityZeroHash,
+		review.ReviewedAt,
+		review.DeploymentID,
+		review.ClaimActionID,
+	)
+	if err != nil {
+		return store.OperatorClaimReview{}, false, fmt.Errorf(
+			"update decided operator claim eligibility: %w",
+			err,
+		)
+	}
+	affected, err = result.RowsAffected()
 	if err != nil || affected != 1 {
 		return store.OperatorClaimReview{}, false, store.ErrOperatorClaimStale
 	}
@@ -294,6 +377,7 @@ func operatorClaimReviewHeadQuery(
 			decision,
 			reviewer_id,
 			review_reference,
+			reason_code,
 			idempotency_key,
 			reviewed_at,
 			previous_review_hash,
@@ -325,6 +409,7 @@ func operatorClaimReviewByIdempotencyTx(
 			decision,
 			reviewer_id,
 			review_reference,
+			reason_code,
 			idempotency_key,
 			reviewed_at,
 			previous_review_hash,
@@ -354,6 +439,10 @@ func scanOperatorClaimStatus(scanner rowScanner) (store.OperatorClaimStatus, err
 		&status.ApprovedAt,
 		&status.UpdatedAt,
 		&status.PrivateRecordHash,
+		&status.EligibilityState,
+		&status.EligibilityID,
+		&status.EligibilityIndex,
+		&status.EligibilityHash,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return store.OperatorClaimStatus{}, store.ErrNotFound
@@ -406,6 +495,7 @@ func scanOperatorClaimReview(scanner rowScanner) (store.OperatorClaimReview, err
 		&review.Decision,
 		&review.ReviewerID,
 		&review.ReviewReference,
+		&review.ReasonCode,
 		&review.IdempotencyKey,
 		&review.ReviewedAt,
 		&review.PreviousReviewHash,
@@ -435,6 +525,7 @@ func operatorClaimReviewReceipt(
 		Decision:           review.Decision,
 		ReviewerID:         review.ReviewerID,
 		ReviewReference:    review.ReviewReference,
+		ReasonCode:         review.ReasonCode,
 		IdempotencyKey:     review.IdempotencyKey,
 		ReviewedAt:         review.ReviewedAt,
 		PreviousReviewHash: review.PreviousReviewHash,

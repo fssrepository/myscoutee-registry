@@ -22,12 +22,17 @@ var (
 	ErrOperatorClaimRequired        = errors.New("an active operator claim is required")
 	ErrOperatorClaimStale           = errors.New("operator claim approval target is not the current pending claim")
 	ErrOperatorClaimAlreadyReviewed = errors.New("operator claim is not pending review")
+	ErrOperatorClaimEligibilityStale = errors.New("operator claim eligibility target is not the current approved claim")
+	ErrOperatorClaimNotEligible      = errors.New("operator claim is not active and eligible")
+	ErrOperatorClaimNotSuspended     = errors.New("operator claim is not suspended")
 	ErrClientTokenExpired           = errors.New("operator client token is expired")
 	ErrClientTokenRevoked           = errors.New("operator client token is revoked")
 	ErrClientTokenUsed              = errors.New("operator client token is already used")
 	ErrDeploymentInactive           = errors.New("deployment is inactive")
 	ErrAnnouncementConflict         = errors.New("announcement publication ID was already used with different contents")
 	ErrAnnouncementClockBeforeHead  = errors.New("accepted_at is before the current announcement head")
+	ErrRegistryCaseAlreadyCleared   = errors.New("registry case is already cleared")
+	ErrRegistryCaseClockBeforeHead  = errors.New("accepted_at is before the current registry case head")
 	ErrRevenueRevisionConflict      = errors.New("revenue revision does not extend the current active batch")
 	ErrQualifiedMAURevisionConflict = errors.New("QMAU revision does not extend the current active snapshot")
 	ErrRevenueAggregateOverflow     = errors.New("revenue aggregate exceeds the supported signed integer range")
@@ -236,4 +241,5 @@ type Store interface {
 
 	OperatorNetworkStore
 	AnnouncementStore
+	RegistryCaseStore
 }
