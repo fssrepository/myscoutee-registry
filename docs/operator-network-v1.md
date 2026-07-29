@@ -154,7 +154,11 @@ repair reconstructed state.
 
 Approval changes this status receipt only. The provisional group membership
 already exists, so approval does not append an operator-network action, change
-a leaderboard snapshot boundary, or invalidate a cursor.
+a leaderboard snapshot boundary, or invalidate a cursor. Leaderboard
+presentation selects an active, currently claimed group profile and uses the
+direct claim status only when it matches that deployment's exact profile-claim
+boundary. Structured profiles therefore expose `pending-review` or `approved`;
+legacy profiles retain their signed `claimed` state.
 
 ## Other signed operator actions
 
