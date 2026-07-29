@@ -66,17 +66,28 @@ const leaderboardStateCTE = `
 	),
 	group_profile_ranked AS (
 		SELECT
-			claim_group_id AS group_id,
-			operator_name,
-			operator_avatar_url,
-			profile_claim_state AS claim_state,
+			state.claim_group_id AS group_id,
+			state.operator_name,
+			state.operator_avatar_url,
+			CASE
+				WHEN status.verification_state IN ('pending-review', 'approved')
+					THEN status.verification_state
+				ELSE state.profile_claim_state
+			END AS claim_state,
 			ROW_NUMBER() OVER (
-				PARTITION BY claim_group_id
-				ORDER BY profile_claim_audit_index DESC, audit_index DESC
+				PARTITION BY state.claim_group_id
+				ORDER BY
+					state.profile_claim_audit_index DESC,
+					state.audit_index DESC
 			) AS rank
-		FROM states
-		WHERE claim_group_id <> ''
-		  AND profile_claim_state IN ('claimed', 'pending-review')
+		FROM states state
+		LEFT JOIN operator_claim_status status
+		  ON status.deployment_id = state.deployment_id
+		 AND status.claim_audit_index = state.profile_claim_audit_index
+		WHERE state.active = 1
+		  AND state.claimed = 1
+		  AND state.claim_group_id <> ''
+		  AND state.profile_claim_state IN ('claimed', 'pending-review')
 	),
 	group_profiles AS (
 		SELECT group_id, operator_name, operator_avatar_url, claim_state
@@ -161,7 +172,7 @@ func (sqliteStore *Store) LeaderboardRows(
 					membership.group_id,
 					COALESCE(NULLIF(profile.operator_name, ''), membership.group_id),
 					COALESCE(profile.operator_avatar_url, ''),
-					COALESCE(NULLIF(profile.claim_state, ''), 'pending-review'),
+					COALESCE(NULLIF(profile.claim_state, ''), 'claimed'),
 				COUNT(*),
 				COALESCE(SUM(weight.weight), 0)
 			FROM memberships membership

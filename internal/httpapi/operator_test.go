@@ -787,6 +787,15 @@ func TestStructuredOperatorClaimValidationStatusApprovalAndPrivacy(t *testing.T)
 		t.Fatalf("unexpected pending status: %+v", pending)
 	}
 	assertOperatorClaimStatusSignature(t, fixture, pending.Status)
+	pendingPage := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=10",
+	)
+	if len(pendingPage.Items) != 1 ||
+		pendingPage.Items[0].ClaimState !=
+			protocol.OperatorClaimStatePendingReview {
+		t.Fatalf("pending claim leaderboard state = %+v", pendingPage)
+	}
 
 	review, err := fixture.runtime.Service.ApproveOperatorClaim(
 		context.Background(),
@@ -859,8 +868,10 @@ func TestStructuredOperatorClaimValidationStatusApprovalAndPrivacy(t *testing.T)
 			t.Fatalf("leaderboard exposed private value %q: %s", privateValue, encodedPage)
 		}
 	}
-	if len(page.Items) != 1 || page.Items[0].Label != draft.LegalName {
-		t.Fatalf("legal name is not the provisional leaderboard label: %+v", page)
+	if len(page.Items) != 1 ||
+		page.Items[0].Label != draft.LegalName ||
+		page.Items[0].ClaimState != protocol.OperatorClaimStateApproved {
+		t.Fatalf("approved claim leaderboard row = %+v", page)
 	}
 
 	stale := operatorClaimRequest("Structured Cooperative Updated")
@@ -1272,6 +1283,51 @@ func TestClientTokenCreatesReviewedClaimWithoutRepeatedCompanyForm(t *testing.T)
 		},
 	); err != nil {
 		t.Fatalf("approve token-derived claim: %v", err)
+	}
+}
+
+func TestLeaderboardUsesOnlyActiveCurrentClaimProfile(t *testing.T) {
+	fixture, _, target, issuerClaim, _ := createTokenDerivedClaim(
+		t,
+		"leaderboard-current-profile",
+	)
+
+	pending := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=10",
+	)
+	if len(pending.Items) != 1 ||
+		pending.Items[0].GroupID != issuerClaim.Receipt.GroupID ||
+		pending.Items[0].DeploymentCount != 2 ||
+		pending.Items[0].ClaimState !=
+			protocol.OperatorClaimStatePendingReview {
+		t.Fatalf("token-derived pending profile is not current: %+v", pending)
+	}
+
+	fixture.acceptOperatorAction(
+		t,
+		fixture.operatorAction(t, target, protocol.OperatorActionRequest{
+			Nonce:          "nonce_leaderboard_current_profile_deactivate",
+			IdempotencyKey: "leaderboard_current_profile_deactivate",
+			Action:         protocol.OperatorActionDeactivateDeployment,
+		}),
+		http.StatusCreated,
+	)
+
+	current := fixture.leaderboard(
+		t,
+		"view=claimed&through_period=2026-06&limit=10",
+	)
+	if len(current.Items) != 1 ||
+		current.Items[0].GroupID != issuerClaim.Receipt.GroupID ||
+		current.Items[0].DeploymentCount != 1 ||
+		current.Items[0].ClaimState != protocol.OperatorClaimStateApproved ||
+		current.Items[0].Label != "Source Integrity Cooperative" {
+		t.Fatalf("inactive pending profile remained current: %+v", current)
+	}
+	if current.Items[0].RowID == target.id ||
+		current.Items[0].RowID != issuerClaim.Receipt.GroupID {
+		t.Fatalf("leaderboard retained the deactivated profile identity: %+v", current)
 	}
 }
 
