@@ -468,8 +468,11 @@ Status: the first fraud-review foundation is implemented as a
 registry-signed, hash-linked anomaly/case rail with local flag/clear/list/show
 CLI commands, typed existing-subject checks, and same-transaction query rows.
 It records observations only and deliberately does not infer suspension,
-eligibility, payout, or legal-exit decisions. The remaining deliverables below
-are still open unless an earlier milestone explicitly implements them.
+eligibility, payout, or legal-exit decisions. A separate signed review action
+can now reject one pending claim generation with a bounded non-personal reason
+code; rejection makes that claim share-ineligible without deactivating the
+deployment or inferring a suspension/exit decision. The remaining deliverables
+below are still open unless an earlier milestone explicitly implements them.
 
 Deliverables:
 
