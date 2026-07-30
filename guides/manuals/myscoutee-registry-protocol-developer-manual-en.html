@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Controlled MyScoutee Registry Protocol Developer Manual 1.0.0">
+  <meta name="description" content="Confidential normative MyScoutee Registry Protocol Developer Manual 1.0.0">
   <title>MyScoutee Registry Protocol Developer Manual · MSC-RPDM-001</title>
   <style>
     :root {
@@ -205,36 +205,21 @@
       page-break-after: always;
     }
 
-    .cover-brand {
-      align-items: center;
+    .cover-logo {
       border-bottom: 1px solid var(--line);
-      display: flex;
-      gap: 12px;
       padding-bottom: 12px;
     }
 
-    .cover-brand img {
+    .cover-logo img {
+      display: block;
       height: 24mm;
       object-fit: contain;
       width: 24mm;
     }
 
-    .cover-brand-name {
-      color: var(--navy);
-      font-size: 22pt;
-      font-weight: 800;
-    }
-
-    .cover-brand-subtitle {
-      color: var(--muted);
-      font-size: 9.5pt;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
     .cover-title-block {
       border-left: 5px solid var(--blue);
-      margin: 18mm 0;
+      margin: 12mm 0 8mm;
       padding: 4mm 0 4mm 8mm;
     }
 
@@ -250,9 +235,11 @@
     .cover h1 {
       border: 0;
       color: var(--navy);
-      font-size: 29pt;
+      font-size: 27pt;
       line-height: 1.08;
       margin: 0;
+      max-width: 150mm;
+      overflow-wrap: break-word;
       padding: 0;
     }
 
@@ -266,7 +253,33 @@
     .cover-summary {
       color: var(--muted);
       font-size: 11pt;
+      margin: 5mm 0 0;
       max-width: 150mm;
+    }
+
+    .technology-sensitivity {
+      background: linear-gradient(135deg, #eaf5f8, #f7fbfc);
+      border: 1px solid #b9d7e1;
+      border-left: 5px solid var(--blue);
+      border-radius: 4px;
+      color: #27465b;
+      font-size: 9.1pt;
+      margin: 0 0 9mm;
+      padding: 3.5mm 4.5mm;
+      page-break-inside: avoid;
+    }
+
+    .technology-sensitivity strong {
+      color: var(--teal);
+      display: block;
+      font-size: 8.3pt;
+      letter-spacing: 0.1em;
+      margin-bottom: 1.5mm;
+      text-transform: uppercase;
+    }
+
+    .technology-sensitivity p {
+      margin: 0;
     }
 
     .metadata {
@@ -394,27 +407,25 @@
 <body>
 <main class="manual">
   <section class="cover" id="cover">
-    <div>
-      <div class="cover-brand">
-        <img src="myscoutee-logo.png" alt="MyScoutee logo">
-        <div>
-          <div class="cover-brand-name">MyScoutee</div>
-          <div class="cover-brand-subtitle">Registry engineering</div>
-        </div>
-      </div>
+    <div class="cover-logo">
+      <img src="myscoutee-logo.png" alt="MyScoutee logo">
+    </div>
 
-      <div class="cover-title-block">
-        <div class="cover-kicker">Protocol Developer Manual</div>
-        <h1>MyScoutee Registry Protocol</h1>
-        <div class="cover-version">Version 1.0.0</div>
-      </div>
-
+    <div class="cover-title-block">
+      <div class="cover-kicker">Protocol Developer Manual</div>
+      <h1>MyScoutee Registry Protocol</h1>
+      <div class="cover-version">Version 1.0.0</div>
       <p class="cover-summary">
         A developer-facing specification and integration guide for the signed
         registry protocol, its append-only accounting and governance rails,
         privacy boundaries, verification rules, and compatibility contract.
       </p>
     </div>
+
+    <aside class="technology-sensitivity" aria-label="Technology sensitivity">
+      <strong>Technology sensitivity</strong>
+      <p>The combined deployment topology, trust and key-handling rules, release and recovery controls, and protocol implementation details reduce the cost of reconnaissance for an unauthorized attacker. Distribute only through approved internal channels. Confidentiality supplements—never replaces—access control, signed artifacts, encryption, key protection, review, and executable conformance tests.</p>
+    </aside>
 
     <dl class="metadata">
       <dt>Document ID</dt>
@@ -425,10 +436,8 @@
       <dd>2026-07-30</dd>
       <dt>Protocol version</dt>
       <dd>1</dd>
-      <dt>Distribution</dt>
-      <dd><span class="label internal">Controlled / Internal</span></dd>
       <dt>Status</dt>
-      <dd><span class="label implemented">Implemented baseline</span></dd>
+      <dd><span class="label implemented">Normative v1.0.0</span></dd>
     </dl>
   </section>
 
@@ -459,6 +468,14 @@
           <td>The Go implementation and repository reference specifications current on 2026-07-30</td>
         </tr>
         <tr>
+          <td>Status</td>
+          <td>Finished normative contract for Registry Protocol v1 as implemented by MyScoutee Registry 1.0.0</td>
+        </tr>
+        <tr>
+          <td>Classification</td>
+          <td><strong>Confidential — Internal Distribution Only.</strong> Protocol details, Registry binaries, release artifacts, configuration, and key-handling information remain under approved internal access and distribution controls.</td>
+        </tr>
+        <tr>
           <td>Operational companion</td>
           <td>MyScoutee Registry Operator Manual, MSC-ROM-001</td>
         </tr>
@@ -466,9 +483,10 @@
     </table>
 
     <div class="callout warning">
-      <strong>Distribution boundary.</strong> This manual describes a controlled
-      protocol implementation. It is not authorization to publish the registry
-      server, its private keys, governed records, or production artifacts.
+      <strong>Confidentiality boundary.</strong> This finished protocol manual is
+      internal implementation and integration material. It is not authorization
+      to publish the Registry server, release artifacts, configuration,
+      operational details, private keys, or governed records.
     </div>
   </section>
 
@@ -619,7 +637,22 @@ package_signing_key_id =
       must never be accepted implicitly as a package-signing key.
     </p>
 
-    <h2 id="trust-identity-preflight">2.2 Registry identity preflight</h2>
+    <h2 id="trust-identity-preflight">2.2 Build and Registry identity preflight</h2>
+    <p>
+      <code>GET /versionz</code> is a config-free, read-only build-information
+      endpoint. A 1.0.0 server returns exactly:
+    </p>
+    <pre><code>{
+  "service": "myscoutee-registry",
+  "version": "1.0.0",
+  "protocol_version": "1"
+}</code></pre>
+    <p>
+      It is uncacheable operational metadata, not a signature or trust anchor.
+      A client or release verifier must require the expected service, build
+      version, and protocol version before continuing, then establish Registry
+      identity through the signed endpoint below.
+    </p>
     <p>
       <code>GET /v1/registry/identity</code> returns protocol version, immutable
       scope, registry key ID, registry public key, and a self-signature over:
@@ -1318,8 +1351,9 @@ duplicate_reduction =
 
     <h2 id="integration-bootstrap">9.2 Trust bootstrap</h2>
     <ol>
-      <li>Receive a candidate HTTPS URL and expected scope from an authenticated operator workflow.</li>
-      <li>Fetch identity without creating central state.</li>
+      <li>Receive a candidate HTTPS URL, expected release version, and expected scope from an authenticated operator workflow.</li>
+      <li>Fetch <code>/versionz</code> and require the expected service, release version, and protocol version without creating state.</li>
+      <li>Fetch Registry identity without creating state.</li>
       <li>Verify TLS, Ed25519 SPKI, deterministic key ID, and registry self-signature.</li>
       <li>Display the exact URL, scope, and key ID; require explicit confirmation.</li>
       <li>Persist the pin and generate a deployment Ed25519 key in the protected host boundary.</li>
@@ -1433,7 +1467,7 @@ docker build -t myscoutee-registry:qualification .
       still requires exact-artifact, TLS, backup/restore, supported-upgrade,
       outage/retry, power-loss, load, multi-registry isolation, and independent
       security drills. Record artifact digests, source commit, commands, host,
-      timings, and evidence for each release candidate.
+      timings, and evidence for each release under qualification.
     </p>
   </section>
 
@@ -1530,6 +1564,7 @@ docker build -t myscoutee-registry:qualification .
         </tr>
       </thead>
       <tbody>
+        <tr><td><code>GET /versionz</code></td><td>Config-free build and protocol version; read-only and not a trust bootstrap</td></tr>
         <tr><td><code>GET /healthz</code></td><td>Operational health and integrity boundary; not a trust bootstrap</td></tr>
         <tr><td><code>GET /v1/registry/identity</code></td><td>Public registry self-attestation; read-only</td></tr>
         <tr><td><code>POST /v1/deployments/register</code></td><td>Submitted-key proof of possession; registration receipt</td></tr>
@@ -1640,7 +1675,7 @@ docker build -t myscoutee-registry:qualification .
 
     <p class="footer-note">
       MyScoutee Registry Protocol Developer Manual · MSC-RPDM-001 · Version
-      1.0.0 · 2026-07-30 · Controlled / Internal
+      1.0.0 · 2026-07-30 · Confidential — Internal Distribution Only
     </p>
   </section>
 </main>

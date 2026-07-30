@@ -1,6 +1,7 @@
 /registry
 /coverage.out
 /dist/
+/packaging/dist/
 *.db
 *.db-shm
 *.db-wal

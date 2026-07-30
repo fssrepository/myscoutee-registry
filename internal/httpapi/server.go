@@ -14,6 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/fssrepository/myscoutee-registry/internal/buildinfo"
 	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 	"github.com/fssrepository/myscoutee-registry/internal/service"
 )
@@ -59,6 +60,12 @@ type healthResponse struct {
 	LedgerHeadHash  string `json:"ledger_head_hash"`
 }
 
+type versionResponse struct {
+	Service         string `json:"service"`
+	Version         string `json:"version"`
+	ProtocolVersion string `json:"protocol_version"`
+}
+
 func New(registryService *service.Service, options Options) http.Handler {
 	maxBodyBytes := options.MaxRequestBodyBytes
 	if maxBodyBytes <= 0 {
@@ -77,6 +84,11 @@ func New(registryService *service.Service, options Options) http.Handler {
 
 func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	response.Header().Set("X-Content-Type-Options", "nosniff")
+	if request.URL.Path == "/versionz" ||
+		request.URL.Path == protocol.IdentityPath ||
+		request.URL.Path == "/healthz" {
+		response.Header().Set("Cache-Control", "no-store")
+	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			api.logger.Error("panic while serving registry request", "panic", recovered)
@@ -103,6 +115,10 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	}
 
 	switch {
+	case request.URL.Path == "/versionz":
+		if requireMethod(response, request, http.MethodGet) {
+			api.version(response)
+		}
 	case request.URL.Path == "/healthz":
 		if requireMethod(response, request, http.MethodGet) {
 			api.health(response, request)
@@ -200,6 +216,14 @@ func (api *API) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "endpoint not found")
 	}
+}
+
+func (api *API) version(response http.ResponseWriter) {
+	writeJSON(response, http.StatusOK, versionResponse{
+		Service:         buildinfo.Service,
+		Version:         buildinfo.Version,
+		ProtocolVersion: protocol.Version,
+	})
 }
 
 func (api *API) announcements(response http.ResponseWriter, request *http.Request) {

@@ -1,0 +1,18 @@
+[Unit]
+Description=MyScoutee Registry production stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/myscoutee-registry/registry.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/myscoutee-registry
+ExecStart=/opt/myscoutee-registry/packaging/scripts/registry-compose.sh up -d
+ExecStop=/opt/myscoutee-registry/packaging/scripts/registry-compose.sh down
+TimeoutStartSec=0
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

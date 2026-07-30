@@ -1,0 +1,104 @@
+name: myscoutee-registry
+
+services:
+  registry:
+    image: ${REGISTRY_PRODUCTION_IMAGE:?set the packaged Registry image}
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      REGISTRY_LISTEN_ADDR: "${REGISTRY_LISTEN_ADDR:-:8080}"
+      REGISTRY_SCOPE: "${REGISTRY_SCOPE:?set the permanent Registry scope}"
+      REGISTRY_DATABASE_PATH: "${REGISTRY_DATABASE_PATH:-/data/registry.db}"
+      REGISTRY_SIGNING_KEY_PATH: "${REGISTRY_SIGNING_KEY_PATH:-/data/registry-signing-key.pem}"
+      REGISTRY_GENERATE_SIGNING_KEY: "${REGISTRY_GENERATE_SIGNING_KEY:-true}"
+      REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH: "${REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH:-/data/registry-global-identity-voprf-keyring.json}"
+      REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY: "${REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY:-true}"
+      REGISTRY_DEMO_SEED: "false"
+      REGISTRY_TIMESTAMP_SKEW: "${REGISTRY_TIMESTAMP_SKEW:-5m}"
+      REGISTRY_CHECKPOINT_INTERVAL: "${REGISTRY_CHECKPOINT_INTERVAL:-1m}"
+      REGISTRY_MAX_REQUEST_BODY_BYTES: "${REGISTRY_MAX_REQUEST_BODY_BYTES:-65536}"
+      REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS: "${REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS:-30000}"
+      REGISTRY_SHUTDOWN_TIMEOUT: "${REGISTRY_SHUTDOWN_TIMEOUT:-10s}"
+      REGISTRY_HEALTHCHECK_URL: "http://127.0.0.1:8080/healthz"
+    volumes:
+      - type: bind
+        source: ${REGISTRY_STATE_DIR_HOST:-/var/lib/myscoutee-registry/data}
+        target: /data
+    networks:
+      - internal
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "/registry", "healthcheck"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    stop_grace_period: 15s
+
+  nginx:
+    image: ${REGISTRY_NGINX_PRODUCTION_IMAGE:?set the packaged Nginx image}
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      registry:
+        condition: service_healthy
+    ports:
+      - "${REGISTRY_PUBLIC_BIND_ADDRESS:?set the public bind address}:${REGISTRY_HTTP_PORT:-80}:8080"
+      - "${REGISTRY_PUBLIC_BIND_ADDRESS:?set the public bind address}:${REGISTRY_HTTPS_PORT:-443}:8443"
+    environment:
+      NGINX_ENVSUBST_FILTER: "^REGISTRY_"
+      REGISTRY_PUBLIC_HOSTNAME: "${REGISTRY_PUBLIC_HOSTNAME:?set the public DNS hostname}"
+      REGISTRY_HTTPS_PORT: "${REGISTRY_HTTPS_PORT:-443}"
+      REGISTRY_NGINX_MAX_BODY_SIZE: "${REGISTRY_NGINX_MAX_BODY_SIZE:-64k}"
+      REGISTRY_NGINX_REQUEST_RATE: "${REGISTRY_NGINX_REQUEST_RATE:-10r/s}"
+      REGISTRY_NGINX_REQUEST_BURST: "${REGISTRY_NGINX_REQUEST_BURST:-20}"
+      REGISTRY_NGINX_CONNECTION_LIMIT: "${REGISTRY_NGINX_CONNECTION_LIMIT:-20}"
+    volumes:
+      - type: bind
+        source: ${REGISTRY_TLS_CERTIFICATE_PATH:?set the TLS certificate path}
+        target: /etc/nginx/tls/fullchain.pem
+        read_only: true
+      - type: bind
+        source: ${REGISTRY_TLS_PRIVATE_KEY_PATH:?set the TLS private-key path}
+        target: /etc/nginx/tls/privkey.pem
+        read_only: true
+    networks:
+      - public
+      - internal
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d:size=1m,mode=0755
+      - /var/cache/nginx:size=32m,mode=0755
+      - /var/run:size=1m,mode=0755
+      - /tmp:size=8m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget --quiet --output-document=/dev/null --no-check-certificate
+          --header="Host: $${REGISTRY_PUBLIC_HOSTNAME}"
+          https://127.0.0.1:8443/healthz
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    stop_grace_period: 15s
+
+networks:
+  public:
+  internal:
+    internal: true

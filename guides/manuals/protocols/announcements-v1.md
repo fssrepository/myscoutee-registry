@@ -58,15 +58,12 @@ Show local help without opening the database:
 /registry publish-announcement --help
 ```
 
-Against the separately deployed production Compose stack, keep the reviewed
-JSON on the registry host and pipe it into the already-running registry
-container. The file is not uploaded through HTTP:
+Against the installed production stack, keep the reviewed JSON on the Registry
+host and pipe it into the already-running Registry container through the
+package-provided Compose wrapper. The file is not uploaded through HTTP:
 
 ```bash
-cd /path/to/myscoutee-registry
-docker compose \
-  --env-file /etc/myscoutee-registry.env \
-  -f compose.production.yaml \
+/opt/myscoutee-registry/packaging/scripts/registry-compose.sh \
   exec -T registry \
   /registry publish-announcement --file - \
   < /secure/reviewed-announcement.json

@@ -1,5 +1,5 @@
-# The root Dockerfile builds only the Go registry. Keep edge deployment
-# configuration out of this build context; the edge Dockerfile owns it.
+# The root Dockerfile builds only the development Go registry. Production
+# release inputs are owned by the isolated packaging build contexts.
 **
 !go.mod
 !go.sum

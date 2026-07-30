@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const DOCUMENT_VERSION = '1.0.0';
 const RELEASE_DATE = '2026-07-30';
 const MINIMUM_PDF_BYTES = 10_000;
+const validateOnly = process.env.DOCS_VALIDATE_ONLY === 'true';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
@@ -282,6 +283,13 @@ async function buildManual(browserInstance, manual) {
       );
     }
 
+    if (validateOnly) {
+      process.stdout.write(
+        `Validated: ${path.relative(repositoryRoot, sourcePath)}\n`
+      );
+      return;
+    }
+
     await page.pdf({
       path: temporaryOutputPath,
       format: 'A4',
@@ -299,7 +307,7 @@ async function buildManual(browserInstance, manual) {
       footerTemplate: `
         <div style="box-sizing:border-box;color:#5b6773;font-family:Arial,sans-serif;
                     font-size:7.5px;padding:0 16mm;width:100%;">
-          <span style="float:left;">Released · ${RELEASE_DATE} · EN</span>
+          <span style="float:left;">Confidential — Internal Distribution Only · ${RELEASE_DATE} · EN</span>
           <span style="float:right;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
         </div>`
     });
