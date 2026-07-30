@@ -1,0 +1,2189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Controlled MyScoutee Registry 1.0.0 Operator Manual">
+  <title>MyScoutee Registry Operator Manual · MSC-ROM-001</title>
+  <style>
+    :root {
+      --ink: #1c2633;
+      --muted: #586675;
+      --line: #d9e1e8;
+      --soft: #f3f6f8;
+      --navy: #17324d;
+      --blue: #176b87;
+      --teal: #0f766e;
+      --gold: #b78112;
+      --red: #a72b2b;
+      --green: #26734d;
+      --purple: #664a8a;
+    }
+
+    @page {
+      size: A4;
+      margin: 18mm 16mm 20mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      color: var(--ink);
+      font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+      font-size: 10.2pt;
+      line-height: 1.48;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: #e9eef2;
+      margin: 0;
+    }
+
+    .manual {
+      background: #fff;
+      box-shadow: 0 8px 26px rgb(23 50 77 / 15%);
+      margin: 18px auto;
+      max-width: 210mm;
+      min-height: 297mm;
+      padding: 18mm 16mm 20mm;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .manual {
+        box-shadow: none;
+        margin: 0;
+        max-width: none;
+        min-height: 0;
+        padding: 0;
+      }
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    p,
+    li,
+    td,
+    th {
+      orphans: 3;
+      widows: 3;
+    }
+
+    p {
+      margin: 0 0 0.72em;
+    }
+
+    ul,
+    ol {
+      margin: 0.35em 0 0.9em;
+      padding-left: 1.55em;
+    }
+
+    li {
+      margin: 0.23em 0;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      color: var(--navy);
+      line-height: 1.2;
+      page-break-after: avoid;
+    }
+
+    h1 {
+      border-bottom: 2px solid var(--blue);
+      font-size: 21pt;
+      margin: 0 0 0.65em;
+      padding-bottom: 0.22em;
+    }
+
+    h2 {
+      font-size: 15.5pt;
+      margin: 1.35em 0 0.5em;
+    }
+
+    h3 {
+      font-size: 12.5pt;
+      margin: 1.1em 0 0.4em;
+    }
+
+    h4 {
+      font-size: 10.6pt;
+      margin: 0.9em 0 0.3em;
+    }
+
+    code,
+    pre {
+      font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+    }
+
+    code {
+      background: #edf2f5;
+      border-radius: 3px;
+      font-size: 0.9em;
+      overflow-wrap: anywhere;
+      padding: 0.08em 0.25em;
+    }
+
+    pre {
+      background: #172330;
+      border-left: 4px solid var(--blue);
+      border-radius: 4px;
+      color: #f7fafc;
+      font-size: 8.35pt;
+      line-height: 1.42;
+      margin: 0.55em 0 1em;
+      overflow-wrap: anywhere;
+      padding: 0.85em 1em;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin: 0.55em 0 1.1em;
+      width: 100%;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    tr {
+      page-break-inside: avoid;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 0.48em 0.58em;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eaf1f5;
+      color: var(--navy);
+      font-size: 0.92em;
+      font-weight: 700;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #fafcfd;
+    }
+
+    .cover {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 245mm;
+      page-break-after: always;
+    }
+
+    .cover-brand {
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 12px;
+      padding-bottom: 12px;
+    }
+
+    .cover-brand img {
+      height: 24mm;
+      object-fit: contain;
+      width: 24mm;
+    }
+
+    .cover-brand-name {
+      color: var(--navy);
+      font-size: 22pt;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .cover-brand-subtitle {
+      color: var(--muted);
+      font-size: 9.5pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .cover-title-block {
+      border-left: 5px solid var(--blue);
+      margin: 18mm 0;
+      padding: 4mm 0 4mm 8mm;
+    }
+
+    .cover-kicker {
+      color: var(--teal);
+      font-size: 10pt;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      margin-bottom: 4mm;
+      text-transform: uppercase;
+    }
+
+    .cover h1 {
+      border: 0;
+      color: var(--navy);
+      font-size: 30pt;
+      line-height: 1.08;
+      margin: 0;
+      padding: 0;
+    }
+
+    .cover-lead {
+      color: var(--muted);
+      font-size: 13pt;
+      margin-top: 5mm;
+      max-width: 155mm;
+    }
+
+    .cover-meta {
+      border-top: 2px solid var(--navy);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin-top: auto;
+    }
+
+    .cover-meta div {
+      border-bottom: 1px solid var(--line);
+      min-height: 15mm;
+      padding: 3mm 2mm;
+    }
+
+    .cover-meta div:nth-child(odd) {
+      border-right: 1px solid var(--line);
+    }
+
+    .cover-meta strong {
+      color: var(--muted);
+      display: block;
+      font-size: 7.8pt;
+      letter-spacing: 0.08em;
+      margin-bottom: 1mm;
+      text-transform: uppercase;
+    }
+
+    .cover-status {
+      align-items: center;
+      display: flex;
+      gap: 7px;
+    }
+
+    .status-dot {
+      background: var(--gold);
+      border-radius: 50%;
+      display: inline-block;
+      height: 8px;
+      width: 8px;
+    }
+
+    .document-control,
+    .toc {
+      page-break-after: always;
+    }
+
+    .major,
+    .page-break {
+      page-break-before: always;
+    }
+
+    .callout,
+    .procedure,
+    .quick-card,
+    figure {
+      page-break-inside: avoid;
+    }
+
+    .toc ol {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .toc > ol > li {
+      border-bottom: 1px dotted #aab6c0;
+      font-weight: 700;
+      margin: 0;
+      padding: 0.38em 0;
+    }
+
+    .toc ol ol {
+      margin: 0.22em 0 0.12em 1.2em;
+    }
+
+    .toc ol ol li {
+      border: 0;
+      font-weight: 400;
+      padding: 0.15em 0;
+    }
+
+    .callout {
+      background: #eef6fa;
+      border-left: 4px solid var(--blue);
+      border-radius: 3px;
+      margin: 0.7em 0 1em;
+      padding: 0.72em 0.9em;
+    }
+
+    .callout h3,
+    .callout h4 {
+      margin-top: 0;
+    }
+
+    .callout.note {
+      background: #edf6f7;
+      border-left-color: var(--teal);
+    }
+
+    .callout.warning {
+      background: #fff8e7;
+      border-left-color: var(--gold);
+    }
+
+    .callout.danger {
+      background: #fff0f0;
+      border-left-color: var(--red);
+    }
+
+    .callout.success {
+      background: #edf8f2;
+      border-left-color: var(--green);
+    }
+
+    .procedure {
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      margin: 0.7em 0 1.1em;
+      padding: 0.85em 1em;
+    }
+
+    .procedure > h3,
+    .procedure > h4 {
+      margin-top: 0;
+    }
+
+    .procedure ol {
+      counter-reset: procedure-step;
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .procedure ol > li {
+      counter-increment: procedure-step;
+      min-height: 2em;
+      padding: 0.22em 0 0.45em 2.45em;
+      position: relative;
+    }
+
+    .procedure ol > li::before {
+      align-items: center;
+      background: var(--navy);
+      border-radius: 50%;
+      color: #fff;
+      content: counter(procedure-step);
+      display: flex;
+      font-size: 8.2pt;
+      font-weight: 700;
+      height: 1.85em;
+      justify-content: center;
+      left: 0;
+      position: absolute;
+      top: 0.22em;
+      width: 1.85em;
+    }
+
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li {
+      padding-left: 1.55em;
+      position: relative;
+    }
+
+    .checklist li::before {
+      border: 1.5px solid var(--teal);
+      border-radius: 2px;
+      content: "";
+      height: 0.85em;
+      left: 0;
+      position: absolute;
+      top: 0.26em;
+      width: 0.85em;
+    }
+
+    .quick-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin: 0.7em 0 1.1em;
+    }
+
+    .quick-card {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 0.75em 0.85em;
+    }
+
+    .quick-card h3,
+    .quick-card h4 {
+      margin: 0 0 0.35em;
+    }
+
+    .label {
+      background: #e9f2f5;
+      border-radius: 999px;
+      color: var(--navy);
+      display: inline-block;
+      font-size: 7.8pt;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      margin: 0 0.18em 0.2em 0;
+      padding: 0.18em 0.55em;
+      text-transform: uppercase;
+    }
+
+    .label.implemented {
+      background: #e7f5ed;
+      color: var(--green);
+    }
+
+    .label.demo {
+      background: #f0eafa;
+      color: var(--purple);
+    }
+
+    .label.proposed {
+      background: #fff1ce;
+      color: #835f0d;
+    }
+
+    .label.gap {
+      background: #ffe8e8;
+      color: var(--red);
+    }
+
+    .muted,
+    .source-note {
+      color: var(--muted);
+    }
+
+    .small,
+    .source-note {
+      font-size: 8.5pt;
+    }
+
+    .source-note {
+      border-top: 1px solid var(--line);
+      margin-top: 1.5em;
+      padding-top: 0.5em;
+    }
+
+    .diagram {
+      align-items: center;
+      background: #172330;
+      border-left: 4px solid var(--teal);
+      border-radius: 4px;
+      color: #f7fafc;
+      display: grid;
+      gap: 4mm;
+      grid-template-columns: minmax(0, 1fr) 34mm minmax(0, 0.92fr);
+      margin: 0.55em 0 0;
+      padding: 4mm;
+    }
+
+    .diagram-deployments,
+    .diagram-registry {
+      display: grid;
+      gap: 2mm;
+    }
+
+    .diagram-node {
+      background: #223447;
+      border: 1px solid #668098;
+      border-radius: 4px;
+      padding: 2.2mm 2.7mm;
+    }
+
+    .diagram-node strong {
+      color: #ffffff;
+      display: block;
+      font-size: 9.2pt;
+    }
+
+    .diagram-node span {
+      color: #d8e6ee;
+      display: block;
+      font-size: 7.5pt;
+      margin-top: 0.35mm;
+    }
+
+    .diagram-arrow,
+    .diagram-down {
+      color: #b9e4e1;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .diagram-arrow b,
+    .diagram-down b {
+      color: #ffffff;
+      display: block;
+      font-size: 15pt;
+      line-height: 1;
+    }
+
+    .diagram-boundary {
+      background: #edf6f7;
+      border: 1px solid #b9d9d7;
+      border-top: 0;
+      color: var(--navy);
+      font-size: 8.5pt;
+      margin: 0;
+      padding: 2.5mm 3.5mm;
+    }
+
+    .nowrap {
+      white-space: nowrap;
+    }
+
+    @media screen and (max-width: 820px) {
+      .manual {
+        margin: 0;
+        max-width: none;
+        padding: 22px;
+      }
+
+      .quick-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram-arrow b {
+        transform: rotate(90deg);
+      }
+    }
+  </style>
+</head>
+<body>
+<article class="manual">
+  <section class="cover" aria-labelledby="document-title">
+    <div class="cover-brand">
+      <img src="myscoutee-logo.png" alt="MyScoutee logo">
+      <div>
+        <div class="cover-brand-name">MyScoutee Registry</div>
+        <div class="cover-brand-subtitle">Controlled Operations Documentation</div>
+      </div>
+    </div>
+
+    <div class="cover-title-block">
+      <div class="cover-kicker">Registry Operations</div>
+      <h1 id="document-title">MyScoutee Registry Operator Manual</h1>
+      <p class="cover-lead">Trust model, real-registry deployment, secure operation, local administrative rails, recovery, and controlled distribution for MyScoutee Registry 1.0.0.</p>
+    </div>
+
+    <div class="cover-meta" aria-label="Document metadata">
+      <div>
+        <strong>Document ID</strong>
+        <span>MSC-ROM-001</span>
+      </div>
+      <div>
+        <strong>Document version</strong>
+        <span>1.0.0</span>
+      </div>
+      <div>
+        <strong>Applicable software</strong>
+        <span>MyScoutee Registry 1.0.0</span>
+      </div>
+      <div>
+        <strong>Status</strong>
+        <span class="cover-status"><span class="status-dot" aria-hidden="true"></span>Controlled draft</span>
+      </div>
+      <div>
+        <strong>Classification</strong>
+        <span>Internal / Controlled partner distribution</span>
+      </div>
+      <div>
+        <strong>Release date</strong>
+        <time datetime="2026-07-30">2026-07-30</time>
+      </div>
+      <div>
+        <strong>Language</strong>
+        <span>EN</span>
+      </div>
+      <div>
+        <strong>Canonical format</strong>
+        <span>Self-contained HTML</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="document-control" id="document-control" aria-labelledby="document-control-title">
+    <h2 id="document-control-title">Document Control</h2>
+
+    <table>
+      <caption>Document status and applicability</caption>
+      <tbody>
+        <tr>
+          <th scope="row">Document owner</th>
+          <td>MyScoutee Registry project — registry operations and protocol stewardship</td>
+        </tr>
+        <tr>
+          <th scope="row">Intended audience</th>
+          <td>Registry infrastructure operators, security officers, registry administrators, release managers, recovery personnel, and controlled regional partners</td>
+        </tr>
+        <tr>
+          <th scope="row">Normative current deployment surface</th>
+          <td><code>compose.production.yaml</code> for a source-backed deployment, or the build-free two-image stack under <code>tools/docker/offline/</code>; both keep the Go registry and Nginx edge as separate services</td>
+        </tr>
+        <tr>
+          <th scope="row">Review triggers</th>
+          <td>Any change to the protocol, Compose topology, image build, SQLite migrations, keys, CLI rails, backup format, Java integration, or distribution policy</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Version History</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Version</th>
+          <th scope="col">Date</th>
+          <th scope="col">Status</th>
+          <th scope="col">Change</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.0.0</td>
+          <td>2026-07-30</td>
+          <td>Controlled draft</td>
+          <td>Initial combined operator manual for the implemented v1 registry and its open production-distribution boundaries.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <aside class="callout warning">
+      <h3>Version and Evidence Boundary</h3>
+      <p>This manual describes the repository state reviewed for version 1.0.0. Passing source tests is not equivalent to completing the external production drills. A new image, migration, topology, or partner bundle requires a release-specific review and recorded qualification evidence.</p>
+    </aside>
+
+    <h3>Evidence Base</h3>
+    <p>The implemented statements in this manual are derived from the following version-controlled sources:</p>
+    <ul>
+      <li><code>README.md</code>, the internal qualification and protocol build inputs under <code>guides/manuals/protocols/</code>, and the standalone <code>MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf</code>;</li>
+      <li><code>compose.production.yaml</code>, <code>compose.yaml</code>, <code>compose.provisioned-key.yaml</code>, and <code>Dockerfile</code>;</li>
+      <li><code>tools/docker/registry-edge.Dockerfile</code>, the release-candidate files under <code>tools/docker/offline/</code>, <code>tools/package-offline-stack.sh</code>, and <code>tools/offline-stack-contract-test.sh</code>;</li>
+      <li><code>.env.production.example</code> and <code>tools/docker/registry.conf.template</code>;</li>
+      <li>the Go implementation under <code>cmd/registry/</code> and <code>internal/</code>, including embedded SQLite migrations;</li>
+      <li>the current MyScoutee Java registry client, persistence, outbox, Operator API, and frontend integration in the sibling backend repository.</li>
+    </ul>
+    <p><span class="label implemented">Implemented</span> means present in current source. <span class="label demo">Explore/demo</span> means real code running against isolated seeded demo state. <span class="label proposed">Proposed</span> is recommended design work, not a shipped artifact. <span class="label gap">Open gap</span> identifies a control or qualification boundary that is not closed by the current repository.</p>
+  </section>
+
+  <nav class="toc page-break" aria-labelledby="contents-title">
+    <h2 id="contents-title">Table of Contents</h2>
+    <ol>
+      <li><a href="#purpose">Purpose, Scope, and Safety Language</a></li>
+      <li><a href="#status-boundary">Implemented, Explore, and Proposed Surfaces</a></li>
+      <li><a href="#trust-model">Architecture and Trust Model</a></li>
+      <li><a href="#requirements">System Requirements and Planning Baseline</a></li>
+      <li><a href="#real-installation">Real Registry Installation</a></li>
+      <li><a href="#configuration">Configuration, Scope, Keys, and SQLite</a></li>
+      <li><a href="#network">DNS, TLS, Firewalls, and Time</a></li>
+      <li><a href="#operations">Lifecycle, Health, Monitoring, and Checkpoints</a></li>
+      <li><a href="#admin-cli">Registry-Local Administrative CLI</a></li>
+      <li><a href="#protocol-operations">Operational Protocol Rules and API Boundary</a></li>
+      <li><a href="#backup-restore">Backup and Restore</a></li>
+      <li><a href="#upgrade">Upgrade and Rollback</a></li>
+      <li><a href="#distribution">Image, Offline Bundle, and Distribution Policy</a></li>
+      <li><a href="#restricted-regions">Restricted and Mainland-China Operation</a></li>
+      <li><a href="#security-incidents">Security Operations and Incident Response</a></li>
+      <li><a href="#removal">Retirement and Removal</a></li>
+      <li><a href="#known-gaps">Known Gaps and Limitations</a></li>
+      <li><a href="#quick-reference">Quick Reference</a></li>
+    </ol>
+  </nav>
+
+  <section id="purpose" aria-labelledby="purpose-title">
+    <h2 id="purpose-title">1. Purpose, Scope, and Safety Language</h2>
+    <p>This manual explains how to deploy and operate one independently governed MyScoutee Registry 1.0.0 instance. It combines the minimum protocol trust model needed by an operator with concrete production Compose procedures and registry-local administrative controls.</p>
+
+    <h3>In Scope</h3>
+    <ul>
+      <li>a single-host Linux deployment using Docker Engine and Docker Compose v2;</li>
+      <li>the separate Go registry and Nginx services in <code>compose.production.yaml</code>;</li>
+      <li>the immutable registry scope, Ed25519 registry identity, VOPRF keyring, and SQLite state;</li>
+      <li>public HTTPS, health, monitoring, local administrative CLI rails, backup, restore, upgrades, incidents, and removal;</li>
+      <li>controlled regional or offline delivery where public source and image registries cannot be assumed reachable.</li>
+    </ul>
+
+    <h3>Out of Scope</h3>
+    <ul>
+      <li>a multi-node or active-active registry, automatic failover, cross-registry replication, or federation;</li>
+      <li>an authenticated public image-release service, signed OCI supply chain, OS package/systemd installer, or unattended registry updater; the working-tree offline packager is implemented, but it is not a turnkey supported public installer;</li>
+      <li>legal, tax, beneficial-owner, payment, payout, or acquisition decisions;</li>
+      <li>a guaranteed SLA, RTO, RPO, throughput, user count, or storage-retention limit;</li>
+      <li>automatic repair of inconsistent append-only data.</li>
+    </ul>
+
+    <aside class="callout danger">
+      <h3>Do Not Convert Evidence Rails into Payment Authority</h3>
+      <p>Settlements, exit reviews, ownership transfers, and final exit allocations are signed technical evidence. The implementation does not execute money movement, store bank instructions, create invoices, decide tax treatment, or replace external legal approval.</p>
+    </aside>
+  </section>
+
+  <section id="status-boundary" aria-labelledby="status-boundary-title">
+    <h2 id="status-boundary-title">2. Implemented, Explore, and Proposed Surfaces</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Surface</th>
+          <th scope="col">Status</th>
+          <th scope="col">Operational meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Real registry</td>
+          <td><span class="label implemented">Implemented</span></td>
+          <td><code>compose.production.yaml</code>; ordinary registry startup, mandatory non-demo scope, persistent production volume, no seed command, and a separate TLS Nginx edge.</td>
+        </tr>
+        <tr>
+          <td>Explore registry</td>
+          <td><span class="label demo">Explore/demo</span></td>
+          <td><code>compose.yaml</code>; explicit <code>start-demo</code>, <code>REGISTRY_DEMO_SEED=true</code>, a <code>demo:</code> scope, demo-specific filenames, deterministic signed fixtures, and loopback publication by default.</td>
+        </tr>
+        <tr>
+          <td>Go runtime image</td>
+          <td><span class="label implemented">Implemented</span></td>
+          <td>A stripped, statically linked binary in a scratch image, UID/GID <code>65532:65532</code>, no shell or package manager, port 8080 metadata, and no production secret embedded.</td>
+        </tr>
+        <tr>
+          <td>Nginx edge</td>
+          <td><span class="label implemented">Implemented</span></td>
+          <td>A separate first-party edge image derived from <code>nginx:1.28-alpine</code>. Both the source Compose deployment and offline stack use the image with the reviewed configuration template embedded; host TLS files remain runtime bind mounts.</td>
+        </tr>
+        <tr>
+          <td>Two first-party release images</td>
+          <td><span class="label implemented">Implemented in working tree</span></td>
+          <td>The Go image remains separate. <code>tools/docker/registry-edge.Dockerfile</code> builds <code>myscoutee-registry-edge:&lt;version&gt;-prod</code> and embeds the reviewed template. Published digest/signature policy remains open.</td>
+        </tr>
+        <tr>
+          <td>Offline deployment bundle</td>
+          <td><span class="label implemented">Packager implemented</span> <span class="label gap">Authenticity external</span></td>
+          <td><code>tools/package-offline-stack.sh</code> creates a reproducible Linux/amd64 two-image archive with a pull-free/no-build Compose file, manifest, environment template, audit copy of the Nginx template, and checksums. It does not create a vendor signature or SBOM.</td>
+        </tr>
+        <tr>
+          <td><code>1.0.0-full-prod</code> combined image</td>
+          <td><span class="label gap">Not implemented</span></td>
+          <td>Not recommended as the default. Combining Nginx and Go requires a process supervisor and still does not contain DNS, TLS keys, persistent state, policy, or orchestration.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <aside class="callout note">
+      <h3>Image Role Is Determined by Command, Configuration, and State</h3>
+      <p>The same Go binary can run an ordinary real registry or the guarded Explore seed path. Never infer “real” or “demo” from the image tag alone. Real and demo instances must have different scopes, keys, databases, volumes, endpoints, backups, and MyScoutee client state.</p>
+    </aside>
+  </section>
+
+  <section id="trust-model" class="page-break" aria-labelledby="trust-model-title">
+    <h2 id="trust-model-title">3. Architecture and Trust Model</h2>
+
+    <figure aria-labelledby="architecture-caption">
+      <figcaption id="architecture-caption">One sovereign registry serving multiple independently signed MyScoutee deployments</figcaption>
+      <div class="diagram" role="img" aria-label="Three MyScoutee deployments send directly signed HTTPS requests to one Nginx edge, one Go registry, and its private persistent state.">
+        <div class="diagram-deployments">
+          <div class="diagram-node">
+            <strong>MyScoutee deployment A</strong>
+            <span>own Ed25519 deployment key</span>
+          </div>
+          <div class="diagram-node">
+            <strong>MyScoutee deployment B</strong>
+            <span>own Ed25519 deployment key</span>
+          </div>
+          <div class="diagram-node">
+            <strong>MyScoutee deployment C</strong>
+            <span>own Ed25519 deployment key</span>
+          </div>
+        </div>
+        <div class="diagram-arrow">
+          HTTPS requests<br>with deployment signatures
+          <b aria-hidden="true">→</b>
+          one pinned endpoint,<br>scope, and registry key
+        </div>
+        <div class="diagram-registry">
+          <div class="diagram-node">
+            <strong>Nginx TLS edge</strong>
+            <span>public HTTPS request boundary</span>
+          </div>
+          <div class="diagram-down">
+            internal Docker network
+            <b aria-hidden="true">↓</b>
+          </div>
+          <div class="diagram-node">
+            <strong>Go registry</strong>
+            <span>non-root UID/GID 65532</span>
+          </div>
+          <div class="diagram-down">
+            private volume
+            <b aria-hidden="true">↓</b>
+          </div>
+          <div class="diagram-node">
+            <strong>Persistent registry state</strong>
+            <span>SQLite · registry key · VOPRF keyring</span>
+          </div>
+        </div>
+      </div>
+      <p class="diagram-boundary"><strong>Boundary:</strong> no request relay, fallback, synchronization, or shared state exists across registry scopes.</p>
+    </figure>
+
+    <h3>Actors and Controls</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Actor</th>
+          <th scope="col">Trusted capability</th>
+          <th scope="col">What that capability does not prove</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Registry infrastructure operator</td>
+          <td>Host, container, network, TLS, volume, backup, and availability control.</td>
+          <td>Truth of a deployment's reported QMAU, revenue, company claim, or legal evidence.</td>
+        </tr>
+        <tr>
+          <td>Registry administrator</td>
+          <td>Access to the local CLI and the registry's existing state/key paths; can append reviews and other controlled records.</td>
+          <td>A separate human signature. CLI actor and reference fields are audit labels, not remote identity proof.</td>
+        </tr>
+        <tr>
+          <td>MyScoutee deployment</td>
+          <td>Possession of its own Ed25519 deployment private key; signs requests and preserves signed receipts.</td>
+          <td>That its aggregate claim is honest or that one local account equals one human.</td>
+        </tr>
+        <tr>
+          <td>Authenticated MyScoutee Operator</td>
+          <td>Selects a registry, initiates registration, submits company data, and approves local product updates.</td>
+          <td>Authority to mutate the registry's local manager-only review rails.</td>
+        </tr>
+        <tr>
+          <td>Release authority</td>
+          <td>Separately held Ed25519 package-signing key identified by <code>pkey_…</code>.</td>
+          <td>Registry identity. The registry key <code>rkey_…</code> must never be accepted as an implicit package key.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Cryptographic Boundaries</h3>
+    <ul>
+      <li>The registry has one Ed25519 identity. Its deterministic key ID is <code>rkey_</code> plus the first 32 hexadecimal characters of the SHA-256 digest of the complete Ed25519 SPKI DER public key.</li>
+      <li>A deployment's assigned <code>dep_…</code> code is public. Control is proven by the corresponding private key, not by secrecy of the code.</li>
+      <li>Protocol signatures cover canonical LF-delimited messages, not incidental JSON field order. Binary fields use padded standard base64; SHA-256 values use lowercase <code>sha256:</code> form.</li>
+      <li>The linear hash-linked ledger is authoritative. Compact RFC 9162-style Merkle proofs and signed daily checkpoints make a ledger prefix independently auditable but do not prove claim truth.</li>
+      <li>Registry TLS authenticates the network endpoint. The self-signed registry identity then binds protocol scope and signing key. Both checks are required.</li>
+    </ul>
+
+    <h3>One Registry, One Scope, One Active Binding</h3>
+    <p>Every registry instance has one mandatory immutable <code>REGISTRY_SCOPE</code>. Each MyScoutee deployment communicates directly with one exact registry endpoint and scope. The registry does not forward or replicate a signed request to another scope. A deployment must complete signed deactivation and preserve its old receipts before binding to another registry.</p>
+    <p>An organization may operate more than one independent registry—for example one inside a restricted national network and another for a global population—but a single MyScoutee deployment does not use them as active/standby endpoints. Separate registries require separate domains, keys, databases, volumes, backups, and deployment populations.</p>
+
+    <aside class="callout warning">
+      <h3>Trust Is Tamper Evidence, Not Oracle Truth</h3>
+      <p>QMAU and revenue requests are deployment-signed aggregate claims. The registry can prove who submitted unchanged bytes, preserve corrections, and sign acceptance; it cannot inspect the deployment's private activity or payment evidence and cannot independently establish truthfulness.</p>
+    </aside>
+  </section>
+
+  <section id="requirements" aria-labelledby="requirements-title">
+    <h2 id="requirements-title">4. System Requirements and Planning Baseline</h2>
+
+    <h3>Required Platform Capabilities</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Area</th>
+          <th scope="col">Requirement</th>
+          <th scope="col">Verification</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Host</td>
+          <td>A supported Linux Docker host with a maintained kernel and enough privileges to manage Docker, firewall, time, storage, and protected files.</td>
+          <td><code>docker info</code></td>
+        </tr>
+        <tr>
+          <td>Container runtime</td>
+          <td>Docker Engine and Docker Compose v2. Source builds additionally require access to the Go 1.25 builder image and modules, unless all layers are preloaded.</td>
+          <td><code>docker compose version</code></td>
+        </tr>
+        <tr>
+          <td>Storage</td>
+          <td>Durable local storage with working file locks, atomic filesystem operations, directory sync, and SQLite WAL/fsync semantics. Do not place the volume on unqualified network storage.</td>
+          <td>Release-specific power-loss and restore drill</td>
+        </tr>
+        <tr>
+          <td>Time</td>
+          <td>Reliable UTC synchronization. Signed requests default to a five-minute skew window, and ledger/checkpoint guards reject clock rollback.</td>
+          <td><code>timedatectl status</code> or the platform equivalent</td>
+        </tr>
+        <tr>
+          <td>Network</td>
+          <td>Stable DNS, a certificate-valid HTTPS origin, inbound client reachability, and a management path separated from public traffic.</td>
+          <td>External TLS, DNS, and firewall tests</td>
+        </tr>
+        <tr>
+          <td>Backup</td>
+          <td>Encrypted backup storage able to preserve the complete registry state unit and a clean-host restore environment.</td>
+          <td>Recorded restore drill</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Suggested Starting Sizes</h3>
+    <p>The repository defines no qualified hardware minimum or throughput guarantee. The following figures are planning estimates, not support limits:</p>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Use</th>
+          <th scope="col">vCPU</th>
+          <th scope="col">Memory</th>
+          <th scope="col">Durable SSD</th>
+          <th scope="col">Use condition</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Evaluation or small controlled registry</td>
+          <td>2</td>
+          <td>2 GiB</td>
+          <td>20 GiB</td>
+          <td>Low request volume, monitored growth, no production SLA.</td>
+        </tr>
+        <tr>
+          <td>Initial production planning point</td>
+          <td>4</td>
+          <td>4–8 GiB</td>
+          <td>50–100 GiB</td>
+          <td>Retain at least 25% free space and resize from measured ledger, nonce, announcement, claim, and identity-presence growth.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>SQLite is intentionally configured with one serialized connection. State is append-only and durable replay nonces are retained. Full integrity checks occur at bootstrap and health boundaries. Capacity therefore depends on history size, health frequency, presence submissions, deployment count, and traffic shape—not only current active users.</p>
+
+    <aside class="callout warning">
+      <h3>Architecture Qualification</h3>
+      <p>The source Dockerfile sets <code>GOOS=linux</code> but takes the target architecture from the build environment. The implemented offline bundle contract deliberately accepts only <code>linux/amd64</code>; there is no published multi-architecture compatibility matrix. Record and qualify the exact host architecture, kernel, Docker version, filesystem, image digest, and source commit.</p>
+    </aside>
+  </section>
+
+  <section id="real-installation" class="page-break" aria-labelledby="real-installation-title">
+    <h2 id="real-installation-title">5. Real Registry Installation</h2>
+
+    <aside class="callout danger">
+      <h3>Do Not Start Production with the Repository-Root <code>compose.yaml</code></h3>
+      <p>The repository-root <code>compose.yaml</code> is the seeded Explore/demo surface. A source-backed real registry uses <code>compose.production.yaml</code>, ordinary startup, a non-demo scope, and no <code>REGISTRY_DEMO_SEED</code> guard. The separately packaged offline bundle also contains a file named <code>compose.yaml</code>; that reviewed bundle file is a real, build-free deployment surface.</p>
+    </aside>
+
+    <aside class="callout note">
+      <h3>Global Compose Command Rule</h3>
+      <p>Source-backed examples throughout this manual run from the reviewed repository release and use <code>compose.production.yaml</code>; a source build may use <code>--build</code>. Offline examples run from the extracted, authenticated bundle and substitute its <code>compose.yaml</code>; never add <code>--build</code> or permit a pull, and retain <code>--pull never</code> when creating or recreating services. Commands that require <code>compose.provisioned-key.yaml</code> have no current offline-bundle equivalent. Installation and Compose examples assume an approved root administrative shell, because <code>/opt/myscoutee-registry</code> is mode 0750 and the protected environment is mode 0600; do not loosen those modes to make an unprivileged shell work.</p>
+    </aside>
+
+    <h3>5.1 Prepare the Release Directory and Protected Files</h3>
+    <p>For a source-backed installation, populate <code>/opt/myscoutee-registry</code> with the exact reviewed repository release, then run the source commands in this chapter with that directory as the current working directory. It must contain <code>compose.production.yaml</code>, the Docker build context, and <code>tools/docker/registry.conf.template</code>. Source transfer and authentication are release-authority responsibilities; this repository does not contain a fetch installer. For an offline installation, extract an authenticated controlled bundle to a dedicated directory and follow §5.2 from the extracted bundle root.</p>
+
+    <pre><code>sudo install -d -m 0750 /opt/myscoutee-registry
+sudo install -d -m 0700 /opt/myscoutee-registry/tls
+
+sudo install -o root -g root -m 0600 /secure/source/fullchain.pem \
+  /opt/myscoutee-registry/tls/fullchain.pem
+sudo install -o root -g root -m 0600 /secure/source/privkey.pem \
+  /opt/myscoutee-registry/tls/privkey.pem
+
+cd /opt/myscoutee-registry
+
+sudo install -o root -g root -m 0600 .env.production.example \
+  /etc/myscoutee-registry.env
+sudoedit /etc/myscoutee-registry.env</code></pre>
+
+    <p>In the protected environment file, set at least:</p>
+    <pre><code>MYSCOUTEE_VERSION=1.0.0
+REGISTRY_PRODUCTION_IMAGE=myscoutee-registry:1.0.0-prod
+REGISTRY_SCOPE=example:region-a
+REGISTRY_PUBLIC_HOSTNAME=registry.example.com
+REGISTRY_PUBLIC_BIND_ADDRESS=0.0.0.0
+REGISTRY_HTTP_PORT=80
+REGISTRY_HTTPS_PORT=443
+REGISTRY_TLS_CERTIFICATE_PATH=/opt/myscoutee-registry/tls/fullchain.pem
+REGISTRY_TLS_PRIVATE_KEY_PATH=/opt/myscoutee-registry/tls/privkey.pem</code></pre>
+
+    <h3>5.2 Offline-Bundle Installation</h3>
+    <p>The release-candidate packager produces <code>dist/myscoutee-registry-stack_1.0.0_linux_amd64.tar.gz</code>. After authenticating the outer archive through the approved vendor/release channel, extract it on the target and verify its internal contract:</p>
+    <pre><code>sha256sum --check SHA256SUMS
+
+docker image load --input images/myscoutee-registry.tar
+docker image load --input images/myscoutee-registry-edge.tar
+
+docker image inspect myscoutee-registry:1.0.0-prod \
+  --format '{{.Id}} {{.Os}}/{{.Architecture}}'
+docker image inspect myscoutee-registry-edge:1.0.0-prod \
+  --format '{{.Id}} {{.Os}}/{{.Architecture}}'</code></pre>
+    <p>Compare both reported image IDs with <code>IMAGE-MANIFEST.json</code>. The internal <code>SHA256SUMS</code> file detects corruption after the outer bundle is trusted; it is not publisher authentication. The current packager does not generate a detached vendor signature.</p>
+    <p>The offline bundle excludes TLS material, production environment, registry/VOPRF keys, and SQLite state. Before starting Compose, install the TLS pair at the host paths in §5.1, then copy and edit the environment:</p>
+    <pre><code>sudo install -d -m 0700 /opt/myscoutee-registry/tls
+sudo install -o root -g root -m 0600 /secure/source/fullchain.pem \
+  /opt/myscoutee-registry/tls/fullchain.pem
+sudo install -o root -g root -m 0600 /secure/source/privkey.pem \
+  /opt/myscoutee-registry/tls/privkey.pem
+
+sudo install -o root -g root -m 0600 registry.env.example \
+  /etc/myscoutee-registry.env
+sudoedit /etc/myscoutee-registry.env
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.yaml \
+  config --quiet
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.yaml \
+  up --pull never -d</code></pre>
+    <p>The bundled Compose file has no <code>build</code> section and sets <code>pull_policy: never</code> for both services. It keeps the read-only filesystems, capability restrictions, <code>no-new-privileges</code>, health checks, and internal backend network. The target needs Docker Engine and Docker Compose but no source checkout, Go toolchain, GitHub, Docker Hub, or outbound build access.</p>
+    <p>Its current Compose surface uses generated first-run registry identity. A provisioned external registry signing key requires the separately reviewed repository overlay or a future bundle overlay; do not improvise an unreviewed mount.</p>
+
+    <h3>5.3 Choose the Registry Identity Mode</h3>
+    <div class="quick-grid">
+      <div class="quick-card">
+        <h4>Generated first-run key</h4>
+        <p>Keep <code>REGISTRY_GENERATE_SIGNING_KEY=true</code> only for the first pristine start. The registry atomically creates a mode-0600 Ed25519 PKCS#8 key in the production data volume.</p>
+      </div>
+      <div class="quick-card">
+        <h4>Provisioned key</h4>
+        <p>Set <code>REGISTRY_PROVISIONED_KEY_PATH</code>, use <code>compose.provisioned-key.yaml</code>, and run the explicit one-shot <code>initialize</code> command before ordinary startup.</p>
+      </div>
+    </div>
+
+    <h4>Generated-Key First Start</h4>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  config --quiet
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  up --build -d</code></pre>
+
+    <h4>Provisioned-Key First Start</h4>
+    <p>The external key must be an Ed25519 PKCS#8 PEM, a regular non-symlink file, mode <code>0600</code>, and readable as numeric container UID/GID <code>65532:65532</code>.</p>
+    <pre><code>sudo chown +65532:+65532 -- /secure/registry-signing-key.pem
+sudo chmod 0600 -- /secure/registry-signing-key.pem
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  -f compose.provisioned-key.yaml \
+  run --rm --build registry initialize
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  -f compose.provisioned-key.yaml \
+  up -d</code></pre>
+
+    <aside class="callout warning">
+      <h3>Initialization Is Deliberately Fail-Closed</h3>
+      <p>Ordinary startup will not pair an existing signing key with a pristine database. It will not generate a missing key for an established database. Restore the matching state instead of forcing a new identity. Only <code>initialize</code> may establish a pristine database under a provisioned key.</p>
+    </aside>
+
+    <h3>5.4 Commission and Record the Identity</h3>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  ps
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  logs --tail 100 registry nginx
+
+curl --fail --show-error \
+  https://registry.example.com/healthz
+
+curl --fail --show-error \
+  https://registry.example.com/v1/registry/identity
+
+curl --head --fail --show-error \
+  http://registry.example.com/</code></pre>
+
+    <p>The HTTPS checks must succeed without <code>-k</code> or another insecure-TLS option. The HTTP request should return a permanent 308 redirect to the configured HTTPS origin. Record the following in the commissioning evidence:</p>
+    <ul class="checklist">
+      <li>source commit and Go image ID/digest;</li>
+      <li>the exact Nginx image ID/digest;</li>
+      <li><code>registry_scope</code>, <code>registry_key_id</code>, and the complete identity response;</li>
+      <li>public-key SPKI SHA-256 fingerprint and the independently verified TLS certificate chain;</li>
+      <li>initial ledger index, entry count, and head hash;</li>
+      <li>Compose configuration, host/kernel/filesystem versions, firewall rules, and backup target;</li>
+      <li>an external request from an allowed MyScoutee network and a denied request from a disallowed management source.</li>
+    </ul>
+
+    <p>After the first verified start, set both generation switches to <code>false</code> in the protected environment file. Recreate the registry container so Compose applies the changed environment; a plain <code>restart</code> does not do so. This turns accidental volume/key loss into a startup failure instead of a new identity:</p>
+    <pre><code># Set these values in /etc/myscoutee-registry.env:
+REGISTRY_GENERATE_SIGNING_KEY=false
+REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY=false
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  up -d --force-recreate registry</code></pre>
+
+    <h3>5.5 Do Not Enrol Clients Until Commissioning Is Complete</h3>
+    <p>Publish the intended HTTPS origin, scope, registry key ID, and full SPKI fingerprint over an independent trusted channel. MyScoutee deployment operators need those values to distinguish the intended registry from a different validly operating registry at a compromised endpoint.</p>
+  </section>
+
+  <section id="configuration" aria-labelledby="configuration-title">
+    <h2 id="configuration-title">6. Configuration, Scope, Keys, and SQLite</h2>
+
+    <h3>6.1 Registry Runtime Variables</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Variable</th>
+          <th scope="col">Default/current bound</th>
+          <th scope="col">Operator rule</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REGISTRY_LISTEN_ADDR</code></td>
+          <td><code>:8080</code></td>
+          <td>Keep the Go service on the internal Docker network. Do not publish 8080 on the production host.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_SCOPE</code></td>
+          <td>Required; 3–128 lowercase ASCII characters from <code>a-z</code>, <code>0-9</code>, <code>.</code>, <code>:</code>, <code>_</code>, <code>-</code></td>
+          <td>Choose once. The first character must be a letter or digit. A changed scope against an existing database fails startup.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_DATABASE_PATH</code></td>
+          <td><code>/data/registry.db</code></td>
+          <td>SQLite database in the persistent production volume.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_SIGNING_KEY_PATH</code></td>
+          <td><code>/data/registry-signing-key.pem</code></td>
+          <td>Registry Ed25519 identity. Keep with the matching database or use the provisioned-key overlay.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_GENERATE_SIGNING_KEY</code></td>
+          <td><code>true</code></td>
+          <td>Permit only on a deliberate pristine first start; set false after commissioning.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH</code></td>
+          <td><code>/data/registry-global-identity-voprf-keyring.json</code></td>
+          <td>Sensitive versioned RFC 9497 VOPRF seed keyring; back up with SQLite and the registry signing key.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY</code></td>
+          <td><code>true</code></td>
+          <td>Generate the first keyring only; set false after commissioning.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_DEMO_SEED</code></td>
+          <td><code>false</code></td>
+          <td>Never enable for a real registry. It is accepted only with <code>start-demo</code>.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_TIMESTAMP_SKEW</code></td>
+          <td><code>5m</code>; must be positive</td>
+          <td>Increase only after a threat and retry review; fix clocks rather than widening casually.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_MAX_REQUEST_BODY_BYTES</code></td>
+          <td><code>65536</code>; valid 1024–1048576</td>
+          <td>Coordinate with the edge body limit and global-identity chunk sizing.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_VALUATION_MULTIPLIER_BASIS_POINTS</code></td>
+          <td><code>30000</code>; valid 1000–100000</td>
+          <td>Technical, non-binding settlement input. A change can create a new immutable settlement revision.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_CHECKPOINT_INTERVAL</code></td>
+          <td><code>1m</code></td>
+          <td>How often the worker attempts completed UTC-day finalization.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_SHUTDOWN_TIMEOUT</code></td>
+          <td><code>10s</code> binary default; not forwarded by either shipped Compose file</td>
+          <td>The shipped deployments therefore use the fixed default. A different value requires a reviewed Compose environment addition and a coordinated, tested change to the 15-second Compose stop grace period.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_HEALTHCHECK_URL</code></td>
+          <td><code>http://127.0.0.1:8080/healthz</code></td>
+          <td>Used by the scratch image's built-in healthcheck command.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.2 Edge Variables</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Variable</th>
+          <th scope="col">Current default</th>
+          <th scope="col">Operational effect</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REGISTRY_PUBLIC_HOSTNAME</code></td>
+          <td>Required</td>
+          <td>DNS server name, redirect authority, Nginx <code>server_name</code>, and TLS SNI name.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_PUBLIC_BIND_ADDRESS</code></td>
+          <td>Required; example <code>0.0.0.0</code></td>
+          <td>Host interface used for port publication. Prefer a specific address when exposure must be restricted.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_HTTP_PORT</code> / <code>REGISTRY_HTTPS_PORT</code></td>
+          <td>80 / 443</td>
+          <td>Custom ports are supported; clients must use the exact final HTTPS origin.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_EDGE_MAX_BODY_SIZE</code></td>
+          <td><code>64k</code></td>
+          <td>Keep no larger than the backend limit unless the pair is deliberately qualified.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_EDGE_REQUEST_RATE</code></td>
+          <td><code>10r/s</code></td>
+          <td>Per-address Nginx request-rate zone.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_EDGE_REQUEST_BURST</code></td>
+          <td><code>20</code></td>
+          <td>Nginx burst accepted without delay before HTTP 429.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_EDGE_CONNECTION_LIMIT</code></td>
+          <td><code>20</code></td>
+          <td>Concurrent connections per observed address. Review NAT concentration before changing.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.3 SQLite Durability and Migrations</h3>
+    <p>The implementation uses the CGo-free <code>modernc.org/sqlite</code> driver with:</p>
+    <ul>
+      <li>WAL journal mode, foreign keys enabled, <code>synchronous=FULL</code>, and a 5-second busy timeout;</li>
+      <li>one open/idle connection and serialized transactional writes;</li>
+      <li>embedded numbered schema migrations, each applied and recorded in its own transaction during open;</li>
+      <li>append-only triggers plus comprehensive identity, signature, ledger, direct-row, Merkle, and checkpoint verification.</li>
+    </ul>
+    <p>Direct query rows are written in the same transaction as their signed source. They are not eventually consistent projections and are not rebuilt or silently repaired. A failed integrity audit makes affected operations fail closed.</p>
+
+    <h3>6.4 Key Lifecycle Summary</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Key</th>
+          <th scope="col">Rotation</th>
+          <th scope="col">Loss/compromise effect</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Registry Ed25519 signing key</td>
+          <td>No supported in-place identity rotation in v1.</td>
+          <td>Loss stops verification and startup. Compromise affects the registry identity and requires a controlled new-registry migration, not a silent file replacement.</td>
+        </tr>
+        <tr>
+          <td>Global-identity VOPRF keyring</td>
+          <td><code>rotate-global-identity-key</code> appends a version; old versions remain for explicit correction. Restart is required.</td>
+          <td>Loss prevents future evaluation/correction and must fail closed. Possession together with restricted commitments enables offline dictionary testing of likely low-entropy identifiers.</td>
+        </tr>
+        <tr>
+          <td>TLS private key</td>
+          <td>Operator-owned certificate renewal/replacement at Nginx.</td>
+          <td>Does not change the registry signing identity, but can permit endpoint impersonation while compromised.</td>
+        </tr>
+        <tr>
+          <td>MyScoutee package-signing key</td>
+          <td>Outside this registry's key lifecycle; separately pinned by each deployment.</td>
+          <td>Used to verify a Debian artifact offered in an update manifest. Never store its private key in the registry.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="network" class="page-break" aria-labelledby="network-title">
+    <h2 id="network-title">7. DNS, TLS, Firewalls, and Time</h2>
+
+    <h3>7.1 DNS</h3>
+    <ul>
+      <li>Create an A record for the exact public or private address used by allowed MyScoutee deployments. Publish an AAAA record only after IPv6 bind and firewall behavior are verified.</li>
+      <li>Use a stable hostname covered by the certificate. Do not use an origin path, credentials, query, or fragment in a MyScoutee registry base URL.</li>
+      <li>Keep DNS ownership and recovery credentials outside the registry host. A DNS takeover can redirect clients even though registry-key comparison should detect a changed registry identity.</li>
+      <li>When changing address, keep the same hostname and registry state. Current MyScoutee binding rules also pin the endpoint; changing the origin is not a transparent failover operation.</li>
+    </ul>
+
+    <h3>7.2 TLS</h3>
+    <p>Nginx terminates TLS 1.2/1.3, disables session tickets, adds one-year HSTS and <code>X-Content-Type-Options: nosniff</code>, and redirects HTTP to the configured HTTPS hostname and port. The Go service remains plain HTTP only on the internal Docker network.</p>
+    <p>Replace certificate and private-key files as a matched protected pair, then recreate or reload Nginx and verify both its container health and the external certificate:</p>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  up -d --force-recreate nginx
+
+openssl s_client \
+  -connect registry.example.com:443 \
+  -servername registry.example.com \
+  &lt; /dev/null
+
+curl --fail --show-error \
+  https://registry.example.com/healthz</code></pre>
+    <p>The current repository does not issue or renew production certificates. Automate renewal only with a separately reviewed host process and alert on expiry.</p>
+
+    <h3>7.3 Firewall</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Flow</th>
+          <th scope="col">Default port</th>
+          <th scope="col">Rule</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>MyScoutee deployments → Nginx HTTPS</td>
+          <td>TCP 443</td>
+          <td>Allow only the intended networks where practical. If deployments share NAT, account for per-address edge limits.</td>
+        </tr>
+        <tr>
+          <td>HTTP redirect</td>
+          <td>TCP 80</td>
+          <td>Optional but currently configured. It performs only a 308 redirect; clients should store the final HTTPS origin.</td>
+        </tr>
+        <tr>
+          <td>Management SSH</td>
+          <td>Operator-defined</td>
+          <td>Allow only through VPN, bastion, or fixed administrative sources. SSH is a host prerequisite, not installed by this registry.</td>
+        </tr>
+        <tr>
+          <td>Go backend</td>
+          <td>Container TCP 8080</td>
+          <td>Internal Docker network only. Never publish directly on the production host.</td>
+        </tr>
+        <tr>
+          <td>Outbound Internet</td>
+          <td>None required by the running Go protocol</td>
+          <td>Images, build modules, external monitoring, DNS, and certificate renewal may need separately controlled egress. Pre-stage them for restricted operation.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>7.4 Time</h3>
+    <p>Monitor clock offset and NTP state. Registry writes cannot move before registry creation, the current ledger head, or a finalized day. Deployment requests outside the configured skew are rejected. If time is wrong, stop writes, correct the host clock through the approved time service, verify state, and resume; never rewrite timestamps in SQLite.</p>
+  </section>
+
+  <section id="operations" aria-labelledby="operations-title">
+    <h2 id="operations-title">8. Lifecycle, Health, Monitoring, and Checkpoints</h2>
+
+    <aside class="callout note">
+      <h3>Source and Offline Compose Filenames</h3>
+      <p>The global command rule in §5 applies here: examples use the source-backed <code>compose.production.yaml</code>; an installed offline bundle substitutes its <code>compose.yaml</code>, never builds or pulls, and retains <code>--pull never</code> on service creation or recreation. The service names and protected environment file remain the same.</p>
+    </aside>
+
+    <h3>8.1 Common Lifecycle Commands</h3>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  up -d
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  ps
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  logs --tail 200 registry nginx
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  restart registry
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  down</code></pre>
+    <p><code>down</code> without <code>-v</code> removes containers and networks but preserves the named production data volume. Never add <code>-v</code> during routine lifecycle work.</p>
+
+    <h3>8.2 Health Semantics</h3>
+    <p><code>GET /healthz</code> returns HTTP 200 only after storage and integrity verification. Its JSON includes protocol version, scope, registry key ID, ledger index, entry count, and ledger head hash. The Go image's <code>/registry healthcheck</code> command calls that endpoint with a three-second timeout. Nginx has a separate TLS healthcheck and starts only after the registry becomes healthy.</p>
+    <pre><code>curl --fail --show-error \
+  https://registry.example.com/healthz
+
+docker inspect \
+  --format '{{json .State.Health}}' \
+  myscoutee-registry-registry-1</code></pre>
+    <p>The container name depends on the Compose project name; resolve it with <code>docker compose ps</code> instead of assuming the example.</p>
+
+    <aside class="callout warning">
+      <h3>Health Is Not a Cheap Ping</h3>
+      <p>A health request performs integrity work. The current Compose services probe every 10 seconds, and public <code>/healthz</code> is also reachable through Nginx. Do not add high-frequency external probes. Measure health latency as history grows and qualify any interval or endpoint split before changing the release topology.</p>
+    </aside>
+
+    <h3>8.3 Monitoring Minimum</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Signal</th>
+          <th scope="col">Alert condition</th>
+          <th scope="col">Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Container state/restarts</td>
+          <td>Unhealthy, restart loop, unexpected exit, or Nginx unable to reach registry.</td>
+          <td>Preserve logs and check key, volume, migration, TLS, and integrity errors.</td>
+        </tr>
+        <tr>
+          <td>External HTTPS</td>
+          <td>Certificate failure, identity endpoint failure, wrong scope/key ID, or sustained latency.</td>
+          <td>Compare against commissioning evidence before accepting traffic.</td>
+        </tr>
+        <tr>
+          <td>Disk and inode use</td>
+          <td>Less than the locally defined headroom; this manual recommends 25% free as a starting threshold.</td>
+          <td>Expand storage. Do not delete append-only rows or nonce history.</td>
+        </tr>
+        <tr>
+          <td>Backup</td>
+          <td>Missed job, failed encryption/upload, or restore evidence older than policy.</td>
+          <td>Run and verify a new complete recovery-unit backup.</td>
+        </tr>
+        <tr>
+          <td>Clock</td>
+          <td>NTP unsynchronized or offset approaches request-skew policy.</td>
+          <td>Correct the time source before accepting signed writes.</td>
+        </tr>
+        <tr>
+          <td>HTTP status</td>
+          <td>Rising 429, 5xx, signature failures, replay conflicts, or request-size failures.</td>
+          <td>Separate abuse, NAT concentration, client defects, outage retry, and integrity faults.</td>
+        </tr>
+        <tr>
+          <td>Ledger/checkpoints</td>
+          <td>Unexpected head regression, missing completed-day checkpoint, or proof failure.</td>
+          <td>Stop writes and follow the integrity-incident procedure.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The Go service writes structured JSON logs to stdout. No Prometheus metrics endpoint, distributed trace exporter, or registry-specific log shipper is implemented. Configure Docker/host log rotation and a protected external collector without recording private CLI output.</p>
+
+    <h3>8.4 Daily Checkpoints and Merkle Witnessing</h3>
+    <p>The background worker attempts completed UTC-day checkpoint finalization at the configured interval. A checkpoint never represents the still-open current UTC day. Retain external copies of selected identity responses, signed checkpoints, and Merkle tree heads so a later consistency proof can show append-only growth.</p>
+  </section>
+
+  <section id="admin-cli" class="page-break" aria-labelledby="admin-cli-title">
+    <h2 id="admin-cli-title">9. Registry-Local Administrative CLI</h2>
+
+    <p>Run production CLI commands inside the existing registry container so they use the same protected environment, signing key, VOPRF keyring, scope, and SQLite volume:</p>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  exec -T registry \
+  /registry COMMAND [OPTIONS]</code></pre>
+
+    <p>Operational commands use an existing-state bootstrap. A missing or mistyped database, scope, key, or identity fails rather than creating new state. Exact idempotent duplicates exit successfully and return the original signed result. Invalid flags, stale targets, integrity failures, storage failures, and idempotency conflicts exit non-zero.</p>
+
+    <aside class="callout danger">
+      <h3>CLI Access Is Administrative Authority</h3>
+      <p>Restrict host and Docker access. Registry signatures prove what this authority recorded; they do not authenticate a separate reviewer. Commands such as <code>show-operator-claim</code>, <code>settlements</code>, and exit-allocation detail can expose protected company/contact or beneficiary data. Do not pipe them into shared logs or tickets.</p>
+    </aside>
+
+    <h3>9.1 Complete Implemented Command Inventory</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Rail</th>
+          <th scope="col">Commands</th>
+          <th scope="col">Purpose and boundary</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Runtime</td>
+          <td><code>healthcheck</code></td>
+          <td>Calls the configured health endpoint. It does not create or repair state.</td>
+        </tr>
+        <tr>
+          <td>Initialization</td>
+          <td><code>initialize</code></td>
+          <td>One-shot identity initialization under a provisioned key. Not a routine start command.</td>
+        </tr>
+        <tr>
+          <td>Explore only</td>
+          <td><code>start-demo</code></td>
+          <td>Guarded deterministic demo seed and ordinary server. Forbidden for a real registry.</td>
+        </tr>
+        <tr>
+          <td>Announcements</td>
+          <td><code>publish-announcement</code></td>
+          <td>Strict local append of a GENERAL, UPDATE, MAINTENANCE, or SECURITY announcement. There is no public publish API.</td>
+        </tr>
+        <tr>
+          <td>Company claim review</td>
+          <td><code>list-operator-claims</code>, <code>show-operator-claim</code>, <code>approve-operator-claim</code>, <code>reject-operator-claim</code></td>
+          <td>Review-safe list, private detail, and exact-current-claim approval/rejection. Stale target fields fail closed.</td>
+        </tr>
+        <tr>
+          <td>Claim eligibility</td>
+          <td><code>suspend-operator-claim</code>, <code>reinstate-operator-claim</code></td>
+          <td>Independent eligibility state for an approved claim. It does not rewrite verification, QMAU, identity, or history.</td>
+        </tr>
+        <tr>
+          <td>Registry cases</td>
+          <td><code>list-registry-cases</code>, <code>show-registry-case</code>, <code>flag-registry-case</code>, <code>clear-registry-case</code></td>
+          <td>Append-only local case/evidence rail for a typed subject. It is not a public support-ticket API.</td>
+        </tr>
+        <tr>
+          <td>Exit review</td>
+          <td><code>freeze-exit-review</code>, <code>decide-exit-review</code>, <code>dispute-exit-review</code>, <code>withdraw-exit-review</code>, <code>list-exit-reviews</code>, <code>show-exit-review</code></td>
+          <td>Freezes exact checkpoint, claim, group, QMAU/revenue, and settlement boundaries; records buyer/auditor decisions. No ownership or payment transfer.</td>
+        </tr>
+        <tr>
+          <td>Ownership transfer</td>
+          <td><code>prepare-ownership-transfer</code>, <code>decide-ownership-transfer</code>, <code>cancel-ownership-transfer</code>, <code>complete-ownership-transfer</code>, <code>list-ownership-transfers</code>, <code>show-ownership-transfer</code></td>
+          <td>Two-phase, registry-signed effective group-membership change pinned to an eligible verified exit. No payment execution.</td>
+        </tr>
+        <tr>
+          <td>Final exit allocation</td>
+          <td><code>create-exit-allocation</code>, <code>verify-exit-allocation</code>, <code>list-exit-allocations</code>, <code>show-exit-allocation</code></td>
+          <td>Copies exact frozen settlement revisions and conserves amounts per currency. Contractual evidence only.</td>
+        </tr>
+        <tr>
+          <td>Accounting reads</td>
+          <td><code>leaderboard</code>, <code>revenue</code>, <code>settlements</code>, <code>global-identity-dedup</code></td>
+          <td>Signed or protected local reads. Revenue and settlement commands can expose private amounts.</td>
+        </tr>
+        <tr>
+          <td>Settlement calculation</td>
+          <td><code>calculate-settlement</code></td>
+          <td>Creates or returns an immutable technical monthly settlement revision for one completed month and currency.</td>
+        </tr>
+        <tr>
+          <td>Global identity key</td>
+          <td><code>rotate-global-identity-key</code></td>
+          <td>Appends a new VOPRF key version, verifies metadata, and requires a registry restart.</td>
+        </tr>
+        <tr>
+          <td>Merkle proofs</td>
+          <td><code>merkle-proof</code>, <code>merkle-consistency</code>, <code>verify-merkle-proof</code>, <code>verify-merkle-consistency</code></td>
+          <td>Generate or locally verify signed inclusion and append-only consistency evidence.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>9.2 Representative Controlled Procedures</h3>
+
+    <h4>Publish a Reviewed Announcement</h4>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  exec -T registry \
+  /registry publish-announcement --file - \
+  &lt; /secure/reviewed-announcement.json</code></pre>
+    <p>Take a consistent backup before publication. The input is one strict UTF-8 JSON object, maximum 256 KiB, with no unknown or duplicate fields. Publication is append-only. Revocation or supersession is another announcement, not an edit.</p>
+
+    <h4>Review a Company Claim</h4>
+    <pre><code>docker compose --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml exec -T registry \
+  /registry list-operator-claims --status PENDING_REVIEW --limit 50
+
+docker compose --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml exec -T registry \
+  /registry show-operator-claim --deployment-id dep_0123456789abcdef0123456789abcdef
+
+docker compose --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml exec -T registry \
+  /registry approve-operator-claim \
+  --deployment-id dep_0123456789abcdef0123456789abcdef \
+  --claim-action-id opa_0123456789abcdef0123456789abcdef \
+  --group-id opg_0123456789abcdef0123456789abcdef \
+  --legal-name 'Example Cooperative' \
+  --reviewer-id network-review-team \
+  --review-reference case:2026-0042 \
+  --idempotency-key approve-example-2026-0042</code></pre>
+    <p>Copy deployment, claim action, group, and legal name from the same private <code>show</code> result. Use bounded non-personal actor/reference fields. Re-run <code>show</code> immediately before the decision when review takes time.</p>
+
+    <h4>Calculate and Inspect a Technical Settlement</h4>
+    <pre><code>docker compose --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml exec -T registry \
+  /registry calculate-settlement --period 2026-06 --currency EUR
+
+docker compose --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml exec -T registry \
+  /registry settlements --period 2026-06 --currency EUR --limit 20</code></pre>
+    <p>The calculation accepts a completed UTC month and one supported currency. It computes the 5% pool once after aggregate commission-basis revenue, uses the six-complete-month QMAU boundary for share weights, and never converts currencies. It remains non-binding technical evidence.</p>
+
+    <h4>Rotate the VOPRF Key</h4>
+    <pre><code>docker compose --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml exec -T registry \
+  /registry rotate-global-identity-key
+
+docker compose --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml restart registry</code></pre>
+    <p>Back up the complete recovery unit immediately before and after rotation. Older versions remain in the keyring to support explicit corrections; rotation is not deletion of prior capability.</p>
+
+    <h3>9.3 Command Help Is the Flag Authority</h3>
+    <p>For every rail, run <code>/registry COMMAND --help</code> in the container and copy cursor, event hash, claim action, group, review, transfer, allocation, and idempotency values exactly. Do not infer identifiers or modify opaque cursors.</p>
+  </section>
+
+  <section id="protocol-operations" aria-labelledby="protocol-operations-title">
+    <h2 id="protocol-operations-title">10. Operational Protocol Rules and API Boundary</h2>
+
+    <h3>10.1 Public API Groups</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Purpose</th>
+          <th scope="col">Endpoints</th>
+          <th scope="col">Trust boundary</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Identity and registration</td>
+          <td><code>GET /v1/registry/identity</code><br><code>POST /v1/deployments/register</code></td>
+          <td>Read-only self-signed identity, then deployment proof-of-possession registration.</td>
+        </tr>
+        <tr>
+          <td>QMAU and revenue</td>
+          <td><code>POST /v1/mau/batches</code><br><code>POST /v1/revenue/batches</code><br>receipt GETs</td>
+          <td>Deployment-signed aggregate snapshots and immutable correction revisions. No raw user/payment identifiers.</td>
+        </tr>
+        <tr>
+          <td>Operator network</td>
+          <td><code>POST /v1/operator/actions</code><br>claim status and leaderboard GETs</td>
+          <td>Deployment mutations; registry-signed status and snapshot-bound cursor reads.</td>
+        </tr>
+        <tr>
+          <td>Announcements and updates</td>
+          <td><code>GET /v1/announcements</code></td>
+          <td>Registry-signed pull feed. No remote command, push, public writer, download, or automatic install.</td>
+        </tr>
+        <tr>
+          <td>Global identity</td>
+          <td>VOPRF key/evaluate, link/action, presence batch, and dedup snapshot endpoints</td>
+          <td>RFC 9497 <code>P256-SHA256</code> VOPRF and opaque commitments; privacy-enhancing but not anonymous PSI.</td>
+        </tr>
+        <tr>
+          <td>Settlement history</td>
+          <td><code>POST /v1/settlements/query</code></td>
+          <td>Deployment-signed private query returning only exact historical beneficiary memberships for that deployment.</td>
+        </tr>
+        <tr>
+          <td>Audit evidence</td>
+          <td>Checkpoint, Merkle inclusion, and Merkle consistency GETs</td>
+          <td>Registry-signed append-only evidence over ledger prefixes.</td>
+        </tr>
+        <tr>
+          <td>Health</td>
+          <td><code>GET /healthz</code></td>
+          <td>Public operational integrity result; no secrets, but not a lightweight liveness-only check.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>10.2 Strict HTTP Rules</h3>
+    <ul>
+      <li>Protocol POST bodies are UTF-8 <code>application/json</code>, exactly one JSON object, within the configured body bound, with no duplicate or unknown fields.</li>
+      <li>Signed mutation paths reject query strings. All endpoints reject percent-encoded path aliases. Nginx intentionally forwards the original target without rewriting it.</li>
+      <li>RFC 3339 timestamps must be UTC and end in literal <code>Z</code>. Periods and dates use their documented canonical forms.</li>
+      <li>The current Java REAL client requires an HTTPS origin and does not follow redirects. Insecure HTTP is limited to explicitly allowed demo/development hosts.</li>
+      <li>Current Java defaults are a 5-second connect timeout, 20-second request timeout, and 1 MiB maximum response.</li>
+    </ul>
+
+    <h3>10.3 Retry and Idempotency</h3>
+    <p>Every signed mutation uses a timestamp, nonce, idempotency key, payload hash, and signature. Apply these rules after a timeout or lost response:</p>
+    <ol>
+      <li>Preserve the original normalized payload and idempotency key.</li>
+      <li>Create a fresh timestamp, nonce, and signature for the retry.</li>
+      <li>An exact accepted retry returns the stored signed result without another append.</li>
+      <li>The same signer/idempotency key with a different payload hash is a conflict.</li>
+      <li>Reusing an accepted nonce for a different request is a replay conflict.</li>
+      <li>Back off on transport errors, HTTP 429, and retryable 5xx responses. Do not blindly retry validation, signature, stale-revision, or idempotency-conflict failures.</li>
+    </ol>
+    <p>Durable nonce retention intentionally grows. Do not prune it outside a future versioned retention protocol.</p>
+
+    <h3>10.4 QMAU, Revenue, and Global Identity</h3>
+    <ul>
+      <li><code>qmau-v1</code> counts a distinct local non-admin/non-demo/non-test human account with at least two substantive actions on at least two days in the rolling 30-day window. The registry receives only the aggregate and evidence commitment.</li>
+      <li>Leaderboard measured weight is the arithmetic mean of active latest QMAU revisions for the six most recent complete UTC months; missing months contribute zero. This is deployment-level QMAU, not globally deduplicated people.</li>
+      <li>Revenue is daily aggregate net captured revenue by supported ISO-4217 currency, never a transaction list. Currencies are never converted or combined.</li>
+      <li>Exact global dedup requires consent-bound VOPRF links and qualified-presence submissions matching an accepted QMAU revision. Unlinked QMAU remains counted. Dedup measurement does not redistribute deployment weight.</li>
+      <li>The current Java sender uses 512 commitments per chunk under the default body limit; with the Go bounds of 4096 chunks, the current interoperable ceiling is 2,097,152 commitments per submission. This is an ingress bound, not a supported network-size guarantee.</li>
+    </ul>
+
+    <h3>10.5 Announcement and Package Signatures</h3>
+    <p>An UPDATE announcement is an offer for a MyScoutee operator to inspect, not installation consent. The registry signs the announcement and manifest with <code>rkey_…</code>. The referenced Debian artifact has a separate detached Ed25519 signature from <code>pkey_…</code>. A deployment must verify HTTPS origin, exact byte size, SHA-256 digest, compatibility range, package key ID, and detached package signature before any privileged local install workflow is approved.</p>
+  </section>
+
+  <section id="backup-restore" class="page-break" aria-labelledby="backup-restore-title">
+    <h2 id="backup-restore-title">11. Backup and Restore</h2>
+
+    <h3>11.1 Recovery Unit</h3>
+    <p>Back up these items together under one evidence ID:</p>
+    <ul class="checklist">
+      <li>the complete production data volume, including SQLite database, WAL/SHM files if present, generated registry signing key, and VOPRF keyring;</li>
+      <li>or, for a provisioned signing key, the complete volume plus the exact external key under its separate custody control;</li>
+      <li>the protected production environment file;</li>
+      <li>Compose files, Nginx template, source commit, Go/Nginx image IDs and digests;</li>
+      <li>TLS certificate chain and private key under the certificate policy;</li>
+      <li>commissioning identity, latest health head, selected checkpoints/Merkle evidence, and backup manifest/checksums.</li>
+    </ul>
+
+    <aside class="callout danger">
+      <h3>Raw Copy Requires Quiescence</h3>
+      <p>The current repository has no registry backup command and the scratch image has no shell or SQLite CLI. Do not copy a changing database, WAL, and SHM sequentially. Stop/quiesce the service, use SQLite's online backup API through a separately qualified tool, or take an atomic storage snapshot.</p>
+    </aside>
+
+    <h3>11.2 Quiesced Backup Procedure</h3>
+    <div class="procedure">
+      <h3>Complete stopped-volume backup</h3>
+      <ol>
+        <li>Record current identity, ledger index/head, checkpoint state, image IDs, Compose status, and UTC time.</li>
+        <li>Stop public ingress, then run <code>docker compose … down</code> without <code>-v</code>.</li>
+        <li>Resolve the exact Docker volume carrying logical volume <code>registry-production-data</code>. Confirm its Compose project labels; never guess a similarly named volume.</li>
+        <li>Take an atomic storage snapshot or a root-controlled archive that preserves numeric owner <code>65532</code>, permissions, timestamps, and every file in the volume.</li>
+        <li>Back up external key/TLS/environment/release evidence separately under the same backup ID.</li>
+        <li>Encrypt, checksum, and store the backup according to local retention and geographic policy.</li>
+        <li>Restart the exact release, verify health and identity, and record downtime.</li>
+      </ol>
+    </div>
+
+    <p>For a Docker local volume, use <code>docker volume inspect</code> to resolve its mountpoint, then operate only on that exact resolved directory while the services are stopped. Storage drivers and managed platforms may require a provider snapshot instead of direct host access.</p>
+
+    <h3>11.3 Restore Procedure</h3>
+    <div class="procedure">
+      <h3>Clean-host restore</h3>
+      <ol>
+        <li>Isolate the target from MyScoutee traffic and install the exact recorded Docker/Compose release surface.</li>
+        <li>Create a new empty target volume. Keep generation switches false.</li>
+        <li>Restore every volume file with numeric UID/GID and modes preserved. Restore the exact external signing key if provisioned.</li>
+        <li>Restore the protected environment with the original scope and key paths. Never substitute another scope's key, database, or VOPRF keyring.</li>
+        <li>Start only the registry service and inspect logs. Startup must verify identity, migrations, append-only triggers, signatures, direct rows, ledger, Merkle index, and checkpoints.</li>
+        <li>Verify <code>/healthz</code> and <code>/v1/registry/identity</code> against the backup manifest, then verify selected Merkle/checkpoint evidence.</li>
+        <li>Start/recreate Nginx, test normal TLS externally, and re-enable allowed traffic gradually.</li>
+      </ol>
+    </div>
+
+    <p>A restore is successful only when scope, registry key ID, SPKI fingerprint, ledger index/head, and selected signed evidence match the recovery record. A generated replacement key or empty healthy ledger is not recovery.</p>
+
+    <h3>11.4 Restore Testing</h3>
+    <p>Test restore to a clean isolated host at the frequency required by the local RPO/RTO. Record duration, image and source IDs, migration behavior, filesystem, integrity result, key ID, ledger head, and external proof verification. The repository's tests include temporary closed-database restore evidence, but production storage/TLS/host restoration remains an external release drill.</p>
+  </section>
+
+  <section id="upgrade" aria-labelledby="upgrade-title">
+    <h2 id="upgrade-title">12. Upgrade and Rollback</h2>
+
+    <aside class="callout note">
+      <h3>No Registry Auto-Updater</h3>
+      <p>The registry does not poll for or install its own image updates. Its announcement feed concerns MyScoutee deployment packages. Compose changes and registry image replacement are explicit registry-operator actions.</p>
+    </aside>
+
+    <div class="procedure">
+      <h3>Controlled registry upgrade</h3>
+      <ol>
+        <li>Review release notes, protocol compatibility, embedded migrations, image contents, source commit, Nginx changes, and all open qualification evidence.</li>
+        <li>Build or receive the candidate under a new immutable version tag. Record the content digest; do not overwrite the current release tag as the only rollback reference.</li>
+        <li>Run <code>go test ./...</code>, <code>go test -race ./...</code>, the tagged E2E suite, <code>go vet ./...</code>, image inspection, and the Java-to-Go rail qualification against the candidate.</li>
+        <li>Take and verify a complete pre-upgrade recovery-unit backup. Rehearse its restore on an isolated host.</li>
+        <li>Schedule downtime or drain public ingress. Stop the current services cleanly.</li>
+        <li>Load/build the candidate images and update only the intended image/version references. Validate the fully resolved Compose configuration.</li>
+        <li>Start the registry. Embedded migrations run transactionally during database open; startup then performs full integrity verification.</li>
+        <li>Start Nginx and verify TLS, health, identity, unchanged scope/key ID, non-regressed ledger head, registration/retry behavior, representative CLI reads, checkpoints, and Merkle proofs.</li>
+        <li>Retain the pre-upgrade image and backup until the observation window closes.</li>
+      </ol>
+    </div>
+
+    <p>Current source-built deployment uses:</p>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  config --quiet
+
+docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  up --build -d</code></pre>
+
+    <aside class="callout warning">
+      <h3>Rollback Is Backup Restore, Not Just an Older Container</h3>
+      <p>Migrations are forward-applied at open, and no general downgrade compatibility contract is implemented. If rollback is required after the candidate touched the database, restore the matching pre-upgrade database/key/keyring unit and prior images. Do not simply start an older binary against migrated state unless that exact downgrade path was qualified.</p>
+    </aside>
+  </section>
+
+  <section id="distribution" class="page-break" aria-labelledby="distribution-title">
+    <h2 id="distribution-title">13. Image, Offline Bundle, and Distribution Policy</h2>
+
+    <h3>13.1 Is Publishing the Registry Image Unsafe?</h3>
+    <p><strong>Version 1.0.0 distribution boundary:</strong> the real registry images and offline bundle are not publicly distributed as a supported release. The repository contains a working-tree release-candidate packager, while publisher authentication, release qualification, support policy, and delivery remain controlled external responsibilities.</p>
+    <p>The current final image contains the compiled Go binary and empty runtime directories, not production SQLite data, registry/VOPRF/TLS private keys, environment files, or announcements. Publishing that exact image does not by itself disclose deployed secrets. It does expose the binary and protocol implementation for analysis and creates support, vulnerability-response, licensing, provenance, and patch-distribution obligations.</p>
+    <p>Security must not depend on keeping the image secret. Nevertheless, until an OCI signing, SBOM, immutable-tag, disclosure, and support policy is in place, controlled partner distribution is the lower-risk operational choice. Use an access-controlled regional registry or signed offline media and still assume recipients can inspect the binary.</p>
+
+    <h3>13.2 Implemented Two-Image Release-Candidate Surface</h3>
+    <p><span class="label implemented">Implemented in working tree</span> The offline contract keeps two independently replaceable artifacts:</p>
+    <ol>
+      <li><code>myscoutee-registry:1.0.0-prod</code> — the existing non-root scratch Go runtime;</li>
+      <li><code>myscoutee-registry-edge:1.0.0-prod</code> — an Nginx 1.28 Alpine-derived edge with the exact reviewed template embedded, still receiving certificate/key files as runtime mounts.</li>
+    </ol>
+    <p>The build input should pin the approved Nginx base by digest through <code>NGINX_BASE_IMAGE</code>. The generated manifest records exact image IDs, while the bundled Compose uses versioned references and <code>pull_policy: never</code>. A published online surface should additionally pin both by digest. Keeping the services separate preserves their privilege, logs, health, and update boundaries. A combined <code>1.0.0-full-prod</code> image would need a process supervisor and would still require orchestration for ports, volumes, networks, health, restart policy, TLS mounts, and environment. It therefore does not solve the distribution problem.</p>
+
+    <h3>13.3 Implemented Offline Bundle Contract</h3>
+    <p><span class="label implemented">Implemented in working tree</span> Build the two exact local Linux/amd64 images, then package them:</p>
+    <pre><code>docker build -t myscoutee-registry:1.0.0-prod .
+
+docker build \
+  --build-arg MYSCOUTEE_VERSION=1.0.0 \
+  -f tools/docker/registry-edge.Dockerfile \
+  -t myscoutee-registry-edge:1.0.0-prod \
+  .
+
+./tools/package-offline-stack.sh 1.0.0
+
+bash tools/offline-stack-contract-test.sh</code></pre>
+    <p>The packaging script does not build or pull. It requires both exact local images, supports <code>linux/amd64</code> only, refuses to overwrite an existing output artifact, rejects unexpected image IDs/platforms and common private-credential markers, and produces:</p>
+    <pre><code>dist/myscoutee-registry-stack_1.0.0_linux_amd64.tar.gz</code></pre>
+    <p>For identical image inputs and release metadata it creates a reproducible archive. The bundle contains:</p>
+    <ul class="checklist">
+      <li><code>images/myscoutee-registry.tar</code> and <code>images/myscoutee-registry-edge.tar</code>;</li>
+      <li>a no-build/no-pull <code>compose.yaml</code> preserving read-only filesystems, capability restrictions, health checks, and the internal backend network;</li>
+      <li><code>registry.env.example</code>, <code>README.md</code>, <code>VERSION</code>, and an Nginx template audit copy;</li>
+      <li><code>IMAGE-MANIFEST.json</code> with stack/platform/source metadata, exact image IDs, archive paths, and archive SHA-256 values;</li>
+      <li><code>SHA256SUMS</code> covering every staged payload.</li>
+    </ul>
+
+    <h3>13.4 Remaining Release-Supply Controls</h3>
+    <p><span class="label gap">Open</span> The bundle's checksums and image-manifest IDs detect damage and mismatch but do not authenticate MyScoutee as publisher. The current packager does not generate an OCI signature, detached archive signature, SBOM, vulnerability report, license pack, or release qualification record. The release authority must sign the outer archive through a separately trusted channel and deliver its verification key independently. Add SBOM, scan, compatibility, migration, and support evidence before treating the working-tree packager as a public release pipeline.</p>
+
+    <aside class="callout warning">
+      <h3>Do Not Put Secrets in an Image or Bundle</h3>
+      <p>TLS keys, registry signing keys, VOPRF seeds, production environment files, SQLite data, partner credentials, and real announcement drafts are deployment state. Provision them at the target under the custody procedures in this manual.</p>
+    </aside>
+  </section>
+
+  <section id="restricted-regions" aria-labelledby="restricted-regions-title">
+    <h2 id="restricted-regions-title">14. Restricted and Mainland-China Operation</h2>
+
+    <p>MyScoutee Registry can be placed inside a restricted national or private network so participating MyScoutee deployments do not cross a country firewall for registry traffic. The running Go registry has no required outbound protocol dependency; once images, DNS, TLS, and monitoring are locally available, requests remain between deployments and that registry origin.</p>
+
+    <h3>14.1 Supported Sovereign Pattern</h3>
+    <ul>
+      <li>Deploy the real registry and Nginx inside the target network with a locally reachable DNS name and a non-demo scope such as <code>partner-cn:mainland</code>.</li>
+      <li>Keep the registry database, signing key, VOPRF keyring, TLS key, logs, and backups under the agreed regional custody and data-location policy.</li>
+      <li>Register each in-region MyScoutee deployment directly to that one HTTPS origin, scope, and registry identity.</li>
+      <li>Mirror or offline-deliver every build/runtime image and release artifact. Do not assume GitHub, Docker Hub, a public module proxy, public certificate automation, or a global monitoring endpoint is reachable or stable.</li>
+      <li>Use a regional support and incident channel that remains available if cross-border connectivity is unavailable.</li>
+    </ul>
+
+    <h3>14.2 Using Both a Regional and a Global Registry</h3>
+    <p>Separate deployment populations may use separate registries: for example, in-country MyScoutee deployments use the regional registry while other deployments use a global registry. Each registry remains a sovereign namespace with its own scope, keys, state, evidence, and partner authority.</p>
+    <p>A single MyScoutee deployment cannot send the same history to both, fail over between them, or merge their ledgers. Switching requires signed deactivation from the old registry and explicit registration to the new one. No bridge, relay, cross-scope synchronization, consolidated leaderboard, or shared settlement is implemented.</p>
+
+    <h3>14.3 TLS and Private Networks</h3>
+    <p>The current MyScoutee REAL client requires HTTPS. A publicly trusted certificate is simplest where available. A private CA can work only if every Java runtime is provisioned to trust that CA and the complete end-to-end package/container trust-store procedure is release-qualified. The registry repository does not ship that MyScoutee trust-store installer.</p>
+
+    <h3>14.4 Partnership Control Checklist</h3>
+    <aside class="callout warning">
+      <h3>Controlled Distribution in Version 1.0.0</h3>
+      <p>The real registry is not publicly distributed as a supported release in version 1.0.0. Regional delivery therefore requires a controlled partnership, an authenticated artifact channel, and environment-specific qualification. Please contact MyScoutee if you want to deploy this topology.</p>
+    </aside>
+    <ul class="checklist">
+      <li>name the infrastructure, registry-administration, release, key-custody, backup, incident, and legal-review roles;</li>
+      <li>approve the scope and publish the registry key fingerprint through an independent channel;</li>
+      <li>define data location, backup export, retention, access review, and incident-notification rules;</li>
+      <li>decide whether delivery uses a private regional image registry or signed offline media;</li>
+      <li>keep registry release signing separate from registry protocol signing and partner host credentials;</li>
+      <li>run install, power-loss, restore, upgrade, network-partition, and client retry drills entirely within the regional environment;</li>
+      <li>obtain current local legal and regulatory review before launch; this technical manual is not a compliance determination.</li>
+    </ul>
+
+    <aside class="callout note">
+      <h3>Registry Data Is Reduced, Not Empty</h3>
+      <p>The protocol excludes raw user profiles, Firebase UIDs, chat, access tokens, and payment transactions. It still stores company registered-address and verification-contact fields in protected SQLite tables, aggregate revenue, audit identifiers, and opaque global-identity commitments. Treat the volume and backups as sensitive regional data.</p>
+    </aside>
+  </section>
+
+  <section id="security-incidents" class="page-break" aria-labelledby="security-incidents-title">
+    <h2 id="security-incidents-title">15. Security Operations and Incident Response</h2>
+
+    <h3>15.1 Preventive Controls</h3>
+    <ul>
+      <li>least-privilege host/Docker access, MFA on infrastructure control planes, restricted management network, and audited local CLI use;</li>
+      <li>mode-0600 key files, no symlinks, no production secrets in source/images, encrypted backups, and separate VOPRF/restricted-table access where practical;</li>
+      <li>pinned release/image evidence, vulnerability monitoring, controlled TLS renewal, and reliable UTC time;</li>
+      <li>external witnessing of registry identity, checkpoints, and selected Merkle heads;</li>
+      <li>no manual SQLite UPDATE/DELETE, no nonce pruning, and no query-table repair scripts;</li>
+      <li>reviewed idempotency keys and exact stale-target identifiers for local administrative decisions.</li>
+    </ul>
+
+    <h3>15.2 Incident Matrix</h3>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Incident</th>
+          <th scope="col">Immediate action</th>
+          <th scope="col">Recovery boundary</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Integrity or health failure</td>
+          <td>Stop public ingress and writes; preserve container logs, host state, volume snapshot, image IDs, time evidence, and recent checkpoints.</td>
+          <td>Do not repair signed rows manually. Diagnose or restore a verified complete recovery unit.</td>
+        </tr>
+        <tr>
+          <td>SQLite/storage corruption</td>
+          <td>Stop both services and take a forensic snapshot before any tool touches the volume.</td>
+          <td>Restore database, signing key, and VOPRF keyring together. Validate every identity/head boundary.</td>
+        </tr>
+        <tr>
+          <td>Registry signing-key loss</td>
+          <td>Keep generation disabled and stop serving.</td>
+          <td>Restore the matching key. A new key is a new registry identity, not recovery.</td>
+        </tr>
+        <tr>
+          <td>Registry signing-key compromise</td>
+          <td>Isolate the host, preserve evidence, stop signing, and notify deployment operators through an independent channel.</td>
+          <td>v1 has no in-place key rotation. Establish a new independently commissioned registry and coordinate explicit client migration; preserve the compromised registry's evidence.</td>
+        </tr>
+        <tr>
+          <td>VOPRF keyring loss/compromise</td>
+          <td>Stop global-identity evaluation/link operations and restrict the protected tables.</td>
+          <td>Restore on loss. Rotation limits future use but does not undo exposure of old seeds/commitments or remove dictionary-test risk.</td>
+        </tr>
+        <tr>
+          <td>TLS/DNS compromise</td>
+          <td>Revoke/replace certificate or DNS credentials, isolate the edge, and compare the registry signing identity out of band.</td>
+          <td>Registry state may remain valid if the signing key was not exposed; verify before restoring traffic.</td>
+        </tr>
+        <tr>
+          <td>Clock rollback/drift</td>
+          <td>Stop signed writes and correct the approved time source.</td>
+          <td>Restart and verify; never edit accepted timestamps.</td>
+        </tr>
+        <tr>
+          <td>Disk full</td>
+          <td>Stop writes and expand or move storage through a qualified snapshot/restore.</td>
+          <td>Do not delete append-only history, durable nonces, Merkle nodes, or direct rows.</td>
+        </tr>
+        <tr>
+          <td>Private claim/backup disclosure</td>
+          <td>Revoke access, preserve access logs, identify copied records/backups, and follow local notification policy.</td>
+          <td>The private claim table is access-controlled but not field-level encrypted. Registry signatures do not remediate confidentiality loss.</td>
+        </tr>
+        <tr>
+          <td>Traffic flood / repeated 429</td>
+          <td>Use upstream firewall/rate controls and determine whether many valid deployments share one NAT address.</td>
+          <td>Change edge limits only after load and fairness testing; do not expose port 8080 as a bypass.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>15.3 Registry Outage Effect</h3>
+    <p>A registry outage pauses registry enrollment, QMAU/revenue delivery, announcements, network reads, and settlement history. MyScoutee product data remains local to each deployment; durable local outboxes can retry registry reports. After recovery, clients must use the original idempotency key and payload with fresh timestamp/nonce/signature rather than creating duplicate business records.</p>
+  </section>
+
+  <section id="removal" aria-labelledby="removal-title">
+    <h2 id="removal-title">16. Retirement and Removal</h2>
+
+    <h3>16.1 Controlled Retirement</h3>
+    <ol>
+      <li>Freeze new enrollment and announce the retirement through a trusted channel.</li>
+      <li>Have every reachable MyScoutee deployment perform its signed disconnect/deactivation while the registry identity is still available. Preserve each deployment's archived receipts.</li>
+      <li>Finalize required checkpoints, export agreed evidence, take a complete final backup, and verify it on an isolated host.</li>
+      <li>Stop Nginx and the registry with <code>docker compose … down</code> without <code>-v</code>.</li>
+      <li>Revoke or retire DNS/TLS credentials and remove public firewall rules.</li>
+      <li>Apply the approved retention/destruction policy to the production volume, provisioned key, VOPRF keyring, TLS key, environment, logs, images, and backups.</li>
+    </ol>
+
+    <aside class="callout danger">
+      <h3>Volume Deletion Is Irreversible</h3>
+      <p><code>docker compose down -v</code> deletes the production volume containing the ledger and, in generated-key mode, both registry secrets. Do not run it as an uninstall shortcut. Resolve the exact volume, obtain written authorization, verify the final backup, and destroy only the intended target.</p>
+    </aside>
+
+    <h3>16.2 Removal Does Not Merge or Transfer History</h3>
+    <p>Deleting a registry does not transfer its deployments, QMAU, revenue, claims, groups, settlements, or identity commitments to another registry. If clients were not deactivated before removal, their old binding cannot receive the signed deactivation receipt and requires a separately governed recovery/migration decision.</p>
+  </section>
+
+  <section id="known-gaps" class="page-break" aria-labelledby="known-gaps-title">
+    <h2 id="known-gaps-title">17. Known Gaps and Limitations</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Gap</th>
+          <th scope="col">Current evidence</th>
+          <th scope="col">Required treatment</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Human registry-identity confirmation is not fully enforced by the current product flow</td>
+          <td>The Go read-only identity endpoint and Java <code>inspect</code>/<code>confirm</code> endpoints exist. However, the current frontend registration action calls <code>register</code> directly, and Java's direct registration path performs a fresh cryptographic inspection but does not require a previously consumed inspection token. A source test explicitly permits selection without separate configuration.</td>
+          <td>Until fixed and qualified, require trusted endpoint catalog/TLS, expected scope, and an out-of-band key-ID/SPKI comparison. Do not claim that every enrollment has an enforced human key confirmation.</td>
+        </tr>
+        <tr>
+          <td>No supported/public installer release</td>
+          <td>The working tree includes a build-free, pull-free Linux/amd64 two-image offline bundle packager. Version 1.0.0 is not published as an authenticated supported installer, and no Debian/systemd installer or automatic registry updater exists.</td>
+          <td>Keep delivery controlled until the outer archive is authenticated, release qualification and support policy are complete, and the delivery channel is approved. Docker Engine and Docker Compose remain target prerequisites.</td>
+        </tr>
+        <tr>
+          <td>No OCI signature, SBOM publication, or immutable public image policy</td>
+          <td>No current repository tooling implements these release controls.</td>
+          <td>Use controlled partner delivery and record hashes/digests; implement supply-chain policy before broad publication.</td>
+        </tr>
+        <tr>
+          <td>No native backup/restore command</td>
+          <td>Scratch runtime contains no shell or SQLite utility; documentation requires quiescence, online backup API, or storage snapshot.</td>
+          <td>Use and qualify an external backup mechanism; record clean-host restore evidence.</td>
+        </tr>
+        <tr>
+          <td>Single-node SQLite</td>
+          <td>One serialized connection, one writable volume, no replication/failover protocol.</td>
+          <td>Define downtime/RPO/RTO and restore procedure. Do not invent active/active or cross-scope fallback.</td>
+        </tr>
+        <tr>
+          <td>No formal capacity/SLA matrix</td>
+          <td>Load, burst, topology, and production host drills remain external qualification items.</td>
+          <td>Benchmark expected deployment, QMAU, revenue, presence, announcement, proof, and health traffic before launch.</td>
+        </tr>
+        <tr>
+          <td>Health check cost</td>
+          <td>Health invokes integrity verification and Compose polls frequently.</td>
+          <td>Monitor latency/history growth; avoid extra high-frequency public polling; qualify any split liveness/readiness design.</td>
+        </tr>
+        <tr>
+          <td>Registry Ed25519 key rotation/HSM</td>
+          <td>No supported in-place registry identity rotation or HSM/threshold implementation.</td>
+          <td>Protect the key as a root trust asset; compromise requires controlled new-registry migration.</td>
+        </tr>
+        <tr>
+          <td>VOPRF single-operator threat</td>
+          <td>One operator can hold both VOPRF seeds and restricted commitments.</td>
+          <td>Separate and audit access. Threshold or separately governed/HSM-backed evaluation is future hardening.</td>
+        </tr>
+        <tr>
+          <td>Private claim fields are not field-level encrypted</td>
+          <td>Address and verification-contact fields are in protected append-only tables in the same SQLite database.</td>
+          <td>Restrict host/volume/CLI/backup access and apply retention/privacy controls.</td>
+        </tr>
+        <tr>
+          <td>No cross-registry federation</td>
+          <td>Scope is a strict signed domain; registries do not relay, synchronize, or consolidate.</td>
+          <td>Use separate populations and explicit deactivation/re-enrollment. Do not market multi-registry fallback as implemented.</td>
+        </tr>
+        <tr>
+          <td>Legal/payment boundary</td>
+          <td>Settlement and exit rails are technical evidence only.</td>
+          <td>Keep legal approval, payment, tax, contractual rounding, and beneficial-owner checks outside the protocol.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="quick-reference" aria-labelledby="quick-reference-title">
+    <h2 id="quick-reference-title">18. Quick Reference</h2>
+
+    <div class="quick-grid">
+      <div class="quick-card">
+        <h3>Production Files</h3>
+        <p><code>compose.production.yaml</code><br><code>compose.provisioned-key.yaml</code><br><code>.env.production.example</code><br><code>tools/docker/registry.conf.template</code></p>
+      </div>
+      <div class="quick-card">
+        <h3>Offline Stack</h3>
+        <p><code>tools/package-offline-stack.sh</code><br><code>tools/docker/offline/compose.yaml</code><br><code>tools/docker/offline/registry.env.example</code><br><code>dist/myscoutee-registry-stack_1.0.0_linux_amd64.tar.gz</code></p>
+      </div>
+      <div class="quick-card">
+        <h3>Persistent State</h3>
+        <p>Logical volume: <code>registry-production-data</code><br>Database: <code>/data/registry.db</code><br>Generated key: <code>/data/registry-signing-key.pem</code><br>VOPRF: <code>/data/registry-global-identity-voprf-keyring.json</code></p>
+      </div>
+      <div class="quick-card">
+        <h3>Public Checks</h3>
+        <p><code>GET /healthz</code><br><code>GET /v1/registry/identity</code><br><code>GET /v1/announcements</code><br>HTTP → HTTPS 308 redirect</p>
+      </div>
+      <div class="quick-card">
+        <h3>Never Expose</h3>
+        <p>Container port 8080<br>SQLite/WAL/SHM<br>Registry/VOPRF/TLS private keys<br>Production environment<br>Private CLI output</p>
+      </div>
+    </div>
+
+    <h3>Commissioning Checklist</h3>
+    <ul class="checklist">
+      <li>Real Compose, ordinary startup, non-demo scope, no demo seed.</li>
+      <li>DNS and normal certificate-valid HTTPS verified externally.</li>
+      <li>Port 8080 absent from host publications.</li>
+      <li>Scope, key ID, SPKI fingerprint, image IDs/digests, and ledger head recorded.</li>
+      <li>Generation switches disabled after first successful initialization.</li>
+      <li>Complete encrypted backup and clean-host restore tested.</li>
+      <li>MyScoutee operator compares the intended identity through an independent channel.</li>
+      <li>Rate limits, NAT behavior, time sync, disk alerts, certificate expiry, and log rotation monitored.</li>
+      <li>Open release drills and current identity-confirmation gap accepted by the accountable release authority.</li>
+    </ul>
+
+    <h3>Emergency Stop</h3>
+    <pre><code>docker compose \
+  --env-file /etc/myscoutee-registry.env \
+  -f compose.production.yaml \
+  stop nginx registry</code></pre>
+    <p>After stopping, preserve evidence and the exact volume before attempting recovery. Do not use <code>down -v</code>.</p>
+
+    <h3>Companion Developer Manual</h3>
+    <p>For wire formats, canonical messages, signatures, HTTP rules, idempotency, response contracts, and integration guidance, use the separate <strong>MyScoutee Registry Protocol Developer Manual v1.0.0</strong> (<code>MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf</code>). The individual Markdown files under <code>guides/manuals/protocols/</code> are controlled implementation evidence and PDF build inputs for maintainers; operators do not need to follow them one by one.</p>
+
+  </section>
+</article>
+</body>
+</html>

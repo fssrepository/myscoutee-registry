@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+case "${1:-}" in
+  configure)
+    ;;
+  abort-upgrade|abort-remove|abort-deconfigure)
+    exit 0
+    ;;
+  *)
+    printf 'Unsupported myscoutee-registry postinst action: %s\n' \
+      "${1:-missing}" >&2
+    exit 1
+    ;;
+esac
+
+install_root="/opt/myscoutee-registry"
+config_root="/etc/myscoutee-registry"
+config_file="$config_root/registry.env"
+config_example="/usr/share/myscoutee-registry/registry.env.example"
+packaged_version="$(sed -n '1p' "$install_root/VERSION")"
+previous_version="${2:-}"
+
+install -d -m 0700 "$config_root"
+install -d -m 0700 "$config_root/tls"
+
+if [[ ! -e "$config_file" && ! -L "$config_file" ]]; then
+  install -o root -g root -m 0600 "$config_example" "$config_file"
+  printf 'Created protected deployment configuration: %s\n' "$config_file"
+fi
+
+read_env_value() {
+  local key="$1"
+  local file="$2"
+  local line value
+
+  [[ -f "$file" ]] || return 1
+  line="$(
+    sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//p" "$file" |
+      tail -n 1
+  )"
+  [[ -n "$line" ]] || return 1
+  value="${line%$'\r'}"
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+    value="${value:1:${#value}-2}"
+  elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+  printf '%s' "$value"
+}
+
+replace_if_canonical_previous() {
+  local key="$1"
+  local previous="$2"
+  local replacement="$3"
+  local current escaped
+
+  [[ -f "$config_file" && ! -L "$config_file" ]] || return 0
+  current="$(read_env_value "$key" "$config_file" || true)"
+  [[ "$current" == "$previous" ]] || return 0
+  escaped="${replacement//\\/\\\\}"
+  escaped="${escaped//&/\\&}"
+  sed -i \
+    "s|^[[:space:]]*${key}[[:space:]]*=.*|${key}=${escaped}|" \
+    "$config_file"
+}
+
+# A package-manager-driven upgrade may advance only the canonical image
+# references from the exact previous package version. Custom operator image
+# references and every other configuration value are preserved verbatim.
+if [[ "$previous_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
+  [[ "$packaged_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
+  [[ "$previous_version" != "$packaged_version" ]]; then
+  replace_if_canonical_previous \
+    REGISTRY_PRODUCTION_IMAGE \
+    "myscoutee-registry:${previous_version}-prod" \
+    "myscoutee-registry:${packaged_version}-prod"
+  replace_if_canonical_previous \
+    REGISTRY_EDGE_IMAGE \
+    "myscoutee-registry-edge:${previous_version}-prod" \
+    "myscoutee-registry-edge:${packaged_version}-prod"
+  replace_if_canonical_previous \
+    MYSCOUTEE_VERSION \
+    "$previous_version" \
+    "$packaged_version"
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+
+cat <<'MESSAGE'
+MyScoutee Registry is installed but has not been started or enabled.
+
+Before the first explicit start:
+  1. Review /etc/myscoutee-registry/registry.env.
+  2. Set the permanent registry scope and public DNS hostname.
+  3. Install the matching TLS certificate and private key.
+  4. Decide the registry-signing and VOPRF key-generation policy.
+  5. Set REGISTRY_OPERATOR_CONFIGURATION_CONFIRMED=true.
+  6. Run: myscoutee-registry-stack check
+  7. Run: systemctl enable --now myscoutee-registry
+
+The package contains no registry self-updater and performs no unattended
+network fetch. Package upgrades do not restart the running stack. Configuration,
+TLS material, and the Docker data volume are preserved across upgrades.
+MESSAGE

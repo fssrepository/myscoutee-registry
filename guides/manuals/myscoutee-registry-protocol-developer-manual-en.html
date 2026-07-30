@@ -1,0 +1,1648 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Controlled MyScoutee Registry Protocol Developer Manual 1.0.0">
+  <title>MyScoutee Registry Protocol Developer Manual · MSC-RPDM-001</title>
+  <style>
+    :root {
+      --ink: #1c2633;
+      --muted: #586675;
+      --line: #d9e1e8;
+      --soft: #f3f6f8;
+      --navy: #17324d;
+      --blue: #176b87;
+      --teal: #0f766e;
+      --gold: #9a6d0b;
+      --red: #a72b2b;
+      --green: #26734d;
+      --purple: #664a8a;
+    }
+
+    @page {
+      size: A4;
+      margin: 18mm 16mm 20mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      color: var(--ink);
+      font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+      font-size: 10.2pt;
+      line-height: 1.48;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: #e9eef2;
+      margin: 0;
+    }
+
+    .manual {
+      background: #fff;
+      box-shadow: 0 8px 26px rgb(23 50 77 / 15%);
+      margin: 18px auto;
+      max-width: 210mm;
+      min-height: 297mm;
+      padding: 18mm 16mm 20mm;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .manual {
+        box-shadow: none;
+        margin: 0;
+        max-width: none;
+        min-height: 0;
+        padding: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    p,
+    li,
+    td,
+    th {
+      orphans: 3;
+      widows: 3;
+    }
+
+    p {
+      margin: 0 0 0.72em;
+    }
+
+    ul,
+    ol {
+      margin: 0.35em 0 0.9em;
+      padding-left: 1.55em;
+    }
+
+    li {
+      margin: 0.23em 0;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      color: var(--navy);
+      line-height: 1.2;
+      page-break-after: avoid;
+    }
+
+    h1 {
+      border-bottom: 2px solid var(--blue);
+      font-size: 21pt;
+      margin: 0 0 0.65em;
+      padding-bottom: 0.22em;
+    }
+
+    h2 {
+      font-size: 15.5pt;
+      margin: 1.35em 0 0.5em;
+    }
+
+    h3 {
+      font-size: 12.5pt;
+      margin: 1.1em 0 0.4em;
+    }
+
+    h4 {
+      font-size: 10.6pt;
+      margin: 0.9em 0 0.3em;
+    }
+
+    code,
+    pre {
+      font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+    }
+
+    code {
+      background: #edf2f5;
+      border-radius: 3px;
+      font-size: 0.9em;
+      overflow-wrap: anywhere;
+      padding: 0.08em 0.25em;
+    }
+
+    pre {
+      background: #172330;
+      border-left: 4px solid var(--blue);
+      border-radius: 4px;
+      color: #f7fafc;
+      font-size: 8.25pt;
+      line-height: 1.42;
+      margin: 0.55em 0 1em;
+      overflow-wrap: anywhere;
+      padding: 0.85em 1em;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin: 0.55em 0 1.1em;
+      width: 100%;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    tr {
+      page-break-inside: avoid;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 0.48em 0.58em;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eaf1f5;
+      color: var(--navy);
+      font-size: 0.92em;
+      font-weight: 700;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #fafcfd;
+    }
+
+    .cover {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 245mm;
+      page-break-after: always;
+    }
+
+    .cover-brand {
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 12px;
+      padding-bottom: 12px;
+    }
+
+    .cover-brand img {
+      height: 24mm;
+      object-fit: contain;
+      width: 24mm;
+    }
+
+    .cover-brand-name {
+      color: var(--navy);
+      font-size: 22pt;
+      font-weight: 800;
+    }
+
+    .cover-brand-subtitle {
+      color: var(--muted);
+      font-size: 9.5pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .cover-title-block {
+      border-left: 5px solid var(--blue);
+      margin: 18mm 0;
+      padding: 4mm 0 4mm 8mm;
+    }
+
+    .cover-kicker {
+      color: var(--teal);
+      font-size: 10pt;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      margin-bottom: 4mm;
+      text-transform: uppercase;
+    }
+
+    .cover h1 {
+      border: 0;
+      color: var(--navy);
+      font-size: 29pt;
+      line-height: 1.08;
+      margin: 0;
+      padding: 0;
+    }
+
+    .cover-version {
+      color: var(--blue);
+      font-size: 16pt;
+      font-weight: 700;
+      margin-top: 5mm;
+    }
+
+    .cover-summary {
+      color: var(--muted);
+      font-size: 11pt;
+      max-width: 150mm;
+    }
+
+    .metadata {
+      border-top: 1px solid var(--line);
+      display: grid;
+      font-size: 9.5pt;
+      gap: 2mm 8mm;
+      grid-template-columns: 40mm 1fr;
+      padding-top: 7mm;
+    }
+
+    .metadata dt {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .metadata dd {
+      margin: 0;
+    }
+
+    .chapter {
+      page-break-before: always;
+    }
+
+    .toc {
+      columns: 2;
+      column-gap: 12mm;
+      page-break-after: always;
+    }
+
+    .toc ol {
+      margin-top: 0;
+    }
+
+    .toc li {
+      break-inside: avoid;
+      margin-bottom: 0.35em;
+    }
+
+    .callout {
+      background: var(--soft);
+      border-left: 4px solid var(--blue);
+      border-radius: 3px;
+      margin: 0.8em 0 1em;
+      padding: 0.75em 0.9em;
+      page-break-inside: avoid;
+    }
+
+    .callout.warning {
+      background: #fff8e7;
+      border-color: var(--gold);
+    }
+
+    .callout.danger {
+      background: #fff1f1;
+      border-color: var(--red);
+    }
+
+    .callout.success {
+      background: #eef8f2;
+      border-color: var(--green);
+    }
+
+    .label {
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      display: inline-block;
+      font-size: 7.9pt;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 0.08em 0.38em;
+      text-transform: uppercase;
+    }
+
+    .label.internal {
+      color: var(--purple);
+    }
+
+    .label.normative {
+      color: var(--red);
+    }
+
+    .label.implemented {
+      color: var(--green);
+    }
+
+    .flow {
+      background: #fbfcfd;
+      border: 1px solid var(--line);
+      margin: 1em 0;
+      padding: 4mm;
+      page-break-inside: avoid;
+    }
+
+    .flow svg {
+      display: block;
+      height: auto;
+      max-width: 100%;
+      width: 100%;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 8.9pt;
+    }
+
+    .mono-list li {
+      font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+      font-size: 8.6pt;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .footer-note {
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 8.5pt;
+      margin-top: 2em;
+      padding-top: 0.7em;
+    }
+  </style>
+</head>
+<body>
+<main class="manual">
+  <section class="cover" id="cover">
+    <div>
+      <div class="cover-brand">
+        <img src="myscoutee-logo.png" alt="MyScoutee logo">
+        <div>
+          <div class="cover-brand-name">MyScoutee</div>
+          <div class="cover-brand-subtitle">Registry engineering</div>
+        </div>
+      </div>
+
+      <div class="cover-title-block">
+        <div class="cover-kicker">Protocol Developer Manual</div>
+        <h1>MyScoutee Registry Protocol</h1>
+        <div class="cover-version">Version 1.0.0</div>
+      </div>
+
+      <p class="cover-summary">
+        A developer-facing specification and integration guide for the signed
+        registry protocol, its append-only accounting and governance rails,
+        privacy boundaries, verification rules, and compatibility contract.
+      </p>
+    </div>
+
+    <dl class="metadata">
+      <dt>Document ID</dt>
+      <dd>MSC-RPDM-001</dd>
+      <dt>Document version</dt>
+      <dd>1.0.0</dd>
+      <dt>Release date</dt>
+      <dd>2026-07-30</dd>
+      <dt>Protocol version</dt>
+      <dd>1</dd>
+      <dt>Distribution</dt>
+      <dd><span class="label internal">Controlled / Internal</span></dd>
+      <dt>Status</dt>
+      <dd><span class="label implemented">Implemented baseline</span></dd>
+    </dl>
+  </section>
+
+  <section id="document-control">
+    <h1>Document Control</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Audience</td>
+          <td>Backend, client, security, integration, and test engineers</td>
+        </tr>
+        <tr>
+          <td>Purpose</td>
+          <td>Implement and verify interoperable Registry Protocol v1 clients</td>
+        </tr>
+        <tr>
+          <td>Normative language</td>
+          <td><em>must</em>, <em>must not</em>, <em>required</em>, and <em>reject</em> define protocol requirements</td>
+        </tr>
+        <tr>
+          <td>Implementation basis</td>
+          <td>The Go implementation and repository reference specifications current on 2026-07-30</td>
+        </tr>
+        <tr>
+          <td>Operational companion</td>
+          <td>MyScoutee Registry Operator Manual, MSC-ROM-001</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <strong>Distribution boundary.</strong> This manual describes a controlled
+      protocol implementation. It is not authorization to publish the registry
+      server, its private keys, governed records, or production artifacts.
+    </div>
+  </section>
+
+  <nav class="toc" id="contents" aria-label="Table of contents">
+    <h1>Contents</h1>
+    <ol>
+      <li><a href="#scope">Scope and protocol model</a></li>
+      <li><a href="#trust">Trust, identities, and canonical encoding</a></li>
+      <li><a href="#http">HTTP, signatures, idempotency, and errors</a></li>
+      <li><a href="#registration-ledger">Registration and append-only ledger</a></li>
+      <li><a href="#operator-network">Operator network protocol</a></li>
+      <li><a href="#global-identity">Privacy-safe global identity</a></li>
+      <li><a href="#announcements">Announcements and update manifests</a></li>
+      <li><a href="#governance-rails">Cases, settlements, and exit rails</a></li>
+      <li><a href="#integration">Client integration sequence</a></li>
+      <li><a href="#testing">Conformance and testing</a></li>
+      <li><a href="#compatibility">Compatibility and security boundaries</a></li>
+      <li><a href="#appendix-endpoints">Appendix A: Endpoint matrix</a></li>
+      <li><a href="#appendix-domains">Appendix B: Selected canonical domains</a></li>
+      <li><a href="#appendix-sources">Appendix C: Evidence sources</a></li>
+    </ol>
+  </nav>
+
+  <section class="chapter" id="scope">
+    <h1>1. Scope and Protocol Model</h1>
+
+    <h2 id="scope-purpose">1.1 Purpose</h2>
+    <p>
+      Registry Protocol v1 lets independently operated MyScoutee deployments
+      register a durable Ed25519 identity, submit signed aggregate facts, obtain
+      registry-signed receipts, and participate in separately versioned operator,
+      accounting, announcement, identity-deduplication, and exit-governance
+      rails. It is deliberately not a remote administration protocol for a
+      deployment.
+    </p>
+
+    <p>The protocol implements four distinct assurance layers:</p>
+    <ol>
+      <li><strong>Deployment proof:</strong> a deployment proves possession of its private key.</li>
+      <li><strong>Registry receipt:</strong> one immutable registry identity signs what it accepted.</li>
+      <li><strong>History integrity:</strong> records are hash-linked and, where applicable, included in a compact Merkle tree.</li>
+      <li><strong>Governed interpretation:</strong> operator review, eligibility, settlement, exit, and ownership actions use separate signed state machines.</li>
+    </ol>
+
+    <h2 id="scope-non-goals">1.2 Deliberate non-goals</h2>
+    <p>Version 1 does not provide:</p>
+    <ul>
+      <li>registry-to-registry forwarding, federation, fallback, or replication;</li>
+      <li>remote shell access, deployment configuration, artifact installation, or payment execution;</li>
+      <li>raw user, payment, booking, activity, identity-document, or bank-account ingestion;</li>
+      <li>proof that a deployment’s private evidence is truthful merely because its aggregate is signed;</li>
+      <li>anonymous private-set intersection or protection from a malicious VOPRF key holder;</li>
+      <li>a legal entitlement, invoice, tax decision, purchase price, or automated payout.</li>
+    </ul>
+
+    <h2 id="scope-sovereignty">1.3 Sovereign scope</h2>
+    <p>
+      Every registry has one mandatory and immutable <code>registry_scope</code>.
+      It is 3–128 characters, starts with a lowercase ASCII letter or digit, and
+      otherwise contains lowercase ASCII letters, digits, <code>.</code>,
+      <code>:</code>, <code>_</code>, or <code>-</code>. A value such as
+      <code>example:region-a</code> is a useful convention, not a reserved mode.
+    </p>
+    <p>
+      Scope is protocol domain separation: it is persisted with registry identity
+      and is included in requests, receipts, ledger records, snapshots, and
+      governance events. A deployment selects exactly one real registry endpoint,
+      scope, and signing identity. A different scope is a different sovereign
+      namespace even when both registries are operated by the same organization.
+    </p>
+
+    <h2 id="scope-flow">1.4 End-to-end protocol flow</h2>
+    <div class="flow" role="img" aria-label="Protocol flow from local evidence through deployment signing, registry verification and immutable receipts">
+      <svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
+            <path d="M0,0 L8,4 L0,8 z" fill="#176b87"/>
+          </marker>
+        </defs>
+        <style>
+          .box{fill:#fff;stroke:#176b87;stroke-width:2}
+          .private{fill:#fff8e7;stroke:#9a6d0b}
+          .registry{fill:#eef8f2;stroke:#26734d}
+          .text{font:16px DejaVu Sans,Arial,sans-serif;fill:#17324d}
+          .smalltext{font:13px DejaVu Sans,Arial,sans-serif;fill:#586675}
+          .line{stroke:#176b87;stroke-width:2;marker-end:url(#arrow)}
+        </style>
+        <rect class="box private" x="20" y="35" width="210" height="110" rx="8"/>
+        <text class="text" x="125" y="70" text-anchor="middle">Deployment-private data</text>
+        <text class="smalltext" x="125" y="99" text-anchor="middle">Apply local rules</text>
+        <text class="smalltext" x="125" y="122" text-anchor="middle">Create aggregate + commitment</text>
+
+        <rect class="box" x="345" y="35" width="210" height="110" rx="8"/>
+        <text class="text" x="450" y="70" text-anchor="middle">Deployment client</text>
+        <text class="smalltext" x="450" y="99" text-anchor="middle">Canonicalize + hash</text>
+        <text class="smalltext" x="450" y="122" text-anchor="middle">Sign with deployment key</text>
+
+        <rect class="box registry" x="670" y="35" width="210" height="110" rx="8"/>
+        <text class="text" x="775" y="70" text-anchor="middle">Sovereign registry</text>
+        <text class="smalltext" x="775" y="99" text-anchor="middle">Verify + transact atomically</text>
+        <text class="smalltext" x="775" y="122" text-anchor="middle">Append signed history</text>
+
+        <line class="line" x1="230" y1="90" x2="340" y2="90"/>
+        <line class="line" x1="555" y1="90" x2="665" y2="90"/>
+
+        <rect class="box registry" x="670" y="220" width="210" height="100" rx="8"/>
+        <text class="text" x="775" y="254" text-anchor="middle">Registry receipt</text>
+        <text class="smalltext" x="775" y="282" text-anchor="middle">Scope + chain boundary</text>
+        <text class="smalltext" x="775" y="304" text-anchor="middle">Ed25519 registry signature</text>
+
+        <rect class="box private" x="345" y="220" width="210" height="100" rx="8"/>
+        <text class="text" x="450" y="254" text-anchor="middle">Local receipt journal</text>
+        <text class="smalltext" x="450" y="282" text-anchor="middle">Verify before persisting</text>
+        <text class="smalltext" x="450" y="304" text-anchor="middle">Retry by idempotency key</text>
+
+        <line class="line" x1="775" y1="145" x2="775" y2="215"/>
+        <line class="line" x1="670" y1="270" x2="560" y2="270"/>
+      </svg>
+    </div>
+
+    <div class="callout">
+      The registry signs acceptance and historical boundaries. The deployment
+      remains responsible for its private source evidence and for verifying every
+      registry response before treating it as durable.
+    </div>
+  </section>
+
+  <section class="chapter" id="trust">
+    <h1>2. Trust, Identities, and Canonical Encoding</h1>
+
+    <h2 id="trust-identities">2.1 Cryptographic identities</h2>
+    <p>
+      Deployment and registry signatures use Ed25519. Public keys are encoded as
+      complete X.509 SubjectPublicKeyInfo DER values and then standard padded
+      RFC 4648 base64 in JSON.
+    </p>
+    <pre><code>public_key_fingerprint =
+  "sha256:" + lowercase_hex(SHA-256(complete SPKI DER))
+
+registry_key_id =
+  "rkey_" + first_32_hex_characters(fingerprint digest)
+
+package_signing_key_id =
+  "pkey_" + first_32_lowercase_hex_characters(SHA-256(complete SPKI DER))</code></pre>
+    <p>
+      Update packages use the independent deterministic
+      <code>package_signing_key_id</code> shown above. A registry signing key
+      must never be accepted implicitly as a package-signing key.
+    </p>
+
+    <h2 id="trust-identity-preflight">2.2 Registry identity preflight</h2>
+    <p>
+      <code>GET /v1/registry/identity</code> returns protocol version, immutable
+      scope, registry key ID, registry public key, and a self-signature over:
+    </p>
+    <pre><code>myscoutee-registry-identity-v1
+&lt;protocol_version&gt;
+&lt;registry_scope&gt;
+&lt;registry_key_id&gt;
+&lt;registry_public_key&gt;</code></pre>
+    <p>A client must, in this order:</p>
+    <ol>
+      <li>parse the SPKI value and require an Ed25519 public key;</li>
+      <li>derive and compare the deterministic <code>registry_key_id</code>;</li>
+      <li>reconstruct the canonical message and verify the self-signature;</li>
+      <li>display the exact endpoint, scope, and key ID for explicit operator approval;</li>
+      <li>pin all three values before registration.</li>
+    </ol>
+    <p>
+      Self-signature proves control of the advertised key, not that the endpoint
+      is the intended business registry. TLS hostname verification and explicit
+      operator trust confirmation remain required.
+    </p>
+
+    <h2 id="trust-encoding">2.3 Wire encoding rules</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Value</th>
+          <th>Canonical form</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>HTTP body</td><td>One UTF-8 JSON object; <code>Content-Type: application/json</code></td></tr>
+        <tr><td>Protocol version</td><td>JSON string <code>"1"</code></td></tr>
+        <tr><td>Timestamps</td><td>RFC 3339 UTC ending in literal <code>Z</code></td></tr>
+        <tr><td>Month / date</td><td><code>YYYY-MM</code> / <code>YYYY-MM-DD</code></td></tr>
+        <tr><td>Binary</td><td>Standard padded RFC 4648 base64</td></tr>
+        <tr><td>Digest</td><td><code>sha256:</code> plus 64 lowercase hexadecimal characters</td></tr>
+        <tr><td>Canonical integers</td><td>Base-10 with no leading <code>+</code> or leading zeros; a leading <code>-</code> appears only where the field permits a negative value</td></tr>
+        <tr><td>Canonical strings</td><td>Exact validated values; CR and LF are forbidden unless a field is explicitly hashed as raw UTF-8 content</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="trust-canonicalization">2.4 Canonical message construction</h2>
+    <p>
+      JSON object order is never signed. Each protocol message defines an
+      ordered line list beginning with a domain-separation string. Join fields
+      with one LF byte and append exactly one final LF.
+    </p>
+    <pre><code>canonical(fields...) =
+  UTF8(fields[0] + "\n" + fields[1] + "\n" + ... + fields[n] + "\n")</code></pre>
+    <div class="callout danger">
+      Do not sign serialized JSON, pretty-printed JSON, platform line endings,
+      locale-formatted numbers, or a normalized value that differs from the
+      transmitted validated value.
+    </div>
+
+    <h2 id="trust-hashes">2.5 Hashes, links, and direct rows</h2>
+    <p>
+      The protocol uses SHA-256 for payload digests, immutable record hashes,
+      prior-record links, evidence commitments, and Merkle nodes. The chain
+      origin is:
+    </p>
+    <pre><code>sha256:0000000000000000000000000000000000000000000000000000000000000000</code></pre>
+    <p>
+      Append-only source records and their directly queryable rows are written
+      in the same SQLite transaction. Direct rows are not asynchronous
+      projections. Integrity verification derives the expected state and fails
+      closed on mismatch; it does not silently rebuild or repair state while
+      serving requests.
+    </p>
+  </section>
+
+  <section class="chapter" id="http">
+    <h1>3. HTTP, Signatures, Idempotency, and Errors</h1>
+
+    <h2 id="http-target">3.1 Canonical request target</h2>
+    <p>
+      Signed endpoints cover the literal protocol path. Percent-encoded path
+      aliases are rejected. Query strings are forbidden except on defined public
+      cursor/filter reads such as announcements and leaderboards. Methods are
+      exact and unsupported methods return <code>405</code> with an
+      <code>Allow</code> header.
+    </p>
+
+    <h2 id="http-envelope">3.2 Generic signed request</h2>
+    <pre><code>myscoutee-registry-request-v1
+&lt;uppercase HTTP method&gt;
+&lt;literal request path&gt;
+&lt;protocol_version&gt;
+&lt;registry_scope&gt;
+&lt;signer&gt;
+&lt;timestamp&gt;
+&lt;nonce&gt;
+&lt;idempotency_key&gt;
+&lt;payload_hash&gt;</code></pre>
+    <p>
+      Registration uses the submitted public-key fingerprint as
+      <code>signer</code>. Post-registration operations use the assigned
+      <code>deployment_id</code>. The default accepted timestamp skew is five
+      minutes. Nonces, idempotency keys, and settlement query IDs use bytes
+      <code>0x21</code>–<code>0x7e</code>: printable ASCII without spaces,
+      8–128 characters. For <code>POST /v1/settlements/query</code>,
+      <code>query_id</code> occupies the generic canonical
+      <code>&lt;idempotency_key&gt;</code> field position.
+    </p>
+
+    <h2 id="http-idempotency">3.3 Mutation idempotency and replay behavior</h2>
+    <p>
+      The following rules apply to signed state-changing endpoints that append
+      or update durable registry state:
+    </p>
+    <ol>
+      <li>Validate syntax, scope, signer, timestamp, payload hash, and signature before duplicate handling.</li>
+      <li>The same signer and idempotency key with the same semantic payload returns the original signed result with <code>duplicate: true</code>.</li>
+      <li>The same idempotency key with different content returns an idempotency conflict and appends nothing.</li>
+      <li>Reusing an accepted nonce for a different request returns a replay conflict and appends nothing.</li>
+      <li>A safe retry may use a fresh timestamp, nonce, and signature while preserving the original idempotency key and payload.</li>
+    </ol>
+    <p>
+      Clients must durably journal intent before sending and persist a verified
+      receipt before acknowledging local completion. Network timeout is an
+      unknown-result condition, not proof of failure.
+    </p>
+    <p>
+      <code>POST /v1/settlements/query</code> is a signed, repeatable read-only
+      query, not a mutation-idempotent append. It uses <code>query_id</code> in
+      the canonical idempotency-key position, but the registry does not persist
+      a nonce or idempotency result for the query; a repeat may therefore carry
+      a fresh response generation time and registry signature.
+    </p>
+
+    <h2 id="http-json">3.4 Strict JSON and body limits</h2>
+    <p>
+      The server accepts one JSON object, rejects invalid UTF-8, duplicate
+      fields, unknown fields, trailing values, unsupported media type, and
+      bodies over the configured limit. The default HTTP request-body limit is
+      64 KiB; identity-presence submission therefore uses bounded chunks.
+    </p>
+
+    <h2 id="http-errors">3.5 Error envelope and status classes</h2>
+    <pre><code>{
+  "error": {
+    "code": "idempotency_conflict",
+    "message": "bounded human-readable explanation"
+  }
+}</code></pre>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Representative codes</th>
+          <th>Client action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>400</td><td><code>invalid_request</code>, <code>invalid_json</code>, <code>invalid_payload_hash</code>, <code>unsupported_protocol</code></td><td>Fix request; do not retry unchanged</td></tr>
+        <tr><td>401</td><td><code>invalid_signature</code></td><td>Stop; inspect key, canonical message, and pin</td></tr>
+        <tr><td>404</td><td><code>deployment_not_found</code>, <code>receipt_not_found</code>, <code>checkpoint_not_found</code></td><td>Verify identifiers and lifecycle boundary</td></tr>
+        <tr><td>409</td><td><code>idempotency_conflict</code>, <code>replay_conflict</code>, revision/state conflicts</td><td>Reconcile durable state; never invent a successor</td></tr>
+        <tr><td>413</td><td><code>request_too_large</code></td><td>Use the protocol’s chunking or reduce bounded content</td></tr>
+        <tr><td>415</td><td><code>unsupported_media_type</code></td><td>Send <code>application/json</code></td></tr>
+        <tr><td>429</td><td><code>global_identity_rate_limited</code></td><td>Back off; preserve idempotency intent</td></tr>
+        <tr><td>503</td><td><code>registry_integrity_unavailable</code>, <code>global_identity_unavailable</code>, or clock unavailability</td><td>Do not bypass; retry only after registry recovery</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Error messages are diagnostic text, not a stable machine contract. Branch
+      on the bounded error code and HTTP status.
+    </p>
+  </section>
+
+  <section class="chapter" id="registration-ledger">
+    <h1>4. Registration and Append-only Ledger</h1>
+
+    <h2 id="registration">4.1 Deployment registration</h2>
+    <p>
+      <code>POST /v1/deployments/register</code> proves possession of a submitted
+      Ed25519 key. Its endpoint-specific payload is:
+    </p>
+    <pre><code>myscoutee-registry-registration-payload-v1
+Ed25519
+&lt;base64 complete SPKI DER&gt;
+&lt;canonical software version&gt;</code></pre>
+    <p>
+      Hash the message, place the digest in <code>payload_hash</code>, then sign
+      the generic request with the matching private key and its fingerprint as
+      signer. Registration is also idempotent by public-key fingerprint: the
+      same key cannot create two deployment identities.
+    </p>
+    <p>
+      The response assigns <code>dep_</code> plus 32 lowercase hexadecimal
+      characters and includes a registry-signed registration receipt binding
+      protocol, scope, deployment ID, public-key fingerprint, registration time,
+      and registry key ID. A deployment ID is public routing identity, not an
+      authentication secret; private-key possession controls the deployment.
+    </p>
+
+    <h2 id="ledger-install-test">4.2 Installation test</h2>
+    <p>
+      <code>POST /v1/mau/batches</code> accepts a non-accounting
+      <code>installation-test</code> with ruleset
+      <code>installation-test-v1</code> and count zero. It proves end-to-end
+      signing, storage, receipt verification, and lookup without contributing
+      to QMAU or leaderboard weight.
+    </p>
+    <p>
+      Use <code>period=YYYY-MM</code>, <code>revision=0</code>, and an empty
+      <code>supersedes_batch_id</code>. Calculate
+      <code>commitment_hash</code> as SHA-256 of:
+    </p>
+    <pre><code>myscoutee-registry-installation-test-v1
+&lt;deployment_id&gt;
+&lt;idempotency_key&gt;</code></pre>
+    <p>
+      As with every canonical message, each line above ends in LF, including
+      the last one. Its <code>payload_hash</code> uses the installation-test
+      batch domain <code>myscoutee-registry-mau-batch-payload-v1</code>, not
+      the QMAU correction domain:
+    </p>
+    <pre><code>myscoutee-registry-mau-batch-payload-v1
+installation-test
+&lt;YYYY-MM&gt;
+installation-test-v1
+0
+&lt;commitment_hash&gt;</code></pre>
+
+    <h2 id="ledger-qmau">4.3 Qualified monthly active users</h2>
+    <p>
+      Production snapshots use <code>kind=monthly-qmau</code> and
+      <code>ruleset_version=qmau-v1</code>. One qualified user is a distinct
+      local non-administrator, non-demo, non-test human account that records at
+      least two substantive actions on at least two separate days in the
+      applicable rolling 30-day activity window. The deployment applies the
+      rule to private evidence and sends only:
+    </p>
+    <ul>
+      <li>the month, aggregate count, and opaque evidence commitment;</li>
+      <li>a linear revision beginning at 1;</li>
+      <li>the currently active prior batch ID for each correction.</li>
+    </ul>
+    <p>
+      Corrections are complete immutable replacements. Stale, skipped, or
+      branching revisions fail. Historical revisions remain auditable; current
+      reads select the newest valid revision at their captured boundary.
+    </p>
+    <pre><code>myscoutee-registry-qmau-batch-payload-v1
+monthly-qmau
+&lt;YYYY-MM&gt;
+qmau-v1
+&lt;qualified_mau_count&gt;
+&lt;commitment_hash&gt;
+&lt;revision&gt;
+&lt;supersedes_batch_id or empty&gt;</code></pre>
+    <p>
+      The ordinary leaderboard measured weight is the arithmetic mean over the
+      six most recent complete UTC months; a missing month contributes zero.
+      This is deployment-level measured QMAU, not globally deduplicated humans.
+    </p>
+
+    <h2 id="ledger-revenue">4.4 Daily aggregate revenue</h2>
+    <p>
+      <code>POST /v1/revenue/batches</code> accepts per-currency aggregate totals
+      under <code>daily-revenue</code>,
+      <code>net-captured-revenue-v1</code>, and a fixed 500-basis-point
+      commission rate. Its <code>period</code> is a valid UTC date in
+      <code>YYYY-MM-DD</code> form. It accepts no user, customer, provider,
+      payment, booking, or transaction identifiers.
+    </p>
+    <p>
+      Currency rows are strictly sorted and unique by ISO-4217 code. The
+      implementation checks the expected fraction digits, keeps currencies
+      separate, and limits a request to 32 currencies. The supported
+      ISO-4217 code/exponent table is pinned by protocol v1. The
+      <code>currencies</code> field must be a non-null array; <code>[]</code>
+      records an explicit zero-revenue day. Each minor-unit value is at most
+      9,000,000,000,000,000, each <code>payment_count</code> is at most
+      1,000,000,000,000, and every row requires:
+    </p>
+    <pre><code>0 &lt;= refunded_minor &lt;= captured_minor
+net_minor = captured_minor - refunded_minor
+commission_basis_minor = net_minor
+estimated_commission_minor =
+  floor(commission_basis_minor * 500 / 10000)
+payment_count &gt;= 0</code></pre>
+    <p>
+      Revision and supersession are linear and immutable as for QMAU.
+      Registry-wide commission pool calculations aggregate basis first and
+      round once; they do not sum already-rounded deployment estimates.
+    </p>
+
+    <h2 id="ledger-chain">4.5 Ledger and receipts</h2>
+    <p>
+      Accepted installation tests, QMAU, revenue, and settlement events append
+      to one authoritative linear SHA-256 chain. A ledger entry commits to its
+      one-based index, entry type, deployment or registry owner, batch identity,
+      semantic metadata, payload hash, previous entry hash, and acceptance time.
+      The write, source rows, direct query rows, Merkle update, and registry
+      receipt are one SQLite transaction.
+    </p>
+
+    <h2 id="ledger-merkle">4.6 Compact Merkle proofs</h2>
+    <p>
+      The ledger also maintains an RFC 9162-style Merkle Tree Hash index without
+      duplicating ledger leaves:
+    </p>
+    <pre><code>leaf_hash  = SHA-256(0x00 || raw_32_byte_ledger_entry_hash)
+node_hash  = SHA-256(0x01 || raw_left_hash || raw_right_hash)
+empty_root = SHA-256(empty bytes)</code></pre>
+    <p>
+      Inclusion and consistency proofs return an audit path and registry-signed
+      tree head. Clients verify key identity, tree-head signature, and the
+      complete path. These prove prefix inclusion or append-only growth; they
+      do not prove the truthfulness of a deployment’s private aggregate.
+    </p>
+
+    <h2 id="ledger-checkpoints">4.7 Completed-day checkpoints</h2>
+    <p>
+      <code>GET /v1/ledger/checkpoints/{YYYY-MM-DD}</code> returns an immutable
+      registry-signed checkpoint after that UTC date closes. It commits to the
+      through-ledger index, entry count, ledger head, previous checkpoint hash,
+      generation time, scope, and key identity. Receipt lookup can identify the
+      future checkpoint date before that date is finalized; callers must treat
+      <code>checkpoint_not_finalized</code> as an expected lifecycle state.
+    </p>
+  </section>
+
+  <section class="chapter" id="operator-network">
+    <h1>5. Operator Network Protocol</h1>
+
+    <h2 id="operator-claim">5.1 Structured company claim</h2>
+    <p>
+      A registered deployment signs <code>POST /v1/operator/actions</code> with
+      action <code>claim</code>. The v2 claim payload binds the legal name,
+      registration number, jurisdiction, registered address, HTTPS website,
+      verification contact, authority attestation, and optional HTTPS avatar.
+      Surrounding whitespace and CR/LF are rejected.
+    </p>
+    <p>
+      Acceptance creates a <code>pending-review</code> generation and a
+      provisional operator-group relationship. The public audit event includes
+      a legal label and payload digest; private address and contact fields live
+      in a separate append-only table in the same database. This is an
+      access-control boundary, not field-level encryption.
+    </p>
+
+    <h2 id="operator-review">5.2 Review and eligibility are separate rails</h2>
+    <p>
+      Review is a registry-local administrative action against one exact claim
+      generation. Its status is <code>PENDING_REVIEW</code>,
+      <code>APPROVED</code>, <code>REJECTED</code>, or
+      <code>WITHDRAWN</code>. Eligibility is independently
+      <code>active</code>, <code>suspended</code>, or <code>inactive</code>.
+      These three values describe a direct claim/deployment. A leaderboard
+      group aggregate can additionally report <code>partially-suspended</code>
+      when it contains both active and suspended members.
+    </p>
+    <p>
+      Suspension preserves the approved claim, measured QMAU, and audit history
+      while setting eligible weight and share to zero. Withdrawal or deployment
+      deactivation makes the generation inactive. A later claim is a new
+      generation and needs a new review.
+    </p>
+
+    <h2 id="operator-status">5.3 Signed status</h2>
+    <p>
+      <code>GET /v1/operator/claims/{deployment_id}</code> binds the exact claim
+      action, audit index/hash, group, legal name, review state, eligibility
+      boundary, scope, and registry key. A client must verify this signature;
+      browser presentation must not infer approval from group presence or a
+      mutable label.
+    </p>
+
+    <h2 id="operator-tokens">5.4 Client codes and grouping</h2>
+    <p>
+      The complete v1 operator action set is <code>claim</code>,
+      <code>withdraw-claim</code>, <code>issue-client-token</code>,
+      <code>revoke-client-token</code>, <code>redeem-client-token</code>,
+      <code>revoke-group-link</code>, <code>deactivate-deployment</code>, and
+      <code>reactivate-deployment</code>. The structured <code>claim</code>
+      action uses its v2 claim payload; all other actions use the v1 operator
+      action payload.
+    </p>
+    <p>
+      An approved deployment can issue a short-lived, single-use client code
+      valid for 60–3600 seconds. Only its SHA-256 hash is stored and plaintext
+      is returned only in the issue receipt. Redemption can link an already
+      claimed deployment to the virtual group or copy the issuer’s approved
+      company submission into a new, independently reviewable pending claim.
+    </p>
+    <p>
+      Client codes never transfer deployment identity, private keys, QMAU,
+      revenue, ledger ownership, or historical receipts. Deactivation withdraws
+      the current claim and group link but preserves immutable history.
+    </p>
+
+    <h2 id="operator-leaderboard">5.5 Snapshot-bound leaderboard</h2>
+    <p>
+      Public leaderboard pages are signed snapshots pinned to ledger, operator
+      audit, review, eligibility, and ownership-transfer chain heads. Cursor
+      continuation must retain the original snapshot and filters. A changed or
+      tampered cursor fails closed.
+    </p>
+    <p>
+      The founder contribution is six months of 100,000 units. Founder share is
+      no lower than one tenth; the remaining operator pool is allocated among
+      eligible measured groups. Pending, rejected, withdrawn, inactive, and
+      suspended generations may remain visible where specified but have zero
+      eligible allocation weight.
+    </p>
+  </section>
+
+  <section class="chapter" id="global-identity">
+    <h1>6. Privacy-safe Global Identity</h1>
+
+    <h2 id="identity-purpose">6.1 Protocol boundary</h2>
+    <p>
+      The optional extension recognizes the same verified person across
+      deployments without sending the registry an email, telephone number,
+      Firebase UID, provider subject, local profile ID, or plain identifier
+      hash. It uses RFC 9497 VOPRF mode with suite
+      <code>P256-SHA256</code>. Compressed P-256 elements are 33 bytes and DLEQ
+      proofs are 64 bytes.
+    </p>
+    <p>
+      Normalization, input eligibility, consent capture, blinding, VOPRF
+      finalization, and output derivation are deployment-local. The registry
+      receives a blinded element for evaluation and later an opaque
+      <code>sha256:</code> network identity commitment.
+    </p>
+
+    <h2 id="identity-key-evaluation">6.2 Key discovery and evaluation</h2>
+    <p>
+      <code>GET /v1/global-identities/voprf-keys/current</code> returns the
+      active key version, suite, mode, compressed public key, activation time,
+      and a registry signature. <code>POST /v1/global-identities/evaluate</code>
+      is deployment-signed and returns evaluated element, proof, request hash,
+      response hash, time, registry identity, and receipt signature.
+    </p>
+    <p>
+      The client must verify the registry’s key-attestation signature, evaluate
+      the DLEQ proof according to RFC 9497, finalize locally, and domain-separate
+      the resulting commitment. Evaluations are idempotently audited and the
+      implementation accepts at most 60 per deployment in a rolling minute.
+    </p>
+
+    <h2 id="identity-link">6.3 Link, unlink, and correct</h2>
+    <p>
+      <code>POST /v1/global-identities/links</code> creates an explicit link with
+      key version, suite, network commitment, consent version
+      <code>global-dedup-consent-v1</code>, opaque consent-evidence commitment,
+      verification timestamp, and effective month.
+    </p>
+    <p>
+      <code>POST /v1/global-identities/link-actions</code> accepts
+      <code>UNLINK</code> or <code>CORRECT</code>. Correction supplies a
+      replacement made under the currently active key and is the explicit
+      rotation path. Unlink removes future applicability but does not rewrite
+      historically valid period evidence.
+    </p>
+
+    <h2 id="identity-presence">6.4 Chunked qualified presence</h2>
+    <p>
+      Exact cross-deployment deduplication requires a presence submission that
+      matches an accepted QMAU deployment, period, revision, superseded batch,
+      and reported count. The deployment globally sorts commitments bytewise,
+      retains duplicates, hashes the complete set, and divides it into
+      independently signed ordered chunks under one stable submission ID.
+    </p>
+    <p>
+      The Go limit is 4096 commitments per chunk and 4096 chunks. The current
+      Java sender uses 512 commitments per chunk to stay below the default HTTP
+      body limit, producing an interoperable ceiling of 2,097,152 commitments
+      per submission. Incomplete chunks are append-only staging and do not
+      affect the public event chain or current dedup snapshot. The final missing
+      chunk atomically completes the batch, event, and snapshot.
+    </p>
+
+    <h2 id="identity-aggregate">6.5 Aggregate result</h2>
+    <pre><code>deduplicated_network_qmau =
+  globally_unique_linked_count + unlinked_qmau_count
+
+duplicate_reduction =
+  linked_observation_count - globally_unique_linked_count</code></pre>
+    <p>
+      <code>GET /v1/global-identities/dedup/{YYYY-MM}</code> returns the latest
+      immutable aggregate revision and its through-event boundary. It is a
+      network-total measurement only. It does not redistribute one person’s
+      activity or weight, change deployment QMAU, or decide settlement.
+    </p>
+
+    <h2 id="identity-threat">6.6 Threat-model limit</h2>
+    <div class="callout danger">
+      V1 is privacy-enhancing, not anonymous PSI. A registry operator that can
+      access both the VOPRF secret and restricted commitment tables can evaluate
+      a dictionary of likely low-entropy identifiers and compare results.
+    </div>
+    <p>
+      Separate access to the VOPRF keyring and restricted tables, apply least
+      privilege, audit use, encrypt storage, rate-limit evaluation, and obtain
+      user consent. Do not claim full anonymity. Threshold OPRF or a separately
+      governed/HSM-backed evaluator is a possible future protocol, not v1.
+    </p>
+  </section>
+
+  <section class="chapter" id="announcements">
+    <h1>7. Announcements and Update Manifests</h1>
+
+    <h2 id="announcement-feed">7.1 Signed public pull feed</h2>
+    <p>
+      <code>GET /v1/announcements</code> is a public, read-only, newest-first
+      feed. A registry never opens an inbound deployment connection, pushes a
+      command, downloads a package, or starts an upgrade. Filters include kind,
+      severity, lowercase channel, expiry inclusion, limit, and a
+      registry-signed cursor.
+    </p>
+    <p>
+      The first page freezes scope, registry key, one <code>as_of</code> time,
+      sequence/head boundary, and filters. Each entry is signed and hash-linked;
+      the snapshot and cursor are also signed. Clients must repeat the exact
+      filters when following a cursor.
+    </p>
+
+    <h2 id="announcement-content">7.2 Content canonicalization</h2>
+    <p>
+      Kinds are <code>GENERAL</code>, <code>UPDATE</code>,
+      <code>MAINTENANCE</code>, and <code>SECURITY</code>; severity is
+      <code>INFO</code>, <code>NOTICE</code>, <code>WARNING</code>, or
+      <code>CRITICAL</code>. Human content uses either translation keys or
+      bounded locale objects. Locale and link sets are sorted before hashing.
+      Title and body are hashed as raw UTF-8 bytes, allowing line breaks without
+      violating line-oriented outer canonicalization. Links must be absolute
+      HTTPS URLs without credentials or fragments.
+    </p>
+
+    <h2 id="announcement-update">7.3 Update manifest is an offer</h2>
+    <p>
+      Every <code>UPDATE</code> contains manifest version <code>1</code>, a
+      canonical Semantic Version and channel, compatibility bounds, HTTPS
+      <code>.deb</code> artifact and release-note URLs, artifact size and SHA-256,
+      backup/downtime metadata, and state <code>AVAILABLE</code>,
+      <code>REVOKED</code>, or <code>SUPERSEDED</code>.
+    </p>
+    <pre><code>myscoutee-release-package-v1
+&lt;release_version&gt;
+&lt;channel&gt;
+&lt;artifact_size_bytes&gt;
+&lt;artifact_sha256&gt;</code></pre>
+    <p>
+      The detached package signature is Ed25519 over that canonical message and
+      is checked against a separately pinned package-signing public key. The
+      registry validates and signs the manifest, but its signature does not
+      authorize installation. Download, digest verification, package signature
+      verification, backup, privileged installation, and operator consent remain
+      local deployment responsibilities.
+    </p>
+
+    <h2 id="announcement-publication">7.4 Publication boundary</h2>
+    <p>
+      There is no public mutation endpoint. A controlled local registry command
+      accepts one strict reviewed JSON object, limits it to 256 KiB, and appends
+      it immutably. Reusing <code>publication_id</code> with normalized identical
+      content returns the original result; changed content conflicts.
+      Revocation and supersession are new signed entries, never edits.
+    </p>
+  </section>
+
+  <section class="chapter" id="governance-rails">
+    <h1>8. Cases, Settlements, and Exit Rails</h1>
+
+    <h2 id="cases">8.1 Registry cases</h2>
+    <p>
+      The registry-local case rail records an anomaly observation against one
+      existing deployment, claim, group, QMAU batch, revenue batch, or ledger
+      index. <code>OPEN</code> and <code>CLEARED</code> do not alter claims,
+      eligibility, measured accounting, leaderboard share, or legal rights.
+      Events are globally hash-linked and registry-signed; current rows are
+      maintained in the same transaction.
+    </p>
+    <p>
+      Records contain bounded category, severity, actor identifier, external
+      reference, and optional evidence digest. Evidence bodies, names, email,
+      credentials, and investigation notes stay in a separately governed
+      system.
+    </p>
+
+    <h2 id="settlements">8.2 Monthly technical settlement</h2>
+    <p>
+      <code>share-weighted-settlement-v1</code> calculates a completed UTC
+      month and one ISO-4217 currency. It pins ledger, operator audit, review,
+      eligibility, selected revenue revisions, trailing-twelve-month basis, and
+      exact beneficiary memberships. Recalculating an unchanged source returns
+      the existing revision; a changed source appends a successor.
+    </p>
+    <pre><code>monthly_pool =
+  floor(monthly_commission_basis_minor * 500 / 10000)</code></pre>
+    <p>
+      Founder share is at least 10%; the eligible operator pool is divided by
+      exact rational QMAU weights. Minor units use largest remainder, resolving
+      equal remainders by ascending stable beneficiary ID. If no operator group
+      is eligible, the operator pool goes to
+      <code>UNALLOCATED_RESERVE</code>. Allocation conserves the pool exactly.
+    </p>
+    <p>
+      The separate <code>three-month-acceleration-valuation-v1</code> computes a
+      bounded non-binding indicator from TTM commission-basis revenue. It is not
+      a purchase price or payout. All exposed monetary integers remain in
+      <code>0..9007199254740991</code> so JavaScript, Java, and Go represent them
+      exactly.
+    </p>
+    <p>
+      <code>POST /v1/settlements/query</code> is a deployment-signed private
+      history query. It returns only operator-group allocations for which the
+      immutable historical source membership contains that deployment. Joining
+      later does not reveal earlier allocation history.
+    </p>
+
+    <h2 id="exit-reviews">8.3 Exit review</h2>
+    <p>
+      An exit review freezes one completed record date, checkpoint, ledger and
+      Merkle prefix, exact claim generation, group membership and eligibility
+      boundaries, and the latest settlement revision for each covered
+      period/currency. Only one review can exist for an exact target claim
+      generation.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Action</th><th>Allowed source</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>freeze</code></td><td>No review</td><td><code>review-pending</code></td></tr>
+        <tr><td><code>verify</code></td><td>Pending or disputed</td><td><code>verified-eligible</code></td></tr>
+        <tr><td><code>reject</code></td><td>Pending or disputed</td><td><code>rejected</code></td></tr>
+        <tr><td><code>dispute</code></td><td>Verified or rejected</td><td><code>disputed</code></td></tr>
+        <tr><td><code>withdraw</code></td><td>Any non-withdrawn state</td><td><code>withdrawn</code>, terminal</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Buyer/auditor actor identifiers and evidence commitments are audit
+      references, not human authentication. The registry signature proves what
+      the registry recorded, not the legal identity of a person.
+    </p>
+
+    <h2 id="ownership">8.4 Ownership transfer</h2>
+    <p>
+      Ownership transfer is a registry-local manager state machine pinned to an
+      exact verified exit, approved and eligible claim generation, source group,
+      and target operator group. Preparation records intent; a registry-manager
+      may approve or reject it, an open transfer may be cancelled, and completion
+      is a deliberately separate terminal event. Completion is the only event
+      that appends a dated, event-bound membership boundary for future
+      effective membership. It never rewrites earlier membership, claims,
+      snapshots, receipts, or settlements. Rejection or cancellation leaves
+      immutable evidence and appends no membership boundary.
+    </p>
+    <p>
+      It transfers an operator-network relationship, not a deployment key,
+      ledger row, historical receipt, company ownership, or payment instruction.
+    </p>
+
+    <h2 id="final-allocation">8.5 Final exit allocation</h2>
+    <p>
+      One final allocation may be created from a
+      <code>verified-eligible</code> exit review using either an exact completed
+      ownership transfer or an explicit no-transfer beneficiary. It copies the
+      frozen settlement sources rather than selecting current settlements.
+      Creation yields <code>recorded</code>; independent verification yields the
+      terminal <code>verified-final</code>.
+    </p>
+    <pre><code>for every currency C:
+  distributable_minor(C) =
+    sum(frozen source-group network-pool allocations in C)
+
+  allocated_minor(C) = distributable_minor(C)</code></pre>
+    <p>
+      Currencies are never combined or converted. Zero-valued currencies remain
+      explicit. The record contains contractual and evidence commitments but no
+      bank account, tax, invoice, or payment-provider field. It is an auditable
+      allocation record, not payment execution.
+    </p>
+  </section>
+
+  <section class="chapter" id="integration">
+    <h1>9. Client Integration Sequence</h1>
+
+    <h2 id="integration-prerequisites">9.1 Prerequisites</h2>
+    <p>A conforming client needs:</p>
+    <ul>
+      <li>a trusted HTTPS implementation with hostname validation;</li>
+      <li>Ed25519, SHA-256, X.509 SPKI, padded base64, strict UTF-8, and RFC 3339 UTC support;</li>
+      <li>durable private-key storage and a restricted receipt/outbox journal;</li>
+      <li>a reliable UTC clock within the registry’s accepted skew;</li>
+      <li>exact canonical-message builders shared with verification code;</li>
+      <li>RFC 9497 P256-SHA256 support only when global identity is enabled.</li>
+    </ul>
+
+    <h2 id="integration-bootstrap">9.2 Trust bootstrap</h2>
+    <ol>
+      <li>Receive a candidate HTTPS URL and expected scope from an authenticated operator workflow.</li>
+      <li>Fetch identity without creating central state.</li>
+      <li>Verify TLS, Ed25519 SPKI, deterministic key ID, and registry self-signature.</li>
+      <li>Display the exact URL, scope, and key ID; require explicit confirmation.</li>
+      <li>Persist the pin and generate a deployment Ed25519 key in the protected host boundary.</li>
+      <li>Journal registration intent; sign and send registration.</li>
+      <li>Verify the returned scope, deployment ID, public-key fingerprint, registry key, and receipt signature before persisting.</li>
+      <li>Submit a zero-count installation test and verify its receipt and later lookup.</li>
+    </ol>
+
+    <h2 id="integration-submission">9.3 Durable mutation-submission algorithm</h2>
+    <pre><code>validate domain object locally
+canonical = endpointSpecificCanonicalPayload(object)
+payloadHash = sha256(canonical)
+
+persist NEW outbox intent:
+  endpoint path, scope, signer, idempotency key,
+  semantic payload, payload hash
+
+for each attempt:
+  create fresh UTC timestamp and nonce
+  sign generic request canonical bytes
+  send one strict JSON object
+
+  on timeout:
+    keep intent UNKNOWN and retry idempotently
+
+  on response:
+    verify envelope, scope, identities, hashes,
+    chain boundaries and registry signature
+    persist verified receipt and mark ACCEPTED</code></pre>
+    <p>
+      Never regenerate the idempotency key after a response-loss timeout. Never
+      mark accepted from HTTP status alone. Never overwrite a prior receipt with
+      a later query result unless the protocol defines a new immutable revision.
+    </p>
+    <p>
+      Apply this durable idempotency journal to state-changing submissions.
+      For <code>POST /v1/settlements/query</code>, use the signed read-only
+      query contract instead: <code>query_id</code> occupies the canonical
+      idempotency-key position, but it is not a persisted mutation key and a
+      repeated read can return a freshly generated signed response.
+    </p>
+
+    <h2 id="integration-verification">9.4 Response verification checklist</h2>
+    <ul>
+      <li>Require the expected protocol version, registry scope, and pinned key ID/public key.</li>
+      <li>Validate all identifiers, timestamps, digests, enums, ranges, and sorted collections.</li>
+      <li>Rebuild canonical messages from the returned semantic fields.</li>
+      <li>Recalculate payload, record, chain, content, allocation, or snapshot hashes as applicable.</li>
+      <li>Verify Ed25519 signatures over canonical bytes, not response JSON.</li>
+      <li>Check predecessor, revision, supersession, cursor, checkpoint, and Merkle boundaries.</li>
+      <li>Reject partial verification; do not display unverified signed state as trusted.</li>
+    </ul>
+
+    <h2 id="integration-one-registry">9.5 Switching registry identity</h2>
+    <p>
+      Scope and registry key are not editable connection preferences. Moving a
+      deployment to a different real registry requires an explicit governed
+      transition, including signed deactivation at the old registry where
+      applicable, a new local trust decision, and new registration semantics.
+      Clients must not silently fail over, copy receipts between scopes, or
+      accept a new key under the old pin.
+    </p>
+  </section>
+
+  <section class="chapter" id="testing">
+    <h1>10. Conformance and Testing</h1>
+
+    <h2 id="testing-unit">10.1 Canonical-vector tests</h2>
+    <p>
+      For every message builder, test exact bytes, one final LF, empty optional
+      field lines, non-ASCII UTF-8, numeric boundaries, sorted collection
+      behavior, and rejection of CR/LF. Include negative vectors for reordered
+      lines, missing final LF, unpadded base64, uppercase digest hex, altered
+      scope, and wrong domain separator.
+    </p>
+
+    <h2 id="testing-protocol">10.2 Protocol behavior tests</h2>
+    <ul>
+      <li>registration proof of possession and public-key idempotency;</li>
+      <li>fresh-nonce retry of an already accepted idempotency key;</li>
+      <li>idempotency-content conflict and nonce replay conflict;</li>
+      <li>scope/key cross-registry rejection;</li>
+      <li>QMAU and revenue correction linearity and stale-branch rejection;</li>
+      <li>receipt lookup, completed-day checkpoint, Merkle inclusion, and consistency verification;</li>
+      <li>operator claim/review/eligibility generation pinning;</li>
+      <li>announcement cursor/filter binding and independent package-signature verification;</li>
+      <li>VOPRF proof, link consent, key rotation correction, ordered chunk retry, and dedup snapshot verification;</li>
+      <li>case, settlement, exit, transfer, and allocation state-machine invalid transitions.</li>
+    </ul>
+
+    <h2 id="testing-go">10.3 Repository gates</h2>
+    <pre><code>go test ./...
+go test -race ./...
+go test -tags=e2e -count=1 -v ./e2e
+go vet ./...
+go build -trimpath -o /tmp/myscoutee-registry ./cmd/registry
+docker build -t myscoutee-registry:qualification .
+./tools/qualify-java-rails.sh</code></pre>
+    <p>
+      The tagged process suite exercises a real loopback registry with
+      disposable SQLite and Ed25519 keys, including two simultaneous registries
+      with distinct scopes and identities. The cross-language qualification
+      runner exercises Java-generated signed QMAU, revenue, claim, and settlement
+      requests against the Go server, response-loss recovery, process restart,
+      correction revisions, and signature-tamper rejection.
+    </p>
+
+    <h2 id="testing-release">10.4 What automated tests do not prove</h2>
+    <p>
+      Source tests do not authorize production rollout. Candidate qualification
+      still requires exact-artifact, TLS, backup/restore, supported-upgrade,
+      outage/retry, power-loss, load, multi-registry isolation, and independent
+      security drills. Record artifact digests, source commit, commands, host,
+      timings, and evidence for each release candidate.
+    </p>
+  </section>
+
+  <section class="chapter" id="compatibility">
+    <h1>11. Compatibility and Security Boundaries</h1>
+
+    <h2 id="compatibility-version">11.1 Version contract</h2>
+    <p>
+      <code>protocol_version</code> is the JSON string <code>"1"</code>.
+      Domain-separation suffixes such as <code>-v1</code> and
+      <code>-v2</code> identify exact canonical layouts; they do not all equal
+      the top-level protocol version. For example, structured claims add source
+      anchors through a v2 canonical operator receipt while preserving the
+      original v1 layout for records where those anchors are absent.
+    </p>
+    <p>
+      A wire-compatible change may clarify validation, add a new endpoint,
+      introduce a new explicitly selected ruleset, or add an optional JSON field
+      only when old canonical messages and existing signed history retain their
+      exact meaning. Changing line order, field interpretation, digest input,
+      state transitions, or numeric encoding requires a new canonical domain and
+      generally a protocol/ruleset version.
+    </p>
+
+    <h2 id="compatibility-unknowns">11.2 Fail-closed parsing</h2>
+    <p>
+      Requests reject unknown fields. Clients should also fail closed on unknown
+      protocol versions, signature algorithms, mandatory enum values, canonical
+      domains, or ruleset versions that affect accounting. An application may
+      retain an unknown announcement kind only as untrusted opaque data; it must
+      not infer update authorization from it.
+    </p>
+
+    <h2 id="security-keys">11.3 Key boundaries</h2>
+    <table>
+      <thead>
+        <tr><th>Key</th><th>Authority</th><th>Must not be used for</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Deployment Ed25519</td><td>One deployment’s signed requests</td><td>Registry receipts, another deployment, package releases</td></tr>
+        <tr><td>Registry Ed25519</td><td>One immutable registry scope and its receipts/events</td><td>Package authorization or another scope</td></tr>
+        <tr><td>Package Ed25519</td><td>Detached release-package authenticity</td><td>Registry identity or deployment control</td></tr>
+        <tr><td>VOPRF keyring</td><td>Blind evaluation and commitment continuity</td><td>Ed25519 signatures or proof of user consent</td></tr>
+      </tbody>
+    </table>
+    <p>
+      SQLite database, registry signing key, registry identity, and VOPRF
+      keyring form a coordinated recovery boundary. Replacing a missing key is
+      not recovery. A restored database with a different key or scope must fail
+      startup.
+    </p>
+
+    <h2 id="security-privacy">11.4 Data-minimization boundary</h2>
+    <p>
+      Keep raw evidence in its authoritative deployment, reviewer, buyer, or
+      auditor system. Registry fields called <code>evidence_hash</code>,
+      <code>commitment_hash</code>, <code>reference</code>, or
+      <code>actor_id</code> are bounded commitments/identifiers, not places for
+      documents, free-form notes, credentials, personal names, or email
+      addresses. Company verification contact data is a documented restricted
+      exception and requires volume, CLI, log, and backup access controls.
+    </p>
+
+    <h2 id="security-integrity">11.5 Integrity over availability</h2>
+    <p>
+      Startup, health, writes, checkpoint finalization, and reads that require
+      signed state verify the applicable integrity boundary. Clock rollback,
+      key mismatch, missing source, chain corruption, invalid signature, or
+      direct-row mismatch causes a fail-closed error. Clients must not bypass
+      registry unavailability by accepting unsigned cached state or a different
+      endpoint.
+    </p>
+
+    <h2 id="security-legal">11.6 Semantic and legal boundaries</h2>
+    <div class="callout warning">
+      A valid signature proves that a key approved specific bytes. It does not
+      prove a human identity, business authority, factual truth, legal ownership,
+      contractual entitlement, tax result, or completed payment.
+    </div>
+    <p>
+      Those meanings arise only from the explicit review and governance rail
+      appropriate to the record, plus the external legal and evidence systems
+      referenced by bounded commitments.
+    </p>
+  </section>
+
+  <section class="chapter" id="appendix-endpoints">
+    <h1>Appendix A. Endpoint Matrix</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Method and path</th>
+          <th>Authentication / result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>GET /healthz</code></td><td>Operational health and integrity boundary; not a trust bootstrap</td></tr>
+        <tr><td><code>GET /v1/registry/identity</code></td><td>Public registry self-attestation; read-only</td></tr>
+        <tr><td><code>POST /v1/deployments/register</code></td><td>Submitted-key proof of possession; registration receipt</td></tr>
+        <tr><td><code>POST /v1/mau/batches</code></td><td>Deployment-signed installation test or QMAU snapshot</td></tr>
+        <tr><td><code>GET /v1/mau/batches/{batch_id}/receipt</code></td><td>Immutable MAU receipt lookup</td></tr>
+        <tr><td><code>POST /v1/revenue/batches</code></td><td>Deployment-signed daily aggregate revenue</td></tr>
+        <tr><td><code>GET /v1/revenue/batches/{revbatch_id}/receipt</code></td><td>Immutable revenue receipt lookup</td></tr>
+        <tr><td><code>GET /v1/ledger/checkpoints/{date}</code></td><td>Completed-UTC-day signed checkpoint</td></tr>
+        <tr><td><code>GET /v1/ledger/merkle/inclusion/{size}/{index}</code></td><td>Signed head and inclusion audit path</td></tr>
+        <tr><td><code>GET /v1/ledger/merkle/consistency/{old}/{new}</code></td><td>Signed head and append-only consistency path</td></tr>
+        <tr><td><code>POST /v1/operator/actions</code></td><td>Deployment-signed company/group/network action</td></tr>
+        <tr><td><code>GET /v1/operator/claims/{deployment_id}</code></td><td>Registry-signed direct claim and eligibility status</td></tr>
+        <tr><td><code>GET /v1/leaderboard</code></td><td>Public signed snapshot and cursor page</td></tr>
+        <tr><td><code>GET /v1/leaderboard/groups/{group_id}/deployments</code></td><td>Public snapshot-bound group members</td></tr>
+        <tr><td><code>GET /v1/global-identities/voprf-keys/current</code></td><td>Public registry-attested VOPRF key</td></tr>
+        <tr><td><code>POST /v1/global-identities/evaluate</code></td><td>Deployment-signed blinded evaluation</td></tr>
+        <tr><td><code>POST /v1/global-identities/links</code></td><td>Deployment-signed consent-bound link</td></tr>
+        <tr><td><code>POST /v1/global-identities/link-actions</code></td><td>Deployment-signed unlink or correction</td></tr>
+        <tr><td><code>POST /v1/global-identities/presence-batches</code></td><td>Deployment-signed ordered chunk</td></tr>
+        <tr><td><code>GET /v1/global-identities/dedup/{period}</code></td><td>Latest immutable network-dedup aggregate</td></tr>
+        <tr><td><code>GET /v1/announcements</code></td><td>Public signed filtered feed and cursor</td></tr>
+        <tr><td><code>POST /v1/settlements/query</code></td><td>Deployment-signed private historical allocation query</td></tr>
+      </tbody>
+    </table>
+    <p class="small">
+      Case, manager review, eligibility, settlement calculation, exit review,
+      ownership transfer, final allocation, key rotation, and announcement
+      publication mutations are registry-local administrative interfaces, not
+      public HTTP endpoints.
+    </p>
+  </section>
+
+  <section class="chapter" id="appendix-domains">
+    <h1>Appendix B. Selected Canonical Domains</h1>
+    <p>
+      This deliberately non-exhaustive index helps reviewers identify the main
+      message families. It does not enumerate every payload, collection hash,
+      receipt, event, snapshot, status, settlement-query, case, transfer, exit,
+      or allocation domain. The implementation and the detailed protocol build
+      inputs under <code>guides/manuals/protocols/</code> remain authoritative
+      for exact domain strings and field order.
+    </p>
+    <ul class="mono-list">
+      <li>myscoutee-registry-identity-v1</li>
+      <li>myscoutee-registry-request-v1</li>
+      <li>myscoutee-registry-registration-payload-v1</li>
+      <li>myscoutee-registry-registration-receipt-v1</li>
+      <li>myscoutee-registry-installation-test-v1</li>
+      <li>myscoutee-registry-mau-batch-payload-v1</li>
+      <li>myscoutee-registry-qmau-batch-payload-v1</li>
+      <li>myscoutee-registry-ledger-entry-v1</li>
+      <li>myscoutee-registry-mau-receipt-v1</li>
+      <li>myscoutee-registry-qmau-receipt-v1</li>
+      <li>myscoutee-registry-revenue-batch-payload-v1</li>
+      <li>myscoutee-registry-revenue-receipt-v1</li>
+      <li>myscoutee-registry-merkle-tree-head-v1</li>
+      <li>myscoutee-registry-checkpoint-v1</li>
+      <li>myscoutee-registry-operator-claim-payload-v2</li>
+      <li>myscoutee-registry-operator-action-payload-v1</li>
+      <li>myscoutee-registry-global-identity-voprf-key-v1</li>
+      <li>myscoutee-registry-global-identity-evaluate-payload-v1</li>
+      <li>myscoutee-registry-global-identity-link-payload-v1</li>
+      <li>myscoutee-registry-global-identity-link-action-payload-v1</li>
+      <li>myscoutee-registry-global-identity-presence-set-v1</li>
+      <li>myscoutee-registry-global-identity-presence-chunk-v2</li>
+      <li>myscoutee-registry-announcement-content-v1</li>
+      <li>myscoutee-registry-announcement-links-v1</li>
+      <li>myscoutee-registry-update-manifest-v1</li>
+      <li>myscoutee-release-package-v1</li>
+      <li>myscoutee-registry-case-event-v1</li>
+      <li>myscoutee-registry-settlement-hash-v1</li>
+      <li>myscoutee-registry-settlement-receipt-v1</li>
+      <li>myscoutee-registry-exit-review-record-v1</li>
+      <li>myscoutee-registry-ownership-transfer-record-v1</li>
+      <li>myscoutee-registry-exit-allocation-record-v1</li>
+    </ul>
+  </section>
+
+  <section class="chapter" id="appendix-sources">
+    <h1>Appendix C. Evidence Sources</h1>
+    <p>
+      This manual is a cohesive developer guide. Exact field lists and
+      canonical ordering should be checked against the current implementation
+      and these repository evidence specifications during development and code
+      review:
+    </p>
+    <ul class="mono-list">
+      <li>guides/manuals/protocols/protocol-v1.md</li>
+      <li>guides/manuals/protocols/operator-network-v1.md</li>
+      <li>guides/manuals/protocols/global-identity-v1.md</li>
+      <li>guides/manuals/protocols/announcements-v1.md</li>
+      <li>guides/manuals/protocols/registry-cases-v1.md</li>
+      <li>guides/manuals/protocols/settlements-v1.md</li>
+      <li>guides/manuals/protocols/exit-reviews-v1.md</li>
+      <li>guides/manuals/protocols/ownership-transfers-v1.md</li>
+      <li>guides/manuals/protocols/final-exit-allocations-v1.md</li>
+      <li>guides/manuals/protocols/production-qualification.md</li>
+    </ul>
+
+    <h2 id="appendix-implementation">Implementation packages reviewed</h2>
+    <p>
+      The corresponding Go evidence is under <code>internal/protocol</code>,
+      <code>internal/httpapi</code>, <code>internal/service</code>,
+      <code>internal/store/sqlite</code>, <code>internal/globalidentity</code>,
+      and <code>cmd/registry</code>. Tests under those packages plus
+      <code>e2e</code> define executable compatibility evidence.
+    </p>
+
+    <p class="footer-note">
+      MyScoutee Registry Protocol Developer Manual · MSC-RPDM-001 · Version
+      1.0.0 · 2026-07-30 · Controlled / Internal
+    </p>
+  </section>
+</main>
+</body>
+</html>

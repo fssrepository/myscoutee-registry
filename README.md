@@ -1,5 +1,10 @@
 # MyScoutee Registry
 
+## Manuals
+
+- [Download the MyScoutee Registry Operator Manual v1.0.0 (PDF)](https://raw.githubusercontent.com/fssrepository/myscoutee-registry/master/guides/manuals/MyScoutee_Registry_Operator_Manual_v1.0.0_EN.pdf)
+- [Download the MyScoutee Registry Protocol Developer Manual v1.0.0 (PDF)](https://raw.githubusercontent.com/fssrepository/myscoutee-registry/master/guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf)
+
 A small, reusable signed deployment registry. The implemented foundation
 provides:
 
@@ -62,33 +67,14 @@ clearly non-binding indicative value, but neither amount is a contractual
 entitlement, invoice, transfer instruction, buyer decision, or final legal
 allocation.
 
-The registration/ledger wire and signature format is
-[`docs/protocol-v1.md`](docs/protocol-v1.md). Signed claim, temporary
-client-code grouping, audit, and leaderboard behavior is documented in
-[`docs/operator-network-v1.md`](docs/operator-network-v1.md).
-Privacy-safe cross-deployment identity linking and deduplicated QMAU are
-documented in
-[`docs/global-identity-v1.md`](docs/global-identity-v1.md).
-The registry-local anomaly/case audit rail is documented in
-[`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
-The registry-local record-date freeze and buyer/auditor decision rail is
-documented in
-[`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
-The non-payment prepare/approve/complete ownership-transfer rail is documented
-in
-[`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
-The non-payment contractual allocation, frozen settlement-source, and exact
-per-currency conservation rail is documented in
-[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
-The technical monthly allocation, bounded valuation, private signed history
-query, and revision rules are documented in
-[`docs/settlements-v1.md`](docs/settlements-v1.md).
-The local publication boundary, signed pull feed, and independently
-package-signed update manifest are documented in
-[`docs/announcements-v1.md`](docs/announcements-v1.md).
-Automated gates, the Explore production-package boundary, and the remaining
-release drills are tracked in
-[`docs/production-qualification.md`](docs/production-qualification.md).
+Use the separate
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf)
+for wire formats, canonical signatures, HTTP contracts, protocol rails, and
+integration behavior. Use the
+[Registry Operator Manual](guides/manuals/MyScoutee_Registry_Operator_Manual_v1.0.0_EN.pdf)
+for deployment, security, backup, recovery, and controlled distribution.
+Maintainer-level protocol sources and PDF build inputs remain under
+`guides/manuals/protocols/`.
 
 ## Isolated Explore/demo registry
 
@@ -197,8 +183,11 @@ operator workflow.
 
 ## Production TLS deployment
 
-Production runs the Go registry and its own Nginx reverse proxy on the
-registry server using [`compose.production.yaml`](compose.production.yaml).
+Production runs the existing Go registry and a separate first-party Nginx edge
+image on the registry server using
+[`compose.production.yaml`](compose.production.yaml). The edge image embeds the
+reviewed [`tools/docker/registry.conf.template`](tools/docker/registry.conf.template);
+the production stack does not mount that source file at runtime.
 This is separate from any application-deployment Nginx. The registry container
 is attached only to an internal Docker network, declares port `8080` for
 service discovery, and has no host-published port. Nginx joins that backend
@@ -299,6 +288,36 @@ docker compose \
 Set `REGISTRY_PROVISIONED_KEY_PATH` in the protected environment file and
 follow the signing-key lifecycle rules below.
 
+### Offline and restricted-network release bundle
+
+The offline release keeps the Go registry and Nginx edge as separate,
+independently hardened images. It does not combine both processes in a
+`full-prod` container. The distributable stack archive contains the two
+Docker-load archives plus a standalone Compose file, environment example,
+Nginx template audit copy, operator notes, image IDs, and checksums:
+
+```bash
+docker build -t myscoutee-registry:1.0.0-prod .
+docker build \
+  --build-arg MYSCOUTEE_VERSION=1.0.0 \
+  -t myscoutee-registry-edge:1.0.0-prod \
+  -f tools/docker/registry-edge.Dockerfile .
+bash tools/docker-build-context-contract-test.sh
+./tools/package-offline-stack.sh 1.0.0
+bash tools/offline-stack-contract-test.sh
+```
+
+For a release build, resolve and approve the Nginx base by digest and pass it
+as `NGINX_BASE_IMAGE`; never overwrite an already published version tag. The
+packaging script itself neither builds nor pulls. It requires both exact local
+images, rejects the wrong platform and common private-credential markers, and
+creates
+`dist/myscoutee-registry-stack_1.0.0_linux_amd64.tar.gz`. The bundled Compose
+model has no `build` section and sets `pull_policy: never` for both services,
+so a restricted target needs no source checkout, GitHub, Docker Hub, or
+outbound build access. Sign the final archive through the normal release
+artifact signing process; checksums alone do not authenticate its publisher.
+
 ## API
 
 | Method | Path | Result |
@@ -355,8 +374,8 @@ in restricted direct tables. This is not anonymous PSI: an operator that
 controls both the VOPRF secret and the restricted commitments can
 dictionary-test likely identifiers offline. Separate and audit those access
 boundaries; a threshold or separately governed/HSM-backed OPRF is a future
-hardening option. See
-[`docs/global-identity-v1.md`](docs/global-identity-v1.md) for the exact wire,
+hardening option. See the
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf) for the exact wire,
 signature, correction, key-rotation, rate-limit, and privacy rules.
 The resulting deduplicated snapshot changes only the audited network total:
 it neither redistributes activity/weight between deployments nor changes
@@ -389,7 +408,7 @@ while the server is running:
 cd /home/raxim/workspace/myscoutee-backend/server
 docker compose -f docker-compose-dev.yml exec -T registry \
   /registry publish-announcement --file - \
-  < ../../myscoutee-registry/examples/announcement-general.json
+  < ../../myscoutee-registry/guides/manuals/protocols/examples/announcement-general.json
 
 curl --fail --show-error \
   'http://127.0.0.1:8081/v1/announcements?limit=20'
@@ -402,8 +421,8 @@ timestamps, digests, deterministic `pkey_...` package key ID, and detached
 package signature before use. Revocation and supersession are later append-only
 announcements, never an edit of a published row. Production permissions/backup
 guidance and exact application-development, restart-persistence, and optional
-demo-volume reset commands are in
-[`docs/announcements-v1.md`](docs/announcements-v1.md).
+demo-volume reset commands are in the
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf).
 
 ## Company-verification review CLI
 
@@ -514,8 +533,8 @@ does not expose raw revenue rows.
 
 The complete list/show/approve flow, JSON examples, signed status receipt,
 cursor examples, exit codes, privacy/backup handling, and stale-target
-behavior are in
-[`docs/operator-network-v1.md`](docs/operator-network-v1.md).
+behavior are in the
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf).
 
 ## Registry anomaly/case CLI
 
@@ -560,8 +579,8 @@ docker compose exec -T registry \
 Omit `--evidence-hash` only when no governed evidence artifact exists; the
 signed event then commits to the protocol zero hash. Never put names, e-mail
 addresses, document contents, or secrets in `reference`, `actor-id`, or any
-identifier field. The full signed format and pagination semantics are in
-[`docs/registry-cases-v1.md`](docs/registry-cases-v1.md).
+identifier field. The full signed format and pagination semantics are in the
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf).
 
 ## Exit-review CLI
 
@@ -602,8 +621,8 @@ docker compose exec -T registry \
 This rail neither transfers ownership nor executes or authorizes a payment.
 Only bounded non-personal actor/reference fields and SHA-256 evidence
 commitments are stored. Full command, transition, pagination, privacy, and
-verification rules are in
-[`docs/exit-reviews-v1.md`](docs/exit-reviews-v1.md).
+verification rules are in the
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf).
 
 ## Ownership-transfer CLI
 
@@ -649,8 +668,8 @@ Completed membership is snapshot-pinned: old leaderboard cursors retain the
 source group, while new snapshots use the target group's own verified profile
 label. This rail sends no money. A completed transfer can be pinned by the
 separate final allocation rail. Full transition, idempotency, stale-target,
-privacy, and allocation-boundary rules are in
-[`docs/ownership-transfers-v1.md`](docs/ownership-transfers-v1.md).
+privacy, and allocation-boundary rules are in the
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf).
 
 ## Final exit allocation CLI
 
@@ -692,8 +711,8 @@ two ownership-transfer flags for an explicit no-transfer beneficiary.
 
 This is contractual allocation evidence, not payout execution. It stores no
 bank details, invoice state, tax data, or payment-provider instruction. Exact
-commands, hashes, conservation rules, and verification semantics are in
-[`docs/final-exit-allocations-v1.md`](docs/final-exit-allocations-v1.md).
+commands, hashes, conservation rules, and verification semantics are in the
+[Registry Protocol Developer Manual](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf).
 
 ## Configuration
 
@@ -880,6 +899,7 @@ The code targets Go 1.25 and uses the CGo-free `modernc.org/sqlite` driver.
 go test ./...
 go build ./cmd/registry
 docker build -t myscoutee-registry:1.0.0-dev .
+bash tools/docker-build-context-contract-test.sh
 ```
 
 Tests use real temporary SQLite databases and real HTTP/Ed25519 flows. They

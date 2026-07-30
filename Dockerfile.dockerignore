@@ -1,0 +1,23 @@
+# The root Dockerfile builds only the Go registry. Keep edge deployment
+# configuration out of this build context; the edge Dockerfile owns it.
+**
+!go.mod
+!go.sum
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+
+# Dockerfile-specific ignore files replace the shared .dockerignore. Repeat
+# the sensitive-file denies after the directory exceptions so they win.
+**/*_test.go
+**/.env*
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.pem
+**/*.key
+**/*.p8
+**/*private*key*
+**/secrets
+**/secrets/**

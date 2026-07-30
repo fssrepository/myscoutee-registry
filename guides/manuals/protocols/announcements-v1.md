@@ -73,9 +73,9 @@ docker compose \
 ```
 
 The strict templates are
-[`examples/announcement-general.json`](../examples/announcement-general.json)
+[`examples/announcement-general.json`](examples/announcement-general.json)
 and
-[`examples/announcement-update.json`](../examples/announcement-update.json).
+[`examples/announcement-update.json`](examples/announcement-update.json).
 Replace every `example.invalid`, digest, key ID, detached signature, timestamp,
 version, and publication ID before publishing. Templates are files only; no
 announcement is seeded into a development or production database.
@@ -350,7 +350,7 @@ cd /home/raxim/workspace/myscoutee-backend/server
 
 docker compose -f docker-compose-dev.yml exec -T registry \
   /registry publish-announcement --file - \
-  < ../../myscoutee-registry/examples/announcement-general.json
+  < ../../myscoutee-registry/guides/manuals/protocols/examples/announcement-general.json
 
 curl --fail --show-error \
   'http://127.0.0.1:8081/v1/announcements?limit=20'
