@@ -316,7 +316,15 @@ func TestDocumentedAnnouncementExamplesAreStrictlyPublishable(t *testing.T) {
 		err := runPublishAnnouncement(
 			[]string{
 				"--file",
-				filepath.Join("..", "..", "examples", name),
+				filepath.Join(
+					"..",
+					"..",
+					"guides",
+					"manuals",
+					"protocols",
+					"examples",
+					name,
+				),
 			},
 			strings.NewReader(""),
 			&output,

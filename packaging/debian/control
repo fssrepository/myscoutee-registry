@@ -1,0 +1,12 @@
+Package: myscoutee-registry
+Version: 1.0.0
+Section: web
+Priority: optional
+Architecture: amd64
+Maintainer: MyScoutee <admin@myscoutee.local>
+Depends: bash, coreutils, curl, jq, systemd, tar, docker.io | docker-ce, docker-compose-plugin | docker-compose-v2
+Description: MyScoutee Registry production VM stack
+ Installs the build-free MyScoutee Registry production Compose model, bundled
+ Registry and Nginx images, systemd integration, and host qualification tools.
+ Runtime SQLite state, signing keys, VOPRF keys, configuration, and TLS private
+ material are created or supplied only on the deployment host.
