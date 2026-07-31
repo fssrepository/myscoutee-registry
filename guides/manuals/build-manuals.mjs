@@ -16,11 +16,11 @@ const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 
 const manuals = [
   {
-    source: 'myscoutee-registry-operator-manual-en.html',
-    output: 'MyScoutee_Registry_Operator_Manual_v1.0.0_EN.pdf',
+    source: 'myscoutee-registry-operations-manual-en.html',
+    output: 'MyScoutee_Registry_Operations_Manual_v1.0.0_EN.pdf',
     documentId: 'MSC-ROM-001',
-    title: 'Registry Operator Manual',
-    heading: 'MyScoutee Registry Operator Manual'
+    title: 'Registry Operations Manual',
+    heading: 'MyScoutee Registry Operations Manual'
   },
   {
     source: 'myscoutee-registry-protocol-developer-manual-en.html',
