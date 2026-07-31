@@ -2,7 +2,7 @@ module github.com/fssrepository/myscoutee-registry
 
 go 1.25.0
 
-require modernc.org/sqlite v1.54.0
+require modernc.org/sqlite v1.55.0
 
 require (
 	github.com/bwesterb/go-ristretto v1.2.3 // indirect
