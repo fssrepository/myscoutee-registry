@@ -210,11 +210,28 @@
       padding-bottom: 12px;
     }
 
-    .cover-logo img {
-      display: block;
-      height: 24mm;
+    .cover-brand-name {
+      align-items: center;
+      color: var(--navy);
+      display: flex;
+      font-size: 22pt;
+      font-weight: 800;
+      gap: 0.02em;
+      letter-spacing: 0.01em;
+      line-height: 1;
+    }
+
+    .cover-brand-name img {
+      height: 1.18em;
       object-fit: contain;
-      width: 24mm;
+      width: 1.18em;
+    }
+
+    .cover-brand-subtitle {
+      color: var(--muted);
+      font-size: 9.5pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
     }
 
     .cover-title-block {
@@ -408,7 +425,11 @@
 <main class="manual">
   <section class="cover" id="cover">
     <div class="cover-logo">
-      <img src="myscoutee-logo.png" alt="MyScoutee logo">
+      <div class="cover-brand-name" aria-label="MyScoutee">
+        <img src="myscoutee-logo.png" alt="" aria-hidden="true">
+        <span>yScoutee</span>
+      </div>
+      <div class="cover-brand-subtitle">Official registry documentation</div>
     </div>
 
     <div class="cover-title-block">
