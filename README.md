@@ -12,14 +12,14 @@ Participation is optional, and an operator can continue running independently.
 Any application that implements the Registry protocol can act as a compatible
 client; it does not have to use the MyScoutee application.
 
-## Downloads
+## 📥 Downloads
 
-### Manuals
+### Official manuals
 
-| Manual | Document version | Applies to | PDF |
+| Manual | Document version | Applies to | Download |
 |---|---:|---:|---|
-| Registry Operator Manual | 1.0.0 | MyScoutee Registry 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Operator_Manual_v1.0.0_EN.pdf) |
-| Registry Protocol Developer Manual | 1.0.0 | Registry Protocol 1 | [PDF](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf) |
+| Registry Operator Manual | 1.0.0 | MyScoutee Registry 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Operator_Manual_v1.0.0_EN.pdf?download=1) |
+| Registry Protocol Developer Manual | 1.0.0 | Registry Protocol 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf?download=1) |
 
 The manuals are the authoritative operating and protocol references.
 
