@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyScoutee Registry Operator Manual · MSC-ROM-001</title>
+  <style>
+    :root {
+      --ink: #17324d;
+      --muted: #586675;
+      --line: #cbd7df;
+      --brand: #176b87;
+      --brand-soft: #eaf5f8;
+      --ok: #26734d;
+      --ok-soft: #eef8f2;
+      --warn: #8a5b00;
+      --warn-soft: #fff8e7;
+      --danger: #9d2d24;
+      --danger-soft: #fff0ee;
+      --paper: #ffffff;
+    }
+
+    @page {
+      size: A4;
+      margin: 18mm 16mm 20mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: #edf2f5;
+      color: var(--ink);
+      font-family: "DejaVu Sans", Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.52;
+    }
+
+    body {
+      margin: 0;
+    }
+
+    .manual {
+      background: var(--paper);
+      margin: 0 auto;
+      max-width: 1120px;
+      padding: 18mm 19mm 22mm;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      color: var(--ink);
+      line-height: 1.2;
+      page-break-after: avoid;
+    }
+
+    h1 {
+      font-size: 28pt;
+      letter-spacing: -0.035em;
+      margin: 0.2em 0;
+    }
+
+    h2 {
+      border-bottom: 2px solid var(--brand);
+      font-size: 20pt;
+      margin: 1.8em 0 0.7em;
+      padding-bottom: 0.25em;
+    }
+
+    h3 {
+      font-size: 14pt;
+      margin: 1.45em 0 0.55em;
+    }
+
+    h4 {
+      font-size: 11.5pt;
+      margin: 1.2em 0 0.45em;
+    }
+
+    p,
+    li {
+      orphans: 3;
+      widows: 3;
+    }
+
+    a {
+      color: #0e617e;
+    }
+
+    code,
+    pre {
+      font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+    }
+
+    code {
+      overflow-wrap: anywhere;
+    }
+
+    pre {
+      background: #f4f7f9;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--brand);
+      border-radius: 4px;
+      font-size: 8.7pt;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      padding: 0.9em 1em;
+      page-break-inside: avoid;
+      white-space: pre-wrap;
+    }
+
+    table {
+      border-collapse: collapse;
+      font-size: 9.2pt;
+      margin: 0.8em 0 1.2em;
+      page-break-inside: avoid;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 0.58em 0.66em;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--brand-soft);
+    }
+
+    ul,
+    ol {
+      padding-left: 1.55em;
+    }
+
+    li + li {
+      margin-top: 0.28em;
+    }
+
+    .cover {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 245mm;
+      page-break-after: always;
+    }
+
+    .cover-logo {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 12px;
+    }
+
+    .cover-brand-name {
+      align-items: center;
+      color: var(--ink);
+      display: flex;
+      font-size: 22pt;
+      font-weight: 800;
+      gap: 0.02em;
+      letter-spacing: 0.01em;
+      line-height: 1;
+    }
+
+    .cover-brand-name img {
+      height: 1.18em;
+      object-fit: contain;
+      width: 1.18em;
+    }
+
+    .cover-brand-subtitle {
+      color: var(--muted);
+      font-size: 9.5pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .cover-title-block {
+      border-left: 5px solid var(--brand);
+      margin: 12mm 0 8mm;
+      padding: 4mm 0 4mm 8mm;
+    }
+
+    .cover-kicker {
+      color: var(--brand);
+      font-size: 12pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .cover h1 {
+      font-size: 26pt;
+      line-height: 1.08;
+      max-width: 150mm;
+      overflow-wrap: break-word;
+    }
+
+    .cover-lead {
+      color: var(--muted);
+      font-size: 14pt;
+      margin: 5mm 0 0;
+      max-width: 43em;
+    }
+
+    .technology-sensitivity {
+      background: linear-gradient(135deg, var(--brand-soft), #f6fbfc);
+      border: 1px solid #b9d7e1;
+      border-left: 5px solid var(--brand);
+      border-radius: 5px;
+      color: #27465b;
+      font-size: 9.2pt;
+      margin: 0 0 9mm;
+      padding: 3.5mm 4.5mm;
+      page-break-inside: avoid;
+    }
+
+    .technology-sensitivity strong {
+      color: var(--brand);
+      display: block;
+      font-size: 8.4pt;
+      letter-spacing: 0.1em;
+      margin-bottom: 1.5mm;
+      text-transform: uppercase;
+    }
+
+    .technology-sensitivity p {
+      margin: 0;
+    }
+
+    .cover-meta {
+      border-top: 2px solid var(--ink);
+      display: grid;
+      gap: 0;
+      grid-template-columns: 1fr 1fr;
+      margin-top: auto;
+    }
+
+    .cover-meta div {
+      border-top: 1px solid var(--line);
+      padding: 0.65em 0.5em;
+    }
+
+    .cover-meta strong,
+    .cover-meta span {
+      display: block;
+    }
+
+    .label {
+      border-radius: 999px;
+      display: inline-block;
+      font-size: 8pt;
+      font-weight: 700;
+      padding: 0.15em 0.6em;
+      text-transform: uppercase;
+    }
+
+    .implemented {
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .controlled {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    .callout {
+      border: 1px solid var(--line);
+      border-left-width: 5px;
+      border-radius: 4px;
+      margin: 1.15em 0;
+      padding: 0.7em 1em;
+      page-break-inside: avoid;
+    }
+
+    .callout h3,
+    .callout h4 {
+      margin-top: 0.2em;
+    }
+
+    .note {
+      background: var(--brand-soft);
+      border-left-color: var(--brand);
+    }
+
+    .warning {
+      background: var(--warn-soft);
+      border-left-color: var(--warn);
+    }
+
+    .danger {
+      background: var(--danger-soft);
+      border-left-color: var(--danger);
+    }
+
+    .toc {
+      page-break-after: always;
+    }
+
+    .toc ol {
+      columns: 2;
+      column-gap: 3em;
+    }
+
+    .quick-grid {
+      display: grid;
+      gap: 0.8em;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin: 1em 0;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 0.75em 0.9em;
+      page-break-inside: avoid;
+    }
+
+    .card h3,
+    .card h4 {
+      margin-top: 0;
+    }
+
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li {
+      padding-left: 1.7em;
+      position: relative;
+    }
+
+    .checklist li::before {
+      color: var(--ok);
+      content: "□";
+      font-weight: 700;
+      left: 0.2em;
+      position: absolute;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 8.6pt;
+    }
+
+    @media print {
+      html {
+        background: #fff;
+      }
+
+      .manual {
+        max-width: none;
+        padding: 0;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .manual {
+        padding: 24px;
+      }
+
+      .cover {
+        min-height: auto;
+      }
+
+      .cover-meta,
+      .quick-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .toc ol {
+        columns: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+<article class="manual">
+  <section class="cover" aria-labelledby="document-title">
+    <div class="cover-logo">
+      <div class="cover-brand-name" aria-label="MyScoutee">
+        <img src="myscoutee-logo.png" alt="" aria-hidden="true">
+        <span>yScoutee</span>
+      </div>
+      <div class="cover-brand-subtitle">Official registry documentation</div>
+    </div>
+
+    <div class="cover-title-block">
+      <div class="cover-kicker">Registry Operations</div>
+      <h1 id="document-title">MyScoutee Registry Operator Manual</h1>
+      <p class="cover-lead">Installation, commissioning, trust verification, operation, recovery, and retirement of the standalone MyScoutee Registry 1.0.0 release.</p>
+    </div>
+
+    <aside class="technology-sensitivity" aria-label="Technology sensitivity">
+      <strong>Technology sensitivity</strong>
+      <p>The combined deployment topology, trust and key-handling procedures, release and recovery controls, and operational implementation details reduce the cost of reconnaissance for an unauthorized attacker. Distribute only through approved internal channels. Confidentiality supplements—never replaces—access control, signed artifacts, encryption, key protection, monitoring, and tested recovery.</p>
+    </aside>
+
+    <div class="cover-meta" aria-label="Document metadata">
+      <div><strong>Document ID</strong><span>MSC-ROM-001</span></div>
+      <div><strong>Document version</strong><span>1.0.0</span></div>
+      <div><strong>Applicable software</strong><span>MyScoutee Registry 1.0.0</span></div>
+      <div><strong>Status</strong><span class="label implemented">Released baseline</span></div>
+      <div><strong>Release date</strong><time datetime="2026-07-30">2026-07-30</time></div>
+      <div><strong>Platform</strong><span>Debian-compatible Linux, amd64</span></div>
+    </div>
+  </section>
+
+  <section id="document-control" aria-labelledby="document-control-title">
+    <h2 id="document-control-title">Document Control</h2>
+    <table>
+      <tbody>
+        <tr>
+          <th scope="row">Audience</th>
+          <td>Registry host administrators, Registry operators, security reviewers, release custodians, backup/recovery personnel, and incident responders.</td>
+        </tr>
+        <tr>
+          <th scope="row">Normative operator release</th>
+          <td><code>myscoutee-registry_1.0.0_amd64.deb</code>, containing the installed systemd and Docker Compose model plus exactly two production images.</td>
+        </tr>
+        <tr>
+          <th scope="row">Production images</th>
+          <td><code>myscoutee-registry:1.0.0-prod</code> and <code>myscoutee-registry-nginx:1.0.0-prod</code>.</td>
+        </tr>
+        <tr>
+          <th scope="row">Delivery channel</th>
+          <td>GitHub Releases assets with independently authenticated release-signing material; no MyScoutee APT repository is part of version 1.0.0.</td>
+        </tr>
+        <tr>
+          <th scope="row">Classification</th>
+          <td><strong>Confidential — Internal Distribution Only.</strong> Registry binaries, release artifacts, configuration, key-handling procedures, and operational details must remain inside approved internal distribution and access controls.</td>
+        </tr>
+        <tr>
+          <th scope="row">Review triggers</th>
+          <td>Any change to release artifacts, image content, Compose topology, systemd behavior, public protocol, scope/key rules, state format, TLS handling, backup procedure, or trust-verification tooling.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Version history</h3>
+    <table>
+      <thead>
+        <tr><th>Version</th><th>Date</th><th>Status</th><th>Change</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.0.0</td>
+          <td>2026-07-30</td>
+          <td>Released baseline</td>
+          <td>Initial standalone VM release with Debian package, two bundled production images, client tools, host qualification, and separate external deployment verification.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Controlled evidence base</h3>
+    <p>This manual is tied to the following version-controlled surfaces:</p>
+    <ul>
+      <li><code>packaging/compose/</code>, <code>packaging/debian/</code>, <code>packaging/systemd/</code>, <code>packaging/templates/</code>, and <code>packaging/scripts/</code>;</li>
+      <li><code>packaging/client-tools/</code> and <code>packaging/verify-deployment/</code>;</li>
+      <li>the Go registry implementation and its embedded state-integrity rules;</li>
+      <li>the companion MyScoutee Registry Protocol Developer Manual v1.0.0.</li>
+    </ul>
+    <p>The repository <code>tools/</code> directory contains developer utilities. It is not an operator release surface and is not an installation dependency.</p>
+
+    <aside class="callout warning">
+      <h3>Version 1.0.0 is a base release</h3>
+      <p>These procedures define a clean 1.0.0 installation. They do not define a predecessor installation layout, transition wrapper, or old-state conversion contract. Do not copy historical source deployment instructions into this release procedure.</p>
+    </aside>
+  </section>
+
+  <nav class="toc" aria-labelledby="contents-title">
+    <h2 id="contents-title">Table of Contents</h2>
+    <ol>
+      <li><a href="#purpose">Purpose and safety boundary</a></li>
+      <li><a href="#deployment-modes">Deployment modes and responsibilities</a></li>
+      <li><a href="#architecture">Architecture and trust model</a></li>
+      <li><a href="#requirements">Host and network requirements</a></li>
+      <li><a href="#release-trust">Release artifacts and authenticity</a></li>
+      <li><a href="#installation">Standalone VM installation</a></li>
+      <li><a href="#configuration">Configuration, scope, keys, and state</a></li>
+      <li><a href="#network">DNS, TLS, firewall, and time</a></li>
+      <li><a href="#qualification">Host qualification and external verification</a></li>
+      <li><a href="#operations">Lifecycle, health, and monitoring</a></li>
+      <li><a href="#admin-cli">Registry-local administrative CLI</a></li>
+      <li><a href="#backup-restore">Backup and restore</a></li>
+      <li><a href="#updates">Reinstall, future update, and rollback</a></li>
+      <li><a href="#security">Security operations and incidents</a></li>
+      <li><a href="#removal">Retirement and removal</a></li>
+      <li><a href="#limitations">Known limits</a></li>
+      <li><a href="#quick-reference">Quick reference</a></li>
+    </ol>
+  </nav>
+
+  <section id="purpose" aria-labelledby="purpose-title">
+    <h2 id="purpose-title">1. Purpose and Safety Boundary</h2>
+    <p>This manual explains the supported operator path for one independently governed MyScoutee Registry 1.0.0 instance on a standalone Linux host or virtual machine. The installed service accepts signed MyScoutee deployment records, protects an append-only SQLite history, and exposes registry-signed evidence over HTTPS.</p>
+
+    <h3>In scope</h3>
+    <ul>
+      <li>installation from the released Debian package;</li>
+      <li>the separate Registry and Nginx production containers managed by systemd and Docker Compose;</li>
+      <li>immutable registry scope, Ed25519 registry identity, VOPRF keyring, TLS, and persistent SQLite state;</li>
+      <li>host qualification, independent public verification, monitoring, local administrative commands, backup, restore, incidents, and removal;</li>
+      <li>controlled artifact delivery and explicit trust pinning.</li>
+    </ul>
+
+    <h3>Out of scope</h3>
+    <ul>
+      <li>multi-node operation, automatic failover, cross-registry synchronization, or active-active SQLite;</li>
+      <li>unattended Registry self-update or a public MyScoutee APT repository;</li>
+      <li>building production artifacts on the operator host;</li>
+      <li>automatic repair of inconsistent signed or append-only state;</li>
+      <li>legal, tax, payment, acquisition, or beneficial-owner decisions.</li>
+    </ul>
+
+    <aside class="callout danger">
+      <h3>Technical evidence is not payment authority</h3>
+      <p>Registry settlements, reviews, ownership transfers, and exit allocations are signed technical records. They do not execute payments, create invoices, decide tax treatment, or replace external legal approval.</p>
+    </aside>
+  </section>
+
+  <section id="deployment-modes" aria-labelledby="deployment-modes-title">
+    <h2 id="deployment-modes-title">2. Deployment Modes and Responsibilities</h2>
+    <table>
+      <thead>
+        <tr><th>Mode</th><th>Purpose</th><th>Operational boundary</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Standalone VM/runtime-engine release</strong></td>
+          <td>The supported operator installation described by this manual.</td>
+          <td>Install <code>myscoutee-registry_1.0.0_amd64.deb</code>. The package supplies the two production images, Compose model, systemd unit, host qualifier, and client tools. No source checkout or build toolchain is needed on the target.</td>
+        </tr>
+        <tr>
+          <td><strong>Direct production instance</strong></td>
+          <td>A production instance operated directly inside an organization-owned runtime environment.</td>
+          <td>It uses the same released production image roles and protocol trust rules, but its infrastructure lifecycle can be owned by the central platform team. Do not assume the Debian paths or commands apply unless that instance was installed from the Debian package.</td>
+        </tr>
+        <tr>
+          <td><strong>Development instance</strong></td>
+          <td>Source development, debugging, fixtures, and rapid iteration.</td>
+          <td>May use developer Compose files, development images, seeded data, and repository <code>tools/</code>. It is not release evidence and must never share scope, keys, state, DNS, backups, or client bindings with production.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <aside class="callout note">
+      <h3>Measure the production path</h3>
+      <p>Release qualification and user-facing performance measurements must use production images without source synchronization, hot deployment, or frontend/backend development watchers.</p>
+    </aside>
+  </section>
+
+  <section id="architecture" class="page-break" aria-labelledby="architecture-title">
+    <h2 id="architecture-title">3. Architecture and Trust Model</h2>
+    <div class="quick-grid">
+      <div class="card">
+        <h3>Nginx service</h3>
+        <p>Terminates TLS, redirects HTTP to HTTPS, enforces body, connection, and request-rate limits, and forwards to the Registry over the internal Docker network.</p>
+      </div>
+      <div class="card">
+        <h3>Registry service</h3>
+        <p>Runs the non-root scratch Go image, verifies signed requests and state integrity, signs receipts and public evidence, and writes only to the protected data bind mount.</p>
+      </div>
+      <div class="card">
+        <h3>Persistent state</h3>
+        <p><code>/var/lib/myscoutee-registry/data</code> contains SQLite, the generated Registry signing key, and the VOPRF keyring. These files form one recovery unit.</p>
+      </div>
+      <div class="card">
+        <h3>Protected configuration</h3>
+        <p><code>/etc/myscoutee-registry/registry.env</code> and <code>/etc/myscoutee-registry/tls/</code> hold host-specific configuration and TLS material. They are never release payload secrets.</p>
+      </div>
+    </div>
+
+    <h3>Three independent trust checks</h3>
+    <ol>
+      <li><strong>Release trust:</strong> authenticate the Debian artifact through its Ed25519 release metadata and a full SPKI fingerprint obtained out of band.</li>
+      <li><strong>Transport trust:</strong> validate the HTTPS certificate chain, hostname, validity period, and final origin without insecure TLS or redirect following.</li>
+      <li><strong>Registry identity trust:</strong> verify the self-signed identity response, derive its <code>rkey_…</code> key ID, and pin the approved origin, scope, and registry key independently of TLS.</li>
+    </ol>
+    <p>A valid TLS certificate does not establish the expected Registry signing identity. A valid Registry self-signature proves possession of the advertised key but does not prove that the endpoint is the intended deployment. Both checks and the out-of-band pin are required.</p>
+
+    <h3>Scope is permanent identity domain separation</h3>
+    <p><code>REGISTRY_SCOPE</code> is recorded with the Registry identity on first start and is included in signed protocol state. A different scope represents a different sovereign namespace. Changing the environment value against an established database must fail startup; it is not a rename procedure.</p>
+  </section>
+
+  <section id="requirements" aria-labelledby="requirements-title">
+    <h2 id="requirements-title">4. Host and Network Requirements</h2>
+    <table>
+      <thead>
+        <tr><th>Area</th><th>Requirement</th><th>Initial check</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Host</td>
+          <td>Debian-compatible amd64 Linux host or VM with systemd and administrative access.</td>
+          <td><code>dpkg --print-architecture</code> must report <code>amd64</code>.</td>
+        </tr>
+        <tr>
+          <td>Container runtime</td>
+          <td>Docker Engine and Docker Compose v2. Install the local package through APT so declared dependencies can be resolved.</td>
+          <td><code>docker info</code> and <code>docker compose version</code>.</td>
+        </tr>
+        <tr>
+          <td>Storage</td>
+          <td>Durable local filesystem with reliable locks, atomic rename, directory sync, and SQLite WAL/fsync behavior. Unqualified network filesystems are prohibited.</td>
+          <td>Power-loss and clean-host restore drill.</td>
+        </tr>
+        <tr>
+          <td>Time</td>
+          <td>Reliable UTC synchronization. Signed requests default to a five-minute accepted skew and signed state rejects clock rollback.</td>
+          <td><code>timedatectl status</code> or platform equivalent.</td>
+        </tr>
+        <tr>
+          <td>Network</td>
+          <td>Stable DNS, certificate-valid HTTPS, intended inbound client reachability, and a management path separated from public traffic.</td>
+          <td>External DNS, TLS, firewall, and redirect checks.</td>
+        </tr>
+        <tr>
+          <td>Backup</td>
+          <td>Encrypted backup storage and an isolated restore target able to preserve numeric ownership and modes.</td>
+          <td>Recorded restore evidence.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The repository defines no qualified hardware minimum or throughput SLA. A sensible initial planning point is 2 vCPU, 2 GiB RAM, and 20 GiB SSD for small controlled use, or 4 vCPU, 4–8 GiB RAM, and 50–100 GiB SSD for initial production planning. Measure actual ledger, nonce, identity-presence, and health costs, and retain at least the locally approved free-space margin.</p>
+  </section>
+
+  <section id="release-trust" class="page-break" aria-labelledby="release-trust-title">
+    <h2 id="release-trust-title">5. Release Artifacts and Authenticity</h2>
+    <p>The version 1.0.0 operator release is delivered as GitHub Releases assets, not through a MyScoutee APT repository. The operational payloads are:</p>
+    <ul>
+      <li><code>myscoutee-registry_1.0.0_amd64.deb</code>;</li>
+      <li><code>myscoutee-registry-client-tools_1.0.0.tar.gz</code>;</li>
+      <li>publisher-supplied release metadata and an Ed25519 public key.</li>
+    </ul>
+
+    <p>The package builder creates the Debian package and client-tools archive. The Debian package carries a byte-identical copy of that versioned archive at <code>/usr/share/myscoutee-registry/myscoutee-registry-client-tools_1.0.0.tar.gz</code>; it does not install expanded client scripts on the Registry host. Publisher signing is a separate release-authority step. The client tool <code>verify-release.sh</code> accepts one artifact, the release manifest, the release public key, and the independently trusted full SPKI fingerprint. It verifies:</p>
+    <ul>
+      <li>canonical Ed25519 SPKI encoding and the complete <code>sha256:</code> fingerprint;</li>
+      <li>the deterministic <code>pkey_…</code> signing key ID;</li>
+      <li>artifact filename, purpose, version, byte size, and SHA-256 digest;</li>
+      <li>the Ed25519 signature over the canonical artifact metadata domain.</li>
+    </ul>
+
+    <pre><code>./verify-release.sh \
+  myscoutee-registry_1.0.0_amd64.deb \
+  /secure/release-manifest.json \
+  /secure/release-public-key.pem \
+  sha256:&lt;64-lowercase-hex-characters&gt;</code></pre>
+
+    <aside class="callout danger">
+      <h3>A co-located key is not a trust anchor</h3>
+      <p>Do not trust a release key merely because it was downloaded beside the package. Obtain and compare the complete SPKI fingerprint through an independent authenticated channel. Refuse any artifact for which signed release verification cannot be completed.</p>
+    </aside>
+
+    <p>The Debian package embeds both production image archives. During package configuration, their archive SHA-256 values and portable content fingerprints are verified before the images are accepted. The package contains no production environment, TLS private key, Registry signing key, VOPRF seed, or SQLite database.</p>
+  </section>
+
+  <section id="installation" aria-labelledby="installation-title">
+    <h2 id="installation-title">6. Standalone VM Installation</h2>
+
+    <h3>6.1 Direct host installation</h3>
+    <ol>
+      <li>Verify the downloaded package as described in §5.</li>
+      <li>Install it through local APT so Docker and Compose dependencies can be resolved.</li>
+      <li>Review and replace every deployment-specific placeholder before the first start.</li>
+      <li>Provision the TLS certificate and private key at the configured paths.</li>
+      <li>Start explicitly, run host qualification, then run the external verifier from another trust boundary.</li>
+    </ol>
+
+    <pre><code>sudo apt install ./myscoutee-registry_1.0.0_amd64.deb
+
+sudoedit /etc/myscoutee-registry/registry.env
+sudo install -o root -g root -m 0600 /secure/fullchain.pem \
+  /etc/myscoutee-registry/tls/fullchain.pem
+sudo install -o root -g root -m 0600 /secure/privkey.pem \
+  /etc/myscoutee-registry/tls/privkey.pem
+
+sudo systemctl start myscoutee-registry
+sudo /opt/myscoutee-registry/packaging/scripts/qualify-deployment.sh \
+  check --expected-version 1.0.0 --timeout-seconds 60</code></pre>
+
+    <aside class="callout warning">
+      <h3>Package installation deliberately does not start the Registry</h3>
+      <p>The package loads and verifies both images, creates protected directories, and enables the systemd unit. It does not start or restart the Registry and does not run the external verifier. This prevents the placeholder scope, hostname, or TLS paths from becoming the first-start identity.</p>
+    </aside>
+
+    <h3>6.2 Remote client-tools flow</h3>
+    <p>Obtain the separately released <code>myscoutee-registry-client-tools_1.0.0.tar.gz</code>, verify it, and extract it on the administrative client. A host that already has the Debian package installed also exposes the same archive bytes at <code>/usr/share/myscoutee-registry/myscoutee-registry-client-tools_1.0.0.tar.gz</code> for controlled retrieval. Do not run client wrappers from the Registry host. Copy <code>install.env.example</code> from the extracted archive to the gitignored <code>install.env</code>, restrict it to mode 0600, and configure SSH transport and release verification.</p>
+
+    <pre><code>cp install.env.example install.env
+chmod 0600 install.env
+./install.sh /path/to/myscoutee-registry_1.0.0_amd64.deb</code></pre>
+
+    <p><code>START_SERVICE=false</code> is the default. For a fresh host, an explicit <code>START_SERVICE=true</code> requires all three validated local inputs together: <code>DEPLOYMENT_ENV_FILE</code>, <code>TLS_CERTIFICATE_FILE</code>, and <code>TLS_PRIVATE_KEY_FILE</code>. The wrapper transfers them through a protected temporary directory, installs root-owned configuration/TLS files, and then runs the package-provided <code>restart-and-check</code> qualification action. The actual <code>install.env</code>, deployment environment, and TLS files are gitignored and excluded from release artifacts.</p>
+
+    <p>The client-tools archive contains:</p>
+    <ul>
+      <li><code>install.sh</code>, <code>install.env.example</code>, and <code>deployment.env.example</code>;</li>
+      <li><code>remote-transport.sh</code> and <code>forward-localhost.sh</code>;</li>
+      <li><code>verify-release.sh</code> and the separate <code>verify-deployment/</code> verifier;</li>
+      <li><code>purge.sh</code> for an explicit destructive package purge.</li>
+    </ul>
+
+    <aside class="callout note">
+      <h3>External verification is never folded into installation</h3>
+      <p>The remote installer can print the command for the requested public URL, but it does not execute it. Run that command separately from the client after the host installation and host qualification have completed.</p>
+    </aside>
+
+    <h3>6.3 Retrieve client tools and open an SSH tunnel</h3>
+    <p>An authorized Registry operator with SFTP access can download the exact version-matched client-tools archive from an already installed host to an administrative workstation. Use the workstation's approved SSH configuration; do not place a password or private-key content in the command:</p>
+    <pre><code>sftp registry-host
+sftp&gt; get /usr/share/myscoutee-registry/myscoutee-registry-client-tools_1.0.0.tar.gz ./myscoutee-registry-client-tools_1.0.0.tar.gz
+sftp&gt; bye</code></pre>
+    <p>SFTP provides transport, not release authenticity. Authenticate the downloaded archive against the release metadata and independently pinned release-key SPKI fingerprint described in §5 before extraction. Then extract and run the helpers only on the workstation:</p>
+    <pre><code>mkdir -m 0700 registry-client-tools-1.0.0
+tar -xzf myscoutee-registry-client-tools_1.0.0.tar.gz \
+  -C registry-client-tools-1.0.0
+cd registry-client-tools-1.0.0
+
+cp install.env.example install.env
+chmod 0600 install.env
+./forward-localhost.sh</code></pre>
+    <p>Use the extracted <code>verify-deployment/run.mjs</code> from the workstation for the separate external check. Never extract or execute <code>install.sh</code>, <code>forward-localhost.sh</code>, or the verifier on the Registry server. SSH tunnel authentication does not replace public TLS validation or the expected Registry scope/key pin.</p>
+  </section>
+
+  <section id="configuration" class="page-break" aria-labelledby="configuration-title">
+    <h2 id="configuration-title">7. Configuration, Scope, Keys, and State</h2>
+    <p>The protected file is <code>/etc/myscoutee-registry/registry.env</code>. Keep it owned by root, mode 0600, and never replace it with a symlink. At minimum, confirm these values before first start:</p>
+
+    <pre><code>MYSCOUTEE_REGISTRY_VERSION=1.0.0
+REGISTRY_PRODUCTION_IMAGE=myscoutee-registry:1.0.0-prod
+REGISTRY_NGINX_PRODUCTION_IMAGE=myscoutee-registry-nginx:1.0.0-prod
+
+REGISTRY_SCOPE=production:primary
+REGISTRY_DEMO_SEED=false
+
+REGISTRY_PUBLIC_HOSTNAME=registry.example.com
+REGISTRY_PUBLIC_BIND_ADDRESS=0.0.0.0
+REGISTRY_HTTP_PORT=80
+REGISTRY_HTTPS_PORT=443
+REGISTRY_TLS_CERTIFICATE_PATH=/etc/myscoutee-registry/tls/fullchain.pem
+REGISTRY_TLS_PRIVATE_KEY_PATH=/etc/myscoutee-registry/tls/privkey.pem</code></pre>
+
+    <table>
+      <thead>
+        <tr><th>Setting</th><th>Release default</th><th>Operator rule</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REGISTRY_SCOPE</code></td>
+          <td>Placeholder in the installed example</td>
+          <td>Replace before first start. Choose once; a mismatch with established state must fail.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_DATABASE_PATH</code></td>
+          <td><code>/data/registry.db</code></td>
+          <td>Keep inside the protected data bind mount.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_SIGNING_KEY_PATH</code></td>
+          <td><code>/data/registry-signing-key.pem</code></td>
+          <td>Generated Ed25519 identity; restore only with its matching database and scope.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_GENERATE_SIGNING_KEY</code></td>
+          <td><code>true</code></td>
+          <td>Allow only for the deliberate pristine first start; set false after commissioning.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_GLOBAL_IDENTITY_VOPRF_KEYRING_PATH</code></td>
+          <td><code>/data/registry-global-identity-voprf-keyring.json</code></td>
+          <td>Sensitive seed keyring; back up with SQLite and the Registry signing key.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_GENERATE_GLOBAL_IDENTITY_VOPRF_KEY</code></td>
+          <td><code>true</code></td>
+          <td>Allow only for first initialization; set false after commissioning.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_TIMESTAMP_SKEW</code></td>
+          <td><code>5m</code></td>
+          <td>Fix clocks instead of widening casually.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_CHECKPOINT_INTERVAL</code></td>
+          <td><code>1m</code></td>
+          <td>Completed UTC-day checkpoint attempt interval.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_MAX_REQUEST_BODY_BYTES</code></td>
+          <td><code>65536</code></td>
+          <td>Coordinate with <code>REGISTRY_NGINX_MAX_BODY_SIZE</code>.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_NGINX_REQUEST_RATE</code></td>
+          <td><code>10r/s</code></td>
+          <td>Per-observed-address rate. Review shared-NAT traffic before changing.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_NGINX_REQUEST_BURST</code></td>
+          <td><code>20</code></td>
+          <td>Burst accepted before HTTP 429.</td>
+        </tr>
+        <tr>
+          <td><code>REGISTRY_NGINX_CONNECTION_LIMIT</code></td>
+          <td><code>20</code></td>
+          <td>Concurrent connections per observed address.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>First-start lock-down</h3>
+    <p>After the first successful start and after recording the Registry identity, set both generation switches to <code>false</code>. Restart and qualify so loss of the data directory fails closed instead of silently creating a new identity:</p>
+    <pre><code>sudoedit /etc/myscoutee-registry/registry.env
+sudo systemctl restart myscoutee-registry
+sudo /opt/myscoutee-registry/packaging/scripts/qualify-deployment.sh \
+  check --expected-version 1.0.0 --timeout-seconds 60</code></pre>
+
+    <p>The release uses a bind mount at <code>/var/lib/myscoutee-registry/data</code>, not a disposable container layer. The directory is owned for container UID/GID 65532 and must not be manually edited. SQLite uses WAL, foreign keys, full synchronization, serialized access, append-only triggers, and integrity verification. A failed identity, chain, signature, direct-row, Merkle, or checkpoint check must fail closed.</p>
+  </section>
+
+  <section id="network" aria-labelledby="network-title">
+    <h2 id="network-title">8. DNS, TLS, Firewall, and Time</h2>
+
+    <h3>DNS and TLS</h3>
+    <ul>
+      <li>Use one stable hostname covered by the certificate. A Registry base URL is an origin, not a path, query, fragment, or credential-bearing URL.</li>
+      <li>Nginx accepts TLS 1.2/1.3, disables session tickets, adds HSTS and <code>X-Content-Type-Options: nosniff</code>, and redirects HTTP to the configured HTTPS hostname and port.</li>
+      <li>The Registry container remains plain HTTP on the internal Docker network and publishes no host port. Nginx is the only host-facing service.</li>
+      <li>Replace the certificate and key as one protected pair, restart Nginx through systemd, and verify the public chain and hostname normally. Do not use <code>-k</code>.</li>
+    </ul>
+
+    <pre><code>sudo systemctl restart myscoutee-registry
+
+openssl s_client \
+  -connect registry.example.com:443 \
+  -servername registry.example.com \
+  &lt; /dev/null
+
+curl --fail --show-error https://registry.example.com/versionz</code></pre>
+
+    <h3>Firewall baseline</h3>
+    <table>
+      <thead>
+        <tr><th>Flow</th><th>Default</th><th>Rule</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>MyScoutee deployments → HTTPS</td><td>TCP 443</td><td>Allow the intended client networks. Account for shared NAT and rate limits.</td></tr>
+        <tr><td>HTTP redirect</td><td>TCP 80</td><td>Optional exposure; it performs a 308 redirect only. Clients should be configured with HTTPS directly.</td></tr>
+        <tr><td>Registry backend</td><td>TCP 8080 on the internal Docker network only</td><td>Do not publish a host port or create a firewall bypass around Nginx.</td></tr>
+        <tr><td>SSH/management</td><td>Site policy</td><td>Restrict separately from protocol traffic and audit privileged access.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Time</h3>
+    <p>Monitor UTC synchronization continuously. If the host clock is wrong, stop signed writes, correct the approved time source, restart and verify. Never rewrite accepted timestamps in SQLite.</p>
+  </section>
+
+  <section id="qualification" class="page-break" aria-labelledby="qualification-title">
+    <h2 id="qualification-title">9. Host Qualification and External Verification</h2>
+
+    <h3>9.1 Package-provided host qualification</h3>
+    <p>The host qualifier validates the installed package version, two-image manifest, portable image content fingerprints, configured image references, systemd state, container image references and health, and the local TLS/Nginx path’s version, health, and identity consistency. It uses the configured certificate and hostname without exposing the Registry backend on a host port.</p>
+    <pre><code>sudo /opt/myscoutee-registry/packaging/scripts/qualify-deployment.sh \
+  check --expected-version 1.0.0 --timeout-seconds 60</code></pre>
+    <p>Use <code>restart-and-check</code> only when an explicit restart is part of the approved action. Host qualification validates the configured certificate and local Nginx route, but it does not prove public DNS, external routing, or the expected business trust pin.</p>
+
+    <h3>9.2 Separate external deployment verifier</h3>
+    <p>Run the URL-driven verifier from the client side after the deployment is already running:</p>
+    <pre><code>node verify-deployment/run.mjs \
+  --url https://registry.example.com \
+  --expected-version 1.0.0 \
+  --expected-scope production:primary \
+  --expected-key-id rkey_0123456789abcdef0123456789abcdef</code></pre>
+
+    <p>The verifier is a manual operator command, not an automated E2E test, post-install hook, or aggregate test-runner member. It never starts or changes the deployment. It sends exactly one unauthenticated GET to each of:</p>
+    <ul>
+      <li><code>/versionz</code> — exact service, build version, and protocol version;</li>
+      <li><code>/v1/registry/identity</code> — canonical Ed25519 SPKI, deterministic key ID, self-signature, and immutable scope;</li>
+      <li><code>/healthz</code> — integrity status, scope/key consistency, ledger extent, and head invariants.</li>
+    </ul>
+
+    <p>It requires an HTTPS origin, follows no redirects, refuses insecure TLS configuration, bounds response bodies, and performs no retries. For a private CA, extend normal Node trust with <code>NODE_EXTRA_CA_CERTS</code>. The <code>--allow-http</code> option is restricted to localhost or a literal loopback address for an intentional tunnel/VM test and cannot weaken a production URL.</p>
+
+    <aside class="callout warning">
+      <h3>Health is not a cheap ping</h3>
+      <p><code>/healthz</code> performs integrity work. Do not wrap the external verifier in a high-frequency monitor or retry loop. Use it for commissioning, release acceptance, and deliberate integrity checks.</p>
+    </aside>
+
+    <h3>9.3 Commissioning record</h3>
+    <ul class="checklist">
+      <li>Debian package version, SHA-256, release-signing key ID, and full pinned release-key SPKI fingerprint.</li>
+      <li>Both production image references and installed content fingerprints.</li>
+      <li>Host/kernel/Docker/Compose versions, filesystem, time status, firewall rules, and public origin.</li>
+      <li>Certificate chain and expiry.</li>
+      <li>Exact <code>registry_scope</code>, <code>registry_key_id</code>, full Registry SPKI fingerprint, and identity response.</li>
+      <li>Initial ledger index, entry count, and head hash.</li>
+      <li>Host qualification result and separate external verifier result.</li>
+      <li>Backup destination and clean-host restore schedule.</li>
+    </ul>
+  </section>
+
+  <section id="operations" aria-labelledby="operations-title">
+    <h2 id="operations-title">10. Lifecycle, Health, and Monitoring</h2>
+
+    <h3>Common lifecycle commands</h3>
+    <pre><code>sudo systemctl start myscoutee-registry
+sudo systemctl stop myscoutee-registry
+sudo systemctl restart myscoutee-registry
+sudo systemctl status myscoutee-registry
+
+sudo /opt/myscoutee-registry/packaging/scripts/registry-compose.sh ps
+sudo /opt/myscoutee-registry/packaging/scripts/registry-compose.sh \
+  logs --tail 200 registry nginx</code></pre>
+    <p>The installed Compose helper fixes the project name, protected environment, and installed Compose file. Use it instead of reconstructing raw Docker Compose arguments. Do not add build or pull behavior to the installed release.</p>
+
+    <h3>Monitoring minimum</h3>
+    <table>
+      <thead>
+        <tr><th>Signal</th><th>Alert condition</th><th>Response</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>systemd/container state</td><td>Inactive, unhealthy, restart loop, or unexpected image reference.</td><td>Preserve logs; check state, image fingerprint, TLS, and integrity errors.</td></tr>
+        <tr><td>External HTTPS</td><td>Certificate, <code>/versionz</code>, identity, expected scope/key, or sustained latency failure.</td><td>Compare with commissioning evidence before restoring traffic.</td></tr>
+        <tr><td>Disk/inodes</td><td>Locally approved headroom breached.</td><td>Expand or restore through a qualified storage process; never delete append-only rows or durable nonces.</td></tr>
+        <tr><td>Backups</td><td>Missed backup, encryption/upload failure, or stale restore evidence.</td><td>Create and test a complete recovery unit.</td></tr>
+        <tr><td>Clock</td><td>NTP unsynchronized or offset approaches request skew.</td><td>Stop signed writes and repair the time source.</td></tr>
+        <tr><td>HTTP behavior</td><td>Rising 429, 5xx, signature, replay, or request-size failures.</td><td>Separate abuse, shared-NAT concentration, client defect, and integrity fault.</td></tr>
+        <tr><td>Ledger/checkpoints</td><td>Head regression, missing completed-day checkpoint, or proof failure.</td><td>Stop writes and follow the integrity incident procedure.</td></tr>
+      </tbody>
+    </table>
+    <p>The Go service writes structured JSON logs to stdout. Configure Docker/host rotation and a protected collector. Do not capture private administrative command output in shared logs or support tickets.</p>
+  </section>
+
+  <section id="admin-cli" class="page-break" aria-labelledby="admin-cli-title">
+    <h2 id="admin-cli-title">11. Registry-local Administrative CLI</h2>
+    <p>Run Registry commands inside the installed production container so they use the exact protected scope, signing key, VOPRF keyring, and SQLite state:</p>
+    <pre><code>sudo /opt/myscoutee-registry/packaging/scripts/registry-compose.sh \
+  exec -T registry /registry COMMAND [OPTIONS]</code></pre>
+
+    <p>Use <code>/registry COMMAND --help</code> as the flag authority. Copy opaque identifiers, event hashes, cursors, review targets, and idempotency keys exactly. Existing-state commands must fail if the database, key, scope, or integrity boundary is missing or inconsistent.</p>
+
+    <table>
+      <thead>
+        <tr><th>Rail</th><th>Representative commands</th><th>Boundary</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Build information</td><td><code>version</code></td><td>Config-free JSON build and protocol version.</td></tr>
+        <tr><td>Announcements</td><td><code>publish-announcement</code></td><td>Strict append-only local publication; no public mutation endpoint.</td></tr>
+        <tr><td>Company claims</td><td><code>list-operator-claims</code>, <code>show-operator-claim</code>, approve/reject/suspend/reinstate commands</td><td>Review, private detail, and independent eligibility rails. Stale targets fail closed.</td></tr>
+        <tr><td>Cases and exits</td><td>case, exit-review, ownership-transfer, and final-allocation command families</td><td>Signed technical governance evidence; no payment or legal execution.</td></tr>
+        <tr><td>Accounting</td><td><code>leaderboard</code>, <code>revenue</code>, <code>calculate-settlement</code>, <code>settlements</code></td><td>Some output contains protected business amounts.</td></tr>
+        <tr><td>Global identity</td><td><code>global-identity-dedup</code>, <code>rotate-global-identity-key</code></td><td>VOPRF material is sensitive; rotation requires backup and restart.</td></tr>
+        <tr><td>Merkle evidence</td><td>proof and consistency command families</td><td>Generate or verify signed append-only evidence.</td></tr>
+      </tbody>
+    </table>
+
+    <aside class="callout danger">
+      <h3>Docker access is administrative authority</h3>
+      <p>Restrict and audit host/Docker access. Registry signatures show what this authority recorded; they do not authenticate a separate reviewer. Claim detail, settlement, and exit output can contain sensitive business or contact data.</p>
+    </aside>
+  </section>
+
+  <section id="backup-restore" aria-labelledby="backup-restore-title">
+    <h2 id="backup-restore-title">12. Backup and Restore</h2>
+
+    <h3>Complete recovery unit</h3>
+    <p>Back up these items together under one evidence ID:</p>
+    <ul>
+      <li>every file under <code>/var/lib/myscoutee-registry/data</code>, including SQLite/WAL/SHM when present, Registry signing key, and VOPRF keyring;</li>
+      <li><code>/etc/myscoutee-registry/registry.env</code> and the TLS certificate/private-key pair under their custody policy;</li>
+      <li>installed package version, package hash/signing evidence, image content fingerprints, and host/platform record;</li>
+      <li>Registry identity, latest health head, selected checkpoints/Merkle evidence, and backup checksums.</li>
+    </ul>
+
+    <aside class="callout danger">
+      <h3>Raw copy requires quiescence</h3>
+      <p>The release has no Registry-native backup command, and the scratch runtime has no shell or SQLite utility. Do not copy a changing database, WAL, and SHM sequentially. Stop the service, use a separately qualified SQLite online-backup tool, or take an atomic storage snapshot.</p>
+    </aside>
+
+    <h3>Quiesced backup</h3>
+    <ol>
+      <li>Record UTC time, package/image identity, public identity, ledger head, and service state.</li>
+      <li>Stop public ingress and run <code>sudo systemctl stop myscoutee-registry</code>.</li>
+      <li>Confirm the exact bind directory <code>/var/lib/myscoutee-registry/data</code>; never guess another path.</li>
+      <li>Take an atomic snapshot or root-controlled archive preserving numeric UID/GID, modes, timestamps, and every file.</li>
+      <li>Back up configuration, TLS, and release evidence under the same backup ID.</li>
+      <li>Encrypt, checksum, store, and independently verify the backup.</li>
+      <li>Restart, run host qualification, and verify the public identity/head.</li>
+    </ol>
+
+    <h3>Clean-host restore</h3>
+    <ol>
+      <li>Isolate the target from client traffic and install the exact recorded Debian release without starting it.</li>
+      <li>Restore the complete data directory with numeric owner 65532 and original modes.</li>
+      <li>Restore protected configuration and TLS with the original scope. Keep generation switches false.</li>
+      <li>Start the service and preserve startup logs. Integrity, key, scope, and state mismatch must fail.</li>
+      <li>Run host qualification, then compare <code>/versionz</code>, identity, health, ledger head, and selected proof evidence with the backup record.</li>
+      <li>Run the external verifier and restore traffic gradually.</li>
+    </ol>
+    <p>A replacement generated key or an empty healthy ledger is not recovery. Restore drills must be performed on an isolated clean host at the frequency required by the local RPO/RTO.</p>
+  </section>
+
+  <section id="updates" class="page-break" aria-labelledby="updates-title">
+    <h2 id="updates-title">13. Reinstall, Future Update, and Rollback</h2>
+    <p>The Registry has no self-updater. Its announcement feed concerns MyScoutee deployment packages; Registry package replacement is an explicit host-administration action.</p>
+
+    <h3>Same-version reinstall</h3>
+    <p>A 1.0.0 reinstall refreshes the package payload while preserving configuration and state. Package configuration still does not restart an active Registry. The client wrapper uses a controlled <code>dpkg --unpack</code> plus APT dependency repair for this case and restarts only when explicitly requested.</p>
+
+    <h3>Future release acceptance</h3>
+    <ol>
+      <li>Authenticate the new Debian artifact and client tools through their release-signing evidence.</li>
+      <li>Review release notes, state-format changes, image contents, Nginx policy, protocol changes, and release qualification.</li>
+      <li>Take and verify a complete pre-change recovery-unit backup and rehearse it on an isolated host.</li>
+      <li>Schedule downtime or drain ingress; install without assuming package configuration restarts the service.</li>
+      <li>Explicitly restart, run host qualification, and compare scope, Registry key, ledger head, public TLS, representative reads, and proofs.</li>
+      <li>Run the separate external verifier and retain the prior backup until the observation window closes.</li>
+    </ol>
+
+    <aside class="callout warning">
+      <h3>Rollback is a recovery decision</h3>
+      <p>If a future binary has changed persistent state, do not simply start an older image against that state. Restore the complete pre-change database/key/keyring/configuration unit with the corresponding released package unless that exact downgrade path was explicitly qualified.</p>
+    </aside>
+  </section>
+
+  <section id="security" aria-labelledby="security-title">
+    <h2 id="security-title">14. Security Operations and Incidents</h2>
+    <h3>Preventive controls</h3>
+    <ul>
+      <li>least-privilege host/Docker access, MFA on infrastructure control planes, a restricted management network, and privileged-command audit;</li>
+      <li>mode-0600 configuration and keys, no symlink substitution, encrypted backups, and no production secrets in artifacts or source;</li>
+      <li>pinned release metadata, full release-key SPKI fingerprint, pinned Registry identity, controlled TLS renewal, and reliable UTC time;</li>
+      <li>external retention of selected identity, checkpoint, and Merkle evidence;</li>
+      <li>no manual SQLite UPDATE/DELETE, nonce pruning, or query-table repair;</li>
+      <li>controlled distribution of Registry binaries and artifacts because exposure increases reverse-engineering, vulnerability-response, provenance, and patch-coordination risk even though security must not depend on binary secrecy.</li>
+    </ul>
+
+    <table>
+      <thead>
+        <tr><th>Incident</th><th>Immediate action</th><th>Recovery boundary</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Integrity/health failure</td><td>Stop public ingress and writes; preserve logs, state snapshot, image fingerprints, time evidence, and checkpoints.</td><td>Do not repair signed rows manually. Diagnose or restore a complete verified recovery unit.</td></tr>
+        <tr><td>SQLite/storage corruption</td><td>Stop both containers and take a forensic snapshot before any tool touches the data.</td><td>Restore database, Registry key, and VOPRF keyring together.</td></tr>
+        <tr><td>Registry key loss</td><td>Keep generation disabled and stop serving.</td><td>Restore the matching key. A new key is a new Registry identity.</td></tr>
+        <tr><td>Registry key compromise</td><td>Isolate host, preserve evidence, stop signing, and notify client operators through an independent channel.</td><td>Version 1 has no in-place Registry identity rotation; commission a new identity and govern client transition explicitly.</td></tr>
+        <tr><td>VOPRF keyring exposure</td><td>Stop global-identity operations and restrict affected records/backups.</td><td>Rotation limits future use but does not undo old seed/commitment exposure.</td></tr>
+        <tr><td>TLS/DNS compromise</td><td>Revoke/replace credentials, isolate public ingress, and compare Registry identity out of band.</td><td>Registry state may remain valid only after key/state verification.</td></tr>
+        <tr><td>Clock rollback/drift</td><td>Stop signed writes and repair the approved time source.</td><td>Restart and verify; never rewrite stored timestamps.</td></tr>
+        <tr><td>Disk full</td><td>Stop writes and expand or restore storage through a qualified process.</td><td>Never delete append-only history, durable nonces, Merkle nodes, or direct rows.</td></tr>
+        <tr><td>Release artifact/key concern</td><td>Stop new installation, preserve downloaded assets and metadata, revoke distribution access, and validate the pinned signing key out of band.</td><td>Reissue only under an authenticated release decision; do not silently replace an existing GitHub asset.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="removal" class="page-break" aria-labelledby="removal-title">
+    <h2 id="removal-title">15. Retirement and Removal</h2>
+    <ol>
+      <li>Freeze new enrollment and notify bound client operators through a trusted channel.</li>
+      <li>Complete signed deactivation/disconnect where required while the original Registry identity is still available.</li>
+      <li>Finalize required checkpoints, export agreed evidence, and verify a complete final backup on an isolated host.</li>
+      <li>Stop the service and revoke public DNS/TLS/firewall exposure.</li>
+      <li>Apply the approved retention/destruction policy to state, keys, TLS, configuration, logs, images, packages, and backups.</li>
+    </ol>
+
+    <h3>Package removal versus purge</h3>
+    <p><code>apt remove myscoutee-registry</code> stops/disables the stack but preserves host configuration and state. <code>apt purge myscoutee-registry</code> is deliberately destructive: it removes Registry configuration, TLS material, SQLite state, Registry/VOPRF keys, installed payload, and the configured managed images. Independently stored backups are not removed.</p>
+
+    <aside class="callout danger">
+      <h3>Purge is irreversible without a verified backup</h3>
+      <p>Do not use the client <code>purge.sh</code> helper as a troubleshooting shortcut. Obtain explicit authorization, verify the exact target and final backup, and record what will be destroyed before running it.</p>
+    </aside>
+  </section>
+
+  <section id="limitations" aria-labelledby="limitations-title">
+    <h2 id="limitations-title">16. Known Limits</h2>
+    <table>
+      <thead>
+        <tr><th>Limit</th><th>Operational treatment</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Single-node SQLite; no replication/failover protocol</td><td>Define downtime, RPO, and RTO; maintain tested clean-host recovery.</td></tr>
+        <tr><td>No Registry-native backup command</td><td>Use qualified quiesced copy, SQLite online backup, or atomic storage snapshots.</td></tr>
+        <tr><td>No Registry self-updater</td><td>Authenticate and install every release explicitly under change control.</td></tr>
+        <tr><td>Publisher signing is outside the package builder</td><td>Require release metadata and the out-of-band full SPKI fingerprint before accepting published GitHub assets.</td></tr>
+        <tr><td>No repository-provided OCI signature, SBOM publication, or public immutable-image policy</td><td>Keep artifact distribution controlled and preserve signed package-level evidence; apply the release authority's additional supply-chain controls.</td></tr>
+        <tr><td>Health performs integrity work</td><td>Avoid high-frequency public polling and measure cost as history grows.</td></tr>
+        <tr><td>No in-place Registry identity rotation or HSM/threshold implementation</td><td>Protect the Registry key as a root trust asset; key compromise requires a separately commissioned identity.</td></tr>
+        <tr><td>VOPRF seed holder can test likely low-entropy inputs against restricted commitments</td><td>Separate, minimize, and audit access to VOPRF material and protected records.</td></tr>
+        <tr><td>No cross-registry federation</td><td>Do not present another Registry as transparent fallback or merged history.</td></tr>
+        <tr><td>No formal capacity/SLA matrix</td><td>Benchmark expected registration, report, identity, announcement, proof, and health traffic before launch.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="quick-reference" class="page-break" aria-labelledby="quick-reference-title">
+    <h2 id="quick-reference-title">17. Quick Reference</h2>
+    <div class="quick-grid">
+      <div class="card">
+        <h3>Release artifacts</h3>
+        <p><code>myscoutee-registry_1.0.0_amd64.deb</code><br><code>myscoutee-registry-client-tools_1.0.0.tar.gz</code><br>release manifest<br>Ed25519 release public key + independently pinned full SPKI fingerprint</p>
+      </div>
+      <div class="card">
+        <h3>Production images</h3>
+        <p><code>myscoutee-registry:1.0.0-prod</code><br><code>myscoutee-registry-nginx:1.0.0-prod</code></p>
+      </div>
+      <div class="card">
+        <h3>Host paths</h3>
+        <p>Install: <code>/opt/myscoutee-registry</code><br>Config/TLS: <code>/etc/myscoutee-registry</code><br>State: <code>/var/lib/myscoutee-registry/data</code><br>Client archive only: <code>/usr/share/myscoutee-registry/myscoutee-registry-client-tools_1.0.0.tar.gz</code></p>
+      </div>
+      <div class="card">
+        <h3>Public checks</h3>
+        <p><code>GET /versionz</code><br><code>GET /v1/registry/identity</code><br><code>GET /healthz</code><br>HTTP → HTTPS 308</p>
+      </div>
+      <div class="card">
+        <h3>Never expose</h3>
+        <p>Any host-published Registry backend port<br>SQLite/WAL/SHM<br>Registry, VOPRF, TLS, or release private keys<br>Protected environment<br>Private CLI output</p>
+      </div>
+      <div class="card">
+        <h3>Emergency stop</h3>
+        <p><code>sudo systemctl stop myscoutee-registry</code><br>Preserve logs, exact state directory, package/image evidence, time evidence, and current identity before diagnosis.</p>
+      </div>
+    </div>
+
+    <h3>Commissioning checklist</h3>
+    <ul class="checklist">
+      <li>Release artifact verified against signed metadata and an independently pinned full SPKI fingerprint.</li>
+      <li>Package installed through local APT; service remained stopped until provisioning was complete.</li>
+      <li>Non-placeholder scope, public hostname, bind address, ports, and TLS paths reviewed.</li>
+      <li>Certificate-valid HTTPS and firewall behavior verified externally.</li>
+      <li>Host qualifier passed for package 1.0.0 and both managed image content fingerprints.</li>
+      <li><code>/versionz</code>, scope, Registry key ID, full Registry SPKI fingerprint, and ledger head recorded.</li>
+      <li>Generation switches disabled after first initialization and the service requalified.</li>
+      <li>External verifier passed separately with expected version, scope, and key ID pins.</li>
+      <li>Encrypted complete backup and isolated restore drill scheduled.</li>
+    </ul>
+
+    <h3>Companion protocol manual</h3>
+    <p>For wire formats, canonical messages, signatures, HTTP rules, idempotency, response contracts, and client integration, use <strong>MyScoutee Registry Protocol Developer Manual v1.0.0</strong> (<code>MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf</code>).</p>
+
+    <p class="small">MyScoutee Registry Operator Manual · MSC-ROM-001 · Version 1.0.0 · 2026-07-30 · Confidential — Internal Distribution Only</p>
+  </section>
+</article>
+</body>
+</html>

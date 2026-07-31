@@ -27,7 +27,7 @@ With the Java backend repository checked out beside this repository, run the
 real cross-language rail gate separately:
 
 ```bash
-./scripts/qualify-java-rails.sh
+./tools/qualify-java-rails.sh
 ```
 
 Set `MYSCOUTEE_BACKEND_ROOT` when the repositories are not siblings. The runner
@@ -112,7 +112,7 @@ It inspects the exact package and locally available image, then records
 artifact hashes/IDs and leaves every host-changing drill explicitly `OPEN`.
 The full compatibility matrix, oldest-package procedure, interruption
 boundaries, load evidence, and security evidence requirements are in
-`plans/PRODUCTION_QUALIFICATION.md` in the backend repository.
+`guides/plans/PRODUCTION_QUALIFICATION.md` in the backend repository.
 
 ## Merkle cost boundary
 

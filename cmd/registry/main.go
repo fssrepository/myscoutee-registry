@@ -17,16 +17,20 @@ import (
 
 	"github.com/fssrepository/myscoutee-registry/internal/announcementfile"
 	"github.com/fssrepository/myscoutee-registry/internal/app"
+	"github.com/fssrepository/myscoutee-registry/internal/buildinfo"
 	"github.com/fssrepository/myscoutee-registry/internal/config"
 	"github.com/fssrepository/myscoutee-registry/internal/demoseed"
 	"github.com/fssrepository/myscoutee-registry/internal/httpapi"
+	"github.com/fssrepository/myscoutee-registry/internal/protocol"
 	"github.com/fssrepository/myscoutee-registry/internal/service"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	var err error
-	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
+	if len(os.Args) == 2 && os.Args[1] == "version" {
+		err = runVersion(os.Stdout)
+	} else if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
 		err = runHealthcheck()
 	} else if len(os.Args) == 2 && os.Args[1] == "initialize" {
 		err = runInitialize(logger)
@@ -118,7 +122,7 @@ func main() {
 		err = runVerifyMerkleConsistency(os.Args[2:], os.Stdin, os.Stdout)
 	} else if len(os.Args) != 1 {
 		err = fmt.Errorf(
-			"usage: %s [healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|prepare-ownership-transfer|decide-ownership-transfer|cancel-ownership-transfer|complete-ownership-transfer|list-ownership-transfers|show-ownership-transfer|create-exit-allocation|verify-exit-allocation|list-exit-allocations|show-exit-allocation|leaderboard|revenue|global-identity-dedup|rotate-global-identity-key|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
+			"usage: %s [version|healthcheck|initialize|start-demo|publish-announcement|list-operator-claims|show-operator-claim|approve-operator-claim|reject-operator-claim|suspend-operator-claim|reinstate-operator-claim|list-registry-cases|show-registry-case|flag-registry-case|clear-registry-case|freeze-exit-review|decide-exit-review|dispute-exit-review|withdraw-exit-review|list-exit-reviews|show-exit-review|prepare-ownership-transfer|decide-ownership-transfer|cancel-ownership-transfer|complete-ownership-transfer|list-ownership-transfers|show-ownership-transfer|create-exit-allocation|verify-exit-allocation|list-exit-allocations|show-exit-allocation|leaderboard|revenue|global-identity-dedup|rotate-global-identity-key|calculate-settlement|settlements|merkle-proof|merkle-consistency|verify-merkle-proof|verify-merkle-consistency]",
 			os.Args[0],
 		)
 	} else {
@@ -128,6 +132,18 @@ func main() {
 		logger.Error("registry stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func runVersion(stdout io.Writer) error {
+	return json.NewEncoder(stdout).Encode(struct {
+		Service         string `json:"service"`
+		Version         string `json:"version"`
+		ProtocolVersion string `json:"protocol_version"`
+	}{
+		Service:         buildinfo.Service,
+		Version:         buildinfo.Version,
+		ProtocolVersion: protocol.Version,
+	})
 }
 
 func runRevenue(args []string, stdout io.Writer) error {

@@ -58,24 +58,21 @@ Show local help without opening the database:
 /registry publish-announcement --help
 ```
 
-Against the separately deployed production Compose stack, keep the reviewed
-JSON on the registry host and pipe it into the already-running registry
-container. The file is not uploaded through HTTP:
+Against the installed production stack, keep the reviewed JSON on the Registry
+host and pipe it into the already-running Registry container through the
+package-provided Compose wrapper. The file is not uploaded through HTTP:
 
 ```bash
-cd /path/to/myscoutee-registry
-docker compose \
-  --env-file /etc/myscoutee-registry.env \
-  -f compose.production.yaml \
+/opt/myscoutee-registry/packaging/scripts/registry-compose.sh \
   exec -T registry \
   /registry publish-announcement --file - \
   < /secure/reviewed-announcement.json
 ```
 
 The strict templates are
-[`examples/announcement-general.json`](../examples/announcement-general.json)
+[`examples/announcement-general.json`](examples/announcement-general.json)
 and
-[`examples/announcement-update.json`](../examples/announcement-update.json).
+[`examples/announcement-update.json`](examples/announcement-update.json).
 Replace every `example.invalid`, digest, key ID, detached signature, timestamp,
 version, and publication ID before publishing. Templates are files only; no
 announcement is seeded into a development or production database.
@@ -350,7 +347,7 @@ cd /home/raxim/workspace/myscoutee-backend/server
 
 docker compose -f docker-compose-dev.yml exec -T registry \
   /registry publish-announcement --file - \
-  < ../../myscoutee-registry/examples/announcement-general.json
+  < ../../myscoutee-registry/guides/manuals/protocols/examples/announcement-general.json
 
 curl --fail --show-error \
   'http://127.0.0.1:8081/v1/announcements?limit=20'
