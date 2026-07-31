@@ -1,16 +1,11 @@
 # MyScoutee Registry
 
-The Registry exists so independently operated MyScoutee-compatible applications
-can participate in one operator network without giving up their independence.
-Each operator keeps its own brand, infrastructure, community, business, and
-application data, while the Registry maintains the shared record of who
-participates and how much each deployment contributes to the network.
-
-That shared record provides the accounting basis for distributing network value
-if participating operators choose a future acquisition, merger, or other exit.
-Participation is optional, and an operator can continue running independently.
-Any application that implements the Registry protocol can act as a compatible
-client; it does not have to use the MyScoutee application.
+The Registry lets independent, compatible applications join a shared operator
+network without surrendering their brand, infrastructure, community, business,
+or data. It records participation and deployment contributions, providing an
+accounting basis if participants pursue a future acquisition, merger, or other
+exit. Participation is optional, and clients need only implement the Registry
+protocol—not use MyScoutee.
 
 ## Downloads
 
