@@ -17,6 +17,3 @@ protocol—not use MyScoutee.
 | Protocol Developer Manual | 1.0.0 | MyScoutee 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf) |
 
 The manuals are the authoritative operating and protocol references.
-
-> **Confidential — Internal Distribution Only.** Keep the manuals and Registry
-> release material within approved access and distribution controls.
