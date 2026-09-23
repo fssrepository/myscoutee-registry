@@ -19,7 +19,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "Go 1.25 or newer is required." >&2
+  echo "Go 1.26 or newer is required." >&2
   exit 1
 fi
 if [[ ! -x "$rail_backend_root/server/gradlew" ]]; then

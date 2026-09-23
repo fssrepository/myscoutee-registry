@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.25-bookworm AS build
+FROM golang:1.26-bookworm AS build
 
 ARG MYSCOUTEE_VERSION=1.0.0
 WORKDIR /src
