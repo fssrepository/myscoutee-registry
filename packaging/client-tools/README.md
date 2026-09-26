@@ -24,7 +24,7 @@ and must never be committed or included in a release artifact.
 ## Install or reinstall
 
 ```bash
-./install.sh /path/to/myscoutee-registry_1.0.0_amd64.deb
+./install.sh /path/to/myscoutee-registry_1.3.0_amd64.deb
 ```
 
 The wrapper validates the package identity and version, uploads it to a simple
@@ -88,7 +88,7 @@ The installer never invokes the browser-facing verifier. When
 ```bash
 node verify-deployment/run.mjs \
   --url https://registry.example \
-  --expected-version 1.0.0
+  --expected-version 1.3.0
 ```
 
 Run it from the client after installation so it remains an external transport
