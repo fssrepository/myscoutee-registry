@@ -141,7 +141,7 @@ function parseArgs(argv) {
     caseFilter: '',
     expectedKeyId: process.env.VERIFY_DEPLOYMENT_EXPECTED_KEY_ID ?? '',
     expectedScope: process.env.VERIFY_DEPLOYMENT_EXPECTED_SCOPE ?? '',
-    expectedVersion: process.env.VERIFY_DEPLOYMENT_EXPECTED_VERSION ?? '1.0.0',
+    expectedVersion: process.env.VERIFY_DEPLOYMENT_EXPECTED_VERSION ?? '1.3.0',
     help: false,
     list: false,
     timeoutMs: process.env.VERIFY_DEPLOYMENT_TIMEOUT_MS ?? '5000',
@@ -239,7 +239,7 @@ Usage:
 
 Options:
   --url URL                 Registry origin (or VERIFY_DEPLOYMENT_URL)
-  --expected-version X.Y.Z  Exact /versionz version (default: 1.0.0)
+  --expected-version X.Y.Z  Exact /versionz version (default: 1.3.0)
   --expected-scope SCOPE    Pin the signed registry scope
   --expected-key-id KEY_ID  Pin the derived Ed25519 registry key ID
   --timeout-ms MS           Per-request timeout, 250-30000 (default: 5000)

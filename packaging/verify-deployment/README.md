@@ -20,10 +20,10 @@ Node.js 20 or newer is recommended:
 ```bash
 node packaging/verify-deployment/run.mjs \
   --url https://registry.example \
-  --expected-version 1.0.0
+  --expected-version 1.3.0
 ```
 
-`1.0.0` is the default expected version. Release operators should still pass
+`1.3.0` is the default expected version. Release operators should still pass
 the package version explicitly. The target can also be positional or supplied
 with `VERIFY_DEPLOYMENT_URL`.
 
@@ -32,7 +32,7 @@ Pin the registry's sovereign identity when the expected values are known:
 ```bash
 node packaging/verify-deployment/run.mjs \
   https://registry.example \
-  --expected-version 1.0.0 \
+  --expected-version 1.3.0 \
   --expected-scope production:primary \
   --expected-key-id rkey_0123456789abcdef0123456789abcdef
 ```
