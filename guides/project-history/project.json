@@ -1,0 +1,408 @@
+{
+  "schema_version": 1,
+  "scope": "myscoutee-registry",
+  "project": {
+    "repositories": [
+      "fssrepository/myscoutee-backend",
+      "fssrepository/myscoutee",
+      "fssrepository/myscoutee-registry",
+      "fssrepository/myscoutee-payment-simulator",
+      "fssrepository/myscoutee-client",
+      "fssrepository/myscoutee-client-admin",
+      "fssrepository/myscoutee-mcp",
+      "fssrepository/myscoutee-agent",
+      "fssrepository/myscoutee-roadmap"
+    ],
+    "owner": "fssrepository",
+    "title": "MyScoutee",
+    "url": "https://github.com/users/fssrepository/projects/2",
+    "public": true,
+    "shortDescription": "108 tasks \u00b7 36,249.2M tokens \u00b7 889.2h AI activity \u00b7 API equivalent $26,809 (estimates)",
+    "readme": "# MyScoutee\n\n108 retrospective tasks. This Project is separate from the other portfolio Projects.\n\n[Complete Git backup](https://github.com/fssrepository/myscoutee-roadmap/tree/master/guides/project-history/myscoutee) \u00b7 [Measurement method](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nEstimated task allocation: 36.249 B tokens, 889.2 h of activity after removing observed overlap, approximately $26,809 at Standard API rates. These are estimates, not human hours or an invoice.\n\n## Budget by workstream\n\n| Workstream | Tokens (M) | Allocated activity (h) | API equivalent (USD) |\n| --- | ---: | ---: | ---: |\n| Product | 23,857.34 | 525.69 | $15,993.22 |\n| QA and release | 8,574.35 | 235.94 | $7,729.87 |\n| Operations | 1,311.95 | 29.69 | $1,070.12 |\n| Marketing | 245.45 | 8.83 | $210.41 |\n| Creative | 2,185.29 | 86.59 | $1,727.15 |\n| Tooling | 62.85 | 1.69 | $59.45 |\n| Project administration (AI-assisted) | 12.00 | 0.75 | $18.47 |\n\n## Repositories\n\n- [myscoutee-backend](https://github.com/fssrepository/myscoutee-backend)\n- [myscoutee](https://github.com/fssrepository/myscoutee)\n- [myscoutee-registry](https://github.com/fssrepository/myscoutee-registry)\n- [myscoutee-payment-simulator](https://github.com/fssrepository/myscoutee-payment-simulator)\n- [myscoutee-client](https://github.com/fssrepository/myscoutee-client)\n- [myscoutee-client-admin](https://github.com/fssrepository/myscoutee-client-admin)\n- [myscoutee-mcp](https://github.com/fssrepository/myscoutee-mcp)\n- [myscoutee-agent](https://github.com/fssrepository/myscoutee-agent)\n- [myscoutee-roadmap](https://github.com/fssrepository/myscoutee-roadmap)\n"
+  },
+  "fields": [
+    {
+      "name": "Title",
+      "dataType": "TITLE",
+      "options": []
+    },
+    {
+      "name": "Status",
+      "dataType": "SINGLE_SELECT",
+      "options": [
+        {
+          "name": "Todo",
+          "color": "GRAY",
+          "description": ""
+        },
+        {
+          "name": "In Progress",
+          "color": "GRAY",
+          "description": ""
+        },
+        {
+          "name": "Done",
+          "color": "GRAY",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "name": "Task ID",
+      "dataType": "TEXT",
+      "options": []
+    },
+    {
+      "name": "Workstream",
+      "dataType": "TEXT",
+      "options": []
+    },
+    {
+      "name": "Started",
+      "dataType": "DATE",
+      "options": []
+    },
+    {
+      "name": "Finished",
+      "dataType": "DATE",
+      "options": []
+    },
+    {
+      "name": "Tokens M",
+      "dataType": "NUMBER",
+      "options": []
+    },
+    {
+      "name": "API equiv USD",
+      "dataType": "NUMBER",
+      "options": []
+    },
+    {
+      "name": "Active h",
+      "dataType": "NUMBER",
+      "options": []
+    },
+    {
+      "name": "Allocated h",
+      "dataType": "NUMBER",
+      "options": []
+    },
+    {
+      "name": "Models",
+      "dataType": "TEXT",
+      "options": []
+    },
+    {
+      "name": "Reasoning",
+      "dataType": "TEXT",
+      "options": []
+    },
+    {
+      "name": "Evidence",
+      "dataType": "TEXT",
+      "options": []
+    }
+  ],
+  "views": [
+    {
+      "name": "Delivery history",
+      "layout": "TABLE_LAYOUT",
+      "visibleFields": [
+        "Task ID",
+        "Title",
+        "Workstream",
+        "Status",
+        "Started",
+        "Finished",
+        "Evidence"
+      ]
+    },
+    {
+      "name": "AI usage and effort",
+      "layout": "TABLE_LAYOUT",
+      "visibleFields": [
+        "Task ID",
+        "Title",
+        "Tokens M",
+        "API equiv USD",
+        "Active h",
+        "Allocated h",
+        "Models",
+        "Reasoning",
+        "Evidence"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "task_id": "MSC-45",
+      "title": "MSC-45: Introduce operator Registry integration and notification lifecycle",
+      "body": "Retrospective record of **introduce operator Registry integration and notification lifecycle**.\n\nHistorical execution: **2026-07-27 \u2192 2026-07-28 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **Product**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 270.91 M |\n| Standard API list-price equivalent | approximately $159 USD |\n| Active task time | approximately 4.6 h |\n| Model(s) | gpt-5.6-sol |\n| Reasoning effort | ultra; unknown; high; medium |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-backend: [Introduce operator Registry integration and notification lifecycle](https://github.com/fssrepository/myscoutee-backend/commit/f9f1e02907a7dc7cb781e55f4c0307dc80a863c0)\n- myscoutee: [Introduce the notification center and operator workspace](https://github.com/fssrepository/myscoutee/commit/a9842c5ec184a7cf26188c637f62366a3460cf77)\n- myscoutee-registry: [Establish the signed Registry service and persistent audit ledger](https://github.com/fssrepository/myscoutee-registry/commit/fc8fca779e7a6a942446913c47a46ff9aefffdc0)\n- myscoutee-registry: [Add operator claims, signed announcements and review commands](https://github.com/fssrepository/myscoutee-registry/commit/7c8ad794a9955bb155209438ae9179cf5da38ef8)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **4.58 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 45,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/45",
+        "node_id": "I_kwDOU1_9-s8AAAABUQCNhA"
+      },
+      "values": {
+        "Task ID": "MSC-45",
+        "Workstream": "Product",
+        "Started": "2026-07-27",
+        "Finished": "2026-07-28",
+        "Tokens M": 270.91,
+        "API equiv USD": 159,
+        "Active h": 4.6,
+        "Models": "gpt-5.6-sol",
+        "Reasoning": "ultra; unknown; high; medium",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 4.58,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-46",
+      "title": "MSC-46: Expand operator revenue, claims and Registry lifecycle integration",
+      "body": "Retrospective record of **expand operator revenue, claims and Registry lifecycle integration**.\n\nHistorical execution: **2026-07-28 \u2192 2026-07-29 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **Product**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 3,686.75 M |\n| Standard API list-price equivalent | approximately $2,277 USD |\n| Active task time | approximately 27.7 h |\n| Model(s) | gpt-5.6-sol |\n| Reasoning effort | ultra; unknown; high; medium |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-backend: [Expand operator revenue, claims and Registry lifecycle integration](https://github.com/fssrepository/myscoutee-backend/commit/a40bdf385523c51d47d303a4e0e8e79734cf1b5f)\n- myscoutee: [Expand operator claims, revenue reporting and workspace interaction](https://github.com/fssrepository/myscoutee/commit/140f221a17197857d066a7eb6ac3228090953ab0)\n- myscoutee-registry: [Record signed revenue batches and preserve the global commission pool](https://github.com/fssrepository/myscoutee-registry/commit/b3f0a13131adfc97b5cafd5115232c57ff6d39be)\n- myscoutee-registry: [Harden operator claim eligibility and leaderboard consistency](https://github.com/fssrepository/myscoutee-registry/commit/8ae2d85048fdc8aacadfad1060d89676a563ce81)\n- myscoutee-registry: [Add qualified activity snapshots, Merkle proofs and isolated demo data](https://github.com/fssrepository/myscoutee-registry/commit/dd229d7bed83a334d8e01d36c8a1da229656a29b)\n- myscoutee-registry: [Add Registry cases and operator claim rejection and suspension](https://github.com/fssrepository/myscoutee-registry/commit/af66f60c0f97024c878d9ceac14af5d5c6ac864e)\n- myscoutee-registry: [Add share-weighted settlements and private deployment history](https://github.com/fssrepository/myscoutee-registry/commit/3e494b01f0b96127623ec38065618297eccaee51)\n- myscoutee-registry: [Add exit reviews and privacy-preserving global identity deduplication](https://github.com/fssrepository/myscoutee-registry/commit/608888c97a88eff66d2fab35b506008dca1cf2cd)\n- myscoutee-registry: [Complete ownership transfers and final exit allocations](https://github.com/fssrepository/myscoutee-registry/commit/808769f16afa1dfb7ef45f6864f5a198c6d971b1)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **27.10 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 46,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/46",
+        "node_id": "I_kwDOU1_9-s8AAAABUQCPlg"
+      },
+      "values": {
+        "Task ID": "MSC-46",
+        "Workstream": "Product",
+        "Started": "2026-07-28",
+        "Finished": "2026-07-29",
+        "Tokens M": 3686.75,
+        "API equiv USD": 2277,
+        "Active h": 27.7,
+        "Models": "gpt-5.6-sol",
+        "Reasoning": "ultra; unknown; high; medium",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 27.1,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-48",
+      "title": "MSC-48: Qualify operator deployment packaging and controlled manuals",
+      "body": "Retrospective record of **qualify operator deployment packaging and controlled manuals**.\n\nHistorical execution: **2026-07-30 \u2192 2026-08-03 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **Operations**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 206.35 M |\n| Standard API list-price equivalent | approximately $127 USD |\n| Active task time | approximately 2.6 h |\n| Model(s) | gpt-5.6-sol |\n| Reasoning effort | ultra; high; xhigh; medium |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-backend: [Qualify operator deployment packaging and controlled manuals](https://github.com/fssrepository/myscoutee-backend/commit/95d7e6a0968ec2d0deb18c380e5d921314a5c977)\n- myscoutee: [Refine operator release controls, seeded content and random groups](https://github.com/fssrepository/myscoutee/commit/d4971c59fccae6f27ebd9f6fcc6adcaa2b0cfed2)\n- myscoutee-registry: [Package Registry releases with deployment verification and manuals](https://github.com/fssrepository/myscoutee-registry/commit/284267ea1e2e29d9e0458dcb0fcab67333da1de8)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **1.38 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 48,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/48",
+        "node_id": "I_kwDOU1_9-s8AAAABUQCUyg"
+      },
+      "values": {
+        "Task ID": "MSC-48",
+        "Workstream": "Operations",
+        "Started": "2026-07-30",
+        "Finished": "2026-08-03",
+        "Tokens M": 206.35,
+        "API equiv USD": 127,
+        "Active h": 2.6,
+        "Models": "gpt-5.6-sol",
+        "Reasoning": "ultra; high; xhigh; medium",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 1.38,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-49",
+      "title": "MSC-49: Refine random groups, seeded articles and operator configuration",
+      "body": "Retrospective record of **refine random groups, seeded articles and operator configuration**.\n\nHistorical execution: **2026-07-30 \u2192 2026-08-03 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **Product**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 1,108.65 M |\n| Standard API list-price equivalent | approximately $636 USD |\n| Active task time | approximately 20.1 h |\n| Model(s) | gpt-5.6-sol |\n| Reasoning effort | ultra; xhigh; high; unknown; medium |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-backend: [Refine random groups, seeded articles and operator configuration](https://github.com/fssrepository/myscoutee-backend/commit/73ba6e398e3fdac769c3f9535a5d9f925621f288)\n- myscoutee: [Refine operator release controls, seeded content and random groups](https://github.com/fssrepository/myscoutee/commit/d4971c59fccae6f27ebd9f6fcc6adcaa2b0cfed2)\n- myscoutee-registry: [Finalize Registry download documentation and dependency updates](https://github.com/fssrepository/myscoutee-registry/commit/6c4aaf6535fe1d3943d0ac31bfcff9640a450879)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **18.04 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 49,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/49",
+        "node_id": "I_kwDOU1_9-s8AAAABUQCXPA"
+      },
+      "values": {
+        "Task ID": "MSC-49",
+        "Workstream": "Product",
+        "Started": "2026-07-30",
+        "Finished": "2026-08-03",
+        "Tokens M": 1108.65,
+        "API equiv USD": 636,
+        "Active h": 20.1,
+        "Models": "gpt-5.6-sol",
+        "Reasoning": "ultra; xhigh; high; unknown; medium",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 18.04,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-86",
+      "title": "MSC-86: Complete stable-release lifecycle qualification",
+      "body": "Retrospective record of **complete stable-release lifecycle qualification**.\n\nHistorical execution: **2026-09-16 \u2192 2026-09-17 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **QA and release**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 632.32 M |\n| Standard API list-price equivalent | approximately $866 USD |\n| Active task time | approximately 20.4 h |\n| Model(s) | gpt-6-astra |\n| Reasoning effort | high; xhigh |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-backend: [Complete stable-release lifecycle qualification](https://github.com/fssrepository/myscoutee-backend/commit/a3e1344433e4474753dbcc2b629f8f179ceab122)\n- myscoutee: [Finalize asset pricing and participation UI for the stable release](https://github.com/fssrepository/myscoutee/commit/a089a392e45b901af654a739fec0d4f8fd77157d)\n- myscoutee-registry: [Document Registry v1.0.0 qualification and QA artifact identities](https://github.com/fssrepository/myscoutee-registry/commit/214f79667b49c60e467597a79da6ca9e431af1a0)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **20.43 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 86,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/86",
+        "node_id": "I_kwDOU1_9-s8AAAABUQEGlg"
+      },
+      "values": {
+        "Task ID": "MSC-86",
+        "Workstream": "QA and release",
+        "Started": "2026-09-16",
+        "Finished": "2026-09-17",
+        "Tokens M": 632.32,
+        "API equiv USD": 866,
+        "Active h": 20.4,
+        "Models": "gpt-6-astra",
+        "Reasoning": "high; xhigh",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 20.43,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-88",
+      "title": "MSC-88: License and document the Registry release",
+      "body": "Retrospective record of **license and document the Registry release**.\n\nHistorical execution: **2026-09-17 \u2192 2026-09-23 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **Operations**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 16.99 M |\n| Standard API list-price equivalent | approximately $23 USD |\n| Active task time | approximately 0.4 h |\n| Model(s) | gpt-6-astra |\n| Reasoning effort | high |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-registry: [Add the Registry license and correct release documentation](https://github.com/fssrepository/myscoutee-registry/commit/3976ce383e672a1bf92c3839d7f45a02b6ee167b)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **0.40 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 88,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/88",
+        "node_id": "I_kwDOU1_9-s8AAAABUQEMew"
+      },
+      "values": {
+        "Task ID": "MSC-88",
+        "Workstream": "Operations",
+        "Started": "2026-09-17",
+        "Finished": "2026-09-23",
+        "Tokens M": 16.99,
+        "API equiv USD": 23,
+        "Active h": 0.4,
+        "Models": "gpt-6-astra",
+        "Reasoning": "high",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 0.4,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-96",
+      "title": "MSC-96: Update Registry toolchain and security dependencies",
+      "body": "Retrospective record of **update Registry toolchain and security dependencies**.\n\nHistorical execution: **2026-09-23 \u2192 2026-09-23 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **Operations**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 1.26 M |\n| Standard API list-price equivalent | approximately $2 USD |\n| Active task time | approximately 0.0 h |\n| Model(s) | gpt-6-astra |\n| Reasoning effort | high |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Estimated from observed token-to-model-activity ratio; not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-registry: [Update Registry to Go 1.26 and refresh security dependencies](https://github.com/fssrepository/myscoutee-registry/commit/2ad1f66c1320a6d4f4032654793008ef0edb46f5)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **0.00 h**. Estimated task time; placement and overlap are unobserved.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 96,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/96",
+        "node_id": "I_kwDOU1_9-s8AAAABUQElZA"
+      },
+      "values": {
+        "Task ID": "MSC-96",
+        "Workstream": "Operations",
+        "Started": "2026-09-23",
+        "Finished": "2026-09-23",
+        "Tokens M": 1.26,
+        "API equiv USD": 2,
+        "Active h": 0.0,
+        "Models": "gpt-6-astra",
+        "Reasoning": "high",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 0.0,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-100",
+      "title": "MSC-100: Qualify community group membership and profile switching",
+      "body": "Retrospective record of **qualify community group membership and profile switching**.\n\nHistorical execution: **2026-09-26 \u2192 2026-09-26 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **QA and release**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 381.65 M |\n| Standard API list-price equivalent | approximately $523 USD |\n| Active task time | approximately 13.3 h |\n| Model(s) | gpt-6-astra |\n| Reasoning effort | high |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-backend: [Qualify community group membership and profile switching](https://github.com/fssrepository/myscoutee-backend/commit/66d90fb6f0965d60657f0b73f037e8db0e506518)\n- myscoutee: [Refine group membership, profile switching and lifecycle state](https://github.com/fssrepository/myscoutee/commit/b91717336590cfc79c0f780f6be3498332aaf557)\n- myscoutee-registry: [Align Registry images and deployment tooling with v1.3.0](https://github.com/fssrepository/myscoutee-registry/commit/570ff834764834d768479840cbba0de4821a156f)\n- myscoutee-client-admin: [Align admin client packaging and documentation with v1.3.0](https://github.com/fssrepository/myscoutee-client-admin/commit/7dd3972fd32c6737972fb9bdb8ac9ad0b34968e5)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **13.20 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 100,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/100",
+        "node_id": "I_kwDOU1_9-s8AAAABUQEzKQ"
+      },
+      "values": {
+        "Task ID": "MSC-100",
+        "Workstream": "QA and release",
+        "Started": "2026-09-26",
+        "Finished": "2026-09-26",
+        "Tokens M": 381.65,
+        "API equiv USD": 523,
+        "Active h": 13.3,
+        "Models": "gpt-6-astra",
+        "Reasoning": "high",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 13.2,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-109",
+      "title": "MSC-109: Separate Compose environments and disable dev/E2E auto-restart",
+      "body": "Retrospective record of **separate Compose environments and disable dev/E2E auto-restart**.\n\nHistorical execution: **2026-09-30 \u2192 2026-09-30 (UTC dates)**. This issue was created retrospectively on 2026-10-01; its creation/closure time is not the historical execution time.\n\nWorkstream: **Operations**\n\n| Metric | Value |\n| --- | --- |\n| Tokens, including cached input | 2.56 M |\n| Standard API list-price equivalent | approximately $4 USD |\n| Active task time | approximately 0.2 h |\n| Model(s) | gpt-6-astra |\n| Reasoning effort | high |\n\nToken basis: Estimated task allocation of measured daily account totals.\nTime basis: Union of recorded root task intervals; includes tool/network waits, not human labor time.\n\nThe USD figure is an estimate using the 2026-10-01 Standard short-context API rate card. It is not a subscription invoice or a verified payment. Missing model/mix data is estimated; quota-driven model switches may be unobserved. Image/video provider credits are separate.\n\n[Accounting method and limitations](https://github.com/fssrepository/myscoutee-roadmap#measurement-method)\n\nDelivery evidence:\n- myscoutee-backend: [Separate Compose environments and disable dev/E2E auto-restart](https://github.com/fssrepository/myscoutee-backend/commit/ab8265a22d5599eae45b74879d998745b3694bac)\n- myscoutee-registry: [Add Docker Compose configurations for development, E2E, and production environments](https://github.com/fssrepository/myscoutee-registry/commit/add00f612463fb863b72ce30268b2185e30e58c2)\n- myscoutee-mcp: [Refactor Docker Compose setup for MCP service with environment-specific configurations](https://github.com/fssrepository/myscoutee-mcp/commit/9c3db579582b9feda364c9847087bcb4379174da)\n\nThe commits record delivered work. This retrospective does not claim a fresh test run. Some consolidated commits cover several tasks; the references preserve that relationship without splitting their code changes. Private source repositories retain their access restrictions.\n\nTime allocated to project totals after removing observed overlap: approximately **0.17 h**. Observed task intervals, overlap divided equally across concurrent tasks.\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 109,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/109",
+        "node_id": "I_kwDOU1_9-s8AAAABUQFQ0w"
+      },
+      "values": {
+        "Task ID": "MSC-109",
+        "Workstream": "Operations",
+        "Started": "2026-09-30",
+        "Finished": "2026-09-30",
+        "Tokens M": 2.56,
+        "API equiv USD": 4,
+        "Active h": 0.2,
+        "Models": "gpt-6-astra",
+        "Reasoning": "high",
+        "Evidence": "Estimated allocation",
+        "Allocated h": 0.17,
+        "Status": "Done"
+      }
+    },
+    {
+      "task_id": "MSC-110",
+      "title": "MSC-110: Reconstruct the Project and preserve restorable Git records",
+      "body": "Reconstruct and organize the **myscoutee** Project, recover historical tasks and model/token/time evidence, add task references to commit messages, and preserve a restorable Git snapshot under `guides/project-history/`. This is current AI-assisted administration, separate from the original development.\n\nExecution: September 30\u2013October 1, 2026 (Europe/Bratislava). Measurement closes at **2026-09-30T23:16:07.594000+00:00**. The final publication/accounting tail after that cutoff is deliberately excluded to avoid recursive self-accounting.\n\n| Metric | Value |\n| --- | --- |\n| Tokens allocated to this Project | 11.995 M |\n| Active/allocated task time | 0.749 h |\n| Standard API equivalent | $18.47 USD |\n| Model | gpt-6-astra |\n| Reasoning | high |\n\nThe complete shared maintenance run recorded 19,991,868 local tokens and 1.248 active hours. These totals are partitioned once by the 15 retained backup snapshots: nine MyScoutee snapshots and two for each other Project. The per-Project split is an estimate, not four independent measurements. The model and whole-run token count come from the session log. Previously assigned overlap was removed from MSC-108; the remaining allocation uses the previously unassigned account allowance and has no exact daily billing reconciliation. USD is an API list-price equivalent, not credits paid or a subscription invoice.\n\nValidation: offline snapshot/checksum restoration checks, source-tree comparison and preservation of release-tag targets. Application code was not rebuilt or retested.\n\n[Restorable snapshot](https://github.com/fssrepository/myscoutee-roadmap/tree/master/guides/project-history/myscoutee)\n\nRelated administration tasks with separately allocated effort:\n- [OLD-5](https://github.com/fssrepository/myscoutee-roadmap/issues/143)\n- [EKO-15](https://github.com/fssrepository/myscoutee-roadmap/issues/144)\n- [MATH-17](https://github.com/fssrepository/myscoutee-roadmap/issues/145)\n\nProject: https://github.com/users/fssrepository/projects/2\n",
+      "state": "CLOSED",
+      "state_reason": "completed",
+      "issue": {
+        "repository": "fssrepository/myscoutee-roadmap",
+        "number": 142,
+        "url": "https://github.com/fssrepository/myscoutee-roadmap/issues/142",
+        "node_id": "I_kwDOU1_9-s8AAAABUQVWwg"
+      },
+      "values": {
+        "Task ID": "MSC-110",
+        "Workstream": "Project administration (AI-assisted)",
+        "Started": "2026-09-30",
+        "Finished": "2026-10-01",
+        "Tokens M": 11.995,
+        "API equiv USD": 18.47,
+        "Active h": 0.749,
+        "Allocated h": 0.749,
+        "Models": "gpt-6-astra",
+        "Reasoning": "high",
+        "Evidence": "Measured run; estimated project split",
+        "Status": "Done"
+      }
+    }
+  ]
+}
