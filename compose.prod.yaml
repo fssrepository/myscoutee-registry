@@ -1,0 +1,5 @@
+# Reuse the canonical production model shipped by the Registry package.
+# Supply the production registry.env explicitly with --env-file.
+name: myscoutee-registry-prod
+include:
+  - packaging/compose/compose.yaml
