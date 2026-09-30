@@ -1,0 +1,647 @@
+{
+  "schema_version": 1,
+  "project_totals": {
+    "tasks": 108,
+    "tokens_estimate": 36249230674,
+    "api_standard_usd_estimate": 26808.69,
+    "allocated_hours_estimate": 889.1878287147725,
+    "manual_effort_unknown": false,
+    "workstreams": {
+      "Product": {
+        "tokens": 23857343152,
+        "api_equivalent_usd": 15993.219999999996,
+        "hours": 525.6860546780293
+      },
+      "QA and release": {
+        "tokens": 8574348656,
+        "api_equivalent_usd": 7729.869999999999,
+        "hours": 235.944212038528
+      },
+      "Operations": {
+        "tokens": 1311954555,
+        "api_equivalent_usd": 1070.1199999999997,
+        "hours": 29.692205694251587
+      },
+      "Marketing": {
+        "tokens": 245448393,
+        "api_equivalent_usd": 210.41,
+        "hours": 8.829473657056138
+      },
+      "Creative": {
+        "tokens": 2185293586,
+        "api_equivalent_usd": 1727.1499999999996,
+        "hours": 86.59408009130647
+      },
+      "Tooling": {
+        "tokens": 62847211,
+        "api_equivalent_usd": 59.45,
+        "hours": 1.6930397222439448
+      },
+      "Project administration (AI-assisted)": {
+        "tokens": 11995121,
+        "api_equivalent_usd": 18.47,
+        "hours": 0.7487628333568572
+      }
+    }
+  },
+  "account_control": {
+    "account_tokens": 38488016278,
+    "allocated_tokens_estimate": 37993843589,
+    "unassigned_tokens": 494172689
+  },
+  "valuation_date": "2026-10-01",
+  "rates_per_million": {
+    "gpt-5.2": [
+      1.75,
+      0.175,
+      14,
+      0
+    ],
+    "gpt-5.4": [
+      2.5,
+      0.25,
+      15,
+      0
+    ],
+    "gpt-5.5": [
+      5,
+      0.5,
+      30,
+      0
+    ],
+    "gpt-5.3-codex": [
+      1.75,
+      0.175,
+      14,
+      0
+    ],
+    "gpt-5.6-sol": [
+      4,
+      0.4,
+      20,
+      5
+    ],
+    "gpt-5.6-terra": [
+      2,
+      0.2,
+      12,
+      2.5
+    ],
+    "gpt-6-astra": [
+      10,
+      1,
+      50,
+      12.5
+    ],
+    "gpt-6-sol": [
+      2,
+      0.2,
+      10,
+      2.5
+    ],
+    "gpt-6-luna": [
+      0.1,
+      0.01,
+      0.5,
+      0.125
+    ]
+  },
+  "pricing_source": "https://developers.openai.com/api/docs/pricing",
+  "observed_token_mix": {
+    "input_tokens": 0.9963307585649178,
+    "cached_input_tokens": 0.9617906844276427,
+    "cache_write_input_tokens": 0.0,
+    "output_tokens": 0.0031954733323304777,
+    "reasoning_output_tokens": 0.0010898946512413721,
+    "total_tokens": 1.0
+  },
+  "tasks": [
+    {
+      "task_id": "MSC-45",
+      "tokens": 270913090,
+      "api_standard_usd_estimate": 159.34,
+      "active_hours": 4.6,
+      "allocated_hours": 4.582995277908113,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-5.6-sol|medium": {
+          "input_tokens": 3733105.78201675,
+          "cached_input_tokens": 3469333.7247516033,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 16690.610048559065,
+          "reasoning_output_tokens": 5629.70932342477,
+          "total_tokens": 3749796.392065309
+        },
+        "gpt-5.6-sol|unknown": {
+          "input_tokens": 27685014.82223099,
+          "cached_input_tokens": 26027874.602793735,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 93686.43332686661,
+          "reasoning_output_tokens": 43229.43525699189,
+          "total_tokens": 27850084.631940715
+        },
+        "gpt-5.6-sol|high": {
+          "input_tokens": 4668153.244741023,
+          "cached_input_tokens": 4331626.526970735,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 25468.55467396802,
+          "reasoning_output_tokens": 12147.35478582589,
+          "total_tokens": 4693621.7994149905
+        },
+        "gpt-5.6-sol|ultra": {
+          "input_tokens": 233749677.32801577,
+          "cached_input_tokens": 226427539.06676537,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 710324.0964408644,
+          "reasoning_output_tokens": 308071.76305660326,
+          "total_tokens": 234619587.176579
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 1.8331981111632452,
+          "tokens": 108365236.0,
+          "api_equivalent_usd": 63.736
+        },
+        "myscoutee": {
+          "hours": 2.138731129690453,
+          "tokens": 126426108.66666667,
+          "api_equivalent_usd": 74.35866666666668
+        },
+        "myscoutee-registry": {
+          "hours": 0.6110660370544151,
+          "tokens": 36121745.333333336,
+          "api_equivalent_usd": 21.245333333333335
+        }
+      }
+    },
+    {
+      "task_id": "MSC-46",
+      "tokens": 3686754625,
+      "api_standard_usd_estimate": 2277.43,
+      "active_hours": 27.7,
+      "allocated_hours": 27.095715323962548,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-5.6-sol|unknown": {
+          "input_tokens": 184071692.41255057,
+          "cached_input_tokens": 174885066.6014973,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 525195.9625950597,
+          "reasoning_output_tokens": 202262.68134198856,
+          "total_tokens": 188071312.67611986
+        },
+        "gpt-5.6-sol|high": {
+          "input_tokens": 81312604.21382774,
+          "cached_input_tokens": 78650432.58352113,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 231743.7426495892,
+          "reasoning_output_tokens": 75172.06946163619,
+          "total_tokens": 81544347.95647733
+        },
+        "gpt-5.6-sol|ultra": {
+          "input_tokens": 3402983069.685567,
+          "cached_input_tokens": 3243940453.6925097,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 8982917.435557576,
+          "reasoning_output_tokens": 3652451.8946675444,
+          "total_tokens": 3417088857.919858
+        },
+        "gpt-5.6-sol|medium": {
+          "input_tokens": 49628.58516220229,
+          "cached_input_tokens": 36579.896910435935,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 477.86238279514157,
+          "reasoning_output_tokens": 60.90402917977295,
+          "total_tokens": 50106.447544997434
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 12.2367746624347,
+          "tokens": 1664985959.6774194,
+          "api_equivalent_usd": 1028.5167741935484
+        },
+        "myscoutee": {
+          "hours": 8.7405533303105,
+          "tokens": 1189275685.483871,
+          "api_equivalent_usd": 734.6548387096774
+        },
+        "myscoutee-registry": {
+          "hours": 6.11838733121735,
+          "tokens": 832492979.8387097,
+          "api_equivalent_usd": 514.2583870967742
+        }
+      }
+    },
+    {
+      "task_id": "MSC-48",
+      "tokens": 206347118,
+      "api_standard_usd_estimate": 126.53,
+      "active_hours": 2.6,
+      "allocated_hours": 1.3796374999483427,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-5.6-sol|medium": {
+          "input_tokens": 179920.01702172233,
+          "cached_input_tokens": 154094.8774565811,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 1859.181792707699,
+          "reasoning_output_tokens": 422.45764497665044,
+          "total_tokens": 181779.19881443004
+        },
+        "gpt-5.6-sol|xhigh": {
+          "input_tokens": 5230154.1064461935,
+          "cached_input_tokens": 4877876.906429585,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 37457.14942311607,
+          "reasoning_output_tokens": 13244.461388156815,
+          "total_tokens": 5267611.25586931
+        },
+        "gpt-5.6-sol|high": {
+          "input_tokens": 33105649.446033295,
+          "cached_input_tokens": 31802213.906646974,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 139762.61068626214,
+          "reasoning_output_tokens": 50354.37419754367,
+          "total_tokens": 33245412.05671956
+        },
+        "gpt-5.6-sol|ultra": {
+          "input_tokens": 166904510.23376647,
+          "cached_input_tokens": 160544949.73544028,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 591506.9708331893,
+          "reasoning_output_tokens": 226389.4375821278,
+          "total_tokens": 167652315.4885967
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 0.5775226743969807,
+          "tokens": 86377863.34883721,
+          "api_equivalent_usd": 52.96604651162791
+        },
+        "myscoutee": {
+          "hours": 0.7539879360182803,
+          "tokens": 112771099.37209302,
+          "api_equivalent_usd": 69.15011627906976
+        },
+        "myscoutee-registry": {
+          "hours": 0.048126889533081724,
+          "tokens": 7198155.279069767,
+          "api_equivalent_usd": 4.413837209302326
+        }
+      }
+    },
+    {
+      "task_id": "MSC-49",
+      "tokens": 1108651483,
+      "api_standard_usd_estimate": 636.42,
+      "active_hours": 20.1,
+      "allocated_hours": 18.038884490573846,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-5.6-sol|medium": {
+          "input_tokens": 8965277.322534876,
+          "cached_input_tokens": 8621727.393144287,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 39873.916626988226,
+          "reasoning_output_tokens": 11715.467185182491,
+          "total_tokens": 9005151.239161864
+        },
+        "gpt-5.6-sol|high": {
+          "input_tokens": 31385763.117286183,
+          "cached_input_tokens": 30248274.84137727,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 168331.18647333508,
+          "reasoning_output_tokens": 46331.40892086044,
+          "total_tokens": 31554094.30375952
+        },
+        "gpt-5.6-sol|xhigh": {
+          "input_tokens": 299450637.8853127,
+          "cached_input_tokens": 290160481.6361793,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 907649.4763645733,
+          "reasoning_output_tokens": 371058.27674564405,
+          "total_tokens": 300358287.3616773
+        },
+        "gpt-5.6-sol|ultra": {
+          "input_tokens": 750632445.4976296,
+          "cached_input_tokens": 728355741.9324222,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 2447055.540122301,
+          "reasoning_output_tokens": 1062018.280272636,
+          "total_tokens": 753879137.680125
+        },
+        "gpt-5.6-sol|unknown": {
+          "input_tokens": 13538311.964098051,
+          "cached_input_tokens": 12720214.742015988,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 82882.25386517441,
+          "reasoning_output_tokens": 28543.956364153582,
+          "total_tokens": 13854812.415276442
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 6.400894496655236,
+          "tokens": 393392461.7096774,
+          "api_equivalent_usd": 225.82645161290318
+        },
+        "myscoutee": {
+          "hours": 9.116425495236244,
+          "tokens": 560286233.344086,
+          "api_equivalent_usd": 321.6316129032258
+        },
+        "myscoutee-registry": {
+          "hours": 2.5215644986823653,
+          "tokens": 154972787.94623655,
+          "api_equivalent_usd": 88.96193548387096
+        }
+      }
+    },
+    {
+      "task_id": "MSC-86",
+      "tokens": 632315731,
+      "api_standard_usd_estimate": 865.66,
+      "active_hours": 20.4,
+      "allocated_hours": 20.431081111431123,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-6-astra|high": {
+          "input_tokens": 620894314.7035723,
+          "cached_input_tokens": 604764242.9468563,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 1689565.214534881,
+          "reasoning_output_tokens": 358660.54444791906,
+          "total_tokens": 622583879.9181072
+        },
+        "gpt-6-astra|xhigh": {
+          "input_tokens": 9690486.076129617,
+          "cached_input_tokens": 9317284.306049857,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 41365.00576325315,
+          "reasoning_output_tokens": 9396.615455374053,
+          "total_tokens": 9731851.08189287
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 12.880464178945708,
+          "tokens": 398633830.4130435,
+          "api_equivalent_usd": 545.7421739130434
+        },
+        "myscoutee": {
+          "hours": 6.662309058075366,
+          "tokens": 206189912.2826087,
+          "api_equivalent_usd": 282.28043478260867
+        },
+        "myscoutee-registry": {
+          "hours": 0.8883078744100488,
+          "tokens": 27491988.304347824,
+          "api_equivalent_usd": 37.63739130434782
+        }
+      }
+    },
+    {
+      "task_id": "MSC-88",
+      "tokens": 16985450,
+      "api_standard_usd_estimate": 22.81,
+      "active_hours": 0.4,
+      "allocated_hours": 0.3963959722717603,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-6-astra|high": {
+          "input_tokens": 16928837.60225791,
+          "cached_input_tokens": 16590276.236462656,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 56612.39774209031,
+          "reasoning_output_tokens": 10738.652851845176,
+          "total_tokens": 16985450.0
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-registry": {
+          "hours": 0.3963959722717603,
+          "tokens": 16985450.0,
+          "api_equivalent_usd": 22.81
+        }
+      }
+    },
+    {
+      "task_id": "MSC-96",
+      "tokens": 1256118,
+      "api_standard_usd_estimate": 1.57,
+      "active_hours": 0.0,
+      "allocated_hours": 0.0,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Estimated from observed token-to-model-activity ratio; not human labor time",
+      "allocated_time_basis": "Estimated task time; placement and overlap are unobserved",
+      "models": {
+        "gpt-6-astra|high": {
+          "input_tokens": 1253085.5715224105,
+          "cached_input_tokens": 1234219.4698222128,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 3032.4284775896126,
+          "reasoning_output_tokens": 1111.1877936748433,
+          "total_tokens": 1256118.0
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-registry": {
+          "hours": 0.0,
+          "tokens": 1256118.0,
+          "api_equivalent_usd": 1.57
+        }
+      }
+    },
+    {
+      "task_id": "MSC-100",
+      "tokens": 381645117,
+      "api_standard_usd_estimate": 522.72,
+      "active_hours": 13.3,
+      "allocated_hours": 13.197384999924235,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-6-astra|high": {
+          "input_tokens": 380396671.36989707,
+          "cached_input_tokens": 371519013.99397093,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 1248445.630102918,
+          "reasoning_output_tokens": 291362.96213543974,
+          "total_tokens": 381645117.0
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 6.598692499962118,
+          "tokens": 190822558.5,
+          "api_equivalent_usd": 261.36
+        },
+        "myscoutee": {
+          "hours": 6.109900462927887,
+          "tokens": 176687554.16666666,
+          "api_equivalent_usd": 242.0
+        },
+        "myscoutee-registry": {
+          "hours": 0.24439601851711548,
+          "tokens": 7067502.166666667,
+          "api_equivalent_usd": 9.68
+        },
+        "myscoutee-client-admin": {
+          "hours": 0.24439601851711548,
+          "tokens": 7067502.166666667,
+          "api_equivalent_usd": 9.68
+        }
+      }
+    },
+    {
+      "task_id": "MSC-109",
+      "tokens": 2559880,
+      "api_standard_usd_estimate": 3.99,
+      "active_hours": 0.2,
+      "allocated_hours": 0.1703602777587043,
+      "manual_effort_unknown": false,
+      "token_basis": "Estimated task allocation of measured daily account totals",
+      "duration_basis": "Union of recorded root task intervals; includes tool/network waits, not human labor time",
+      "allocated_time_basis": "Observed task intervals, overlap divided equally across concurrent tasks",
+      "models": {
+        "gpt-6-astra|high": {
+          "input_tokens": 2542713.1490136962,
+          "cached_input_tokens": 2476811.7269716696,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 17166.850986303834,
+          "reasoning_output_tokens": 6693.82121132088,
+          "total_tokens": 2559880.0
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 0.056786759252901435,
+          "tokens": 853293.3333333334,
+          "api_equivalent_usd": 1.33
+        },
+        "myscoutee-registry": {
+          "hours": 0.056786759252901435,
+          "tokens": 853293.3333333334,
+          "api_equivalent_usd": 1.33
+        },
+        "myscoutee-mcp": {
+          "hours": 0.056786759252901435,
+          "tokens": 853293.3333333334,
+          "api_equivalent_usd": 1.33
+        }
+      }
+    },
+    {
+      "task_id": "MSC-110",
+      "tokens": 11995121,
+      "api_standard_usd_estimate": 18.47,
+      "active_hours": 0.749,
+      "allocated_hours": 0.7487628333568572,
+      "manual_effort_unknown": false,
+      "token_basis": "Measured maintenance-session tokens; estimated allocation by backup snapshot ownership (9:2:2:2 across four Projects)",
+      "duration_basis": "Measured active root intervals; same project allocation weights; includes tool/network waits, not human labor",
+      "allocated_time_basis": "Measured active root intervals; same project allocation weights; includes tool/network waits, not human labor",
+      "models": {
+        "gpt-6-astra|high": {
+          "input_tokens": 11923384.799999999,
+          "cached_input_tokens": 11594572.799999999,
+          "cache_write_input_tokens": 0.0,
+          "output_tokens": 71736.0,
+          "reasoning_output_tokens": 21859.2,
+          "total_tokens": 11995120.799999999
+        }
+      },
+      "repository_allocations": {
+        "myscoutee-backend": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        },
+        "myscoutee": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        },
+        "myscoutee-registry": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        },
+        "myscoutee-payment-simulator": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        },
+        "myscoutee-client": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        },
+        "myscoutee-client-admin": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        },
+        "myscoutee-mcp": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        },
+        "myscoutee-agent": {
+          "hours": 0.09359535416960715,
+          "tokens": 1499390.125,
+          "api_equivalent_usd": 2.30875
+        }
+      }
+    }
+  ],
+  "maintenance_run": {
+    "cutoff_utc": "2026-09-30T23:16:07.594000+00:00",
+    "measured_tokens": 19991868,
+    "measured_active_hours": 1.2479380555947621,
+    "project_weights": {
+      "myscoutee": 0.6,
+      "myscoutee-old": 0.13333333333333333,
+      "e-kozig": 0.13333333333333333,
+      "math": 0.13333333333333333
+    },
+    "previous_msc108_tokens_removed": 8473514,
+    "previous_msc108_hours_removed": 0.46417527781592477,
+    "net_additional_account_allocation": 11518354,
+    "daily_attribution": "Not individually reconciled; allocated against remaining account allowance",
+    "models": {
+      "gpt-6-astra|high": {
+        "input_tokens": 19872308,
+        "cached_input_tokens": 19324288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 119560,
+        "reasoning_output_tokens": 36432,
+        "total_tokens": 19991868
+      }
+    }
+  }
+}
