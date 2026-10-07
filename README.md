@@ -15,8 +15,13 @@ protocol—not use MyScoutee.
 |---|---:|---:|---|
 | Operations Manual | 1.0.0 | MyScoutee 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Operations_Manual_v1.0.0_EN.pdf) |
 | Protocol Developer Manual | 1.0.0 | MyScoutee 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf) |
+| MCP User Guide | 1.0.0 | MyScoutee MCP / client 1.6.0 · MSC-119 | [PDF](https://raw.githubusercontent.com/fssrepository/myscoutee/master/guides/manuals/MyScoutee_MCP_User_Guide_v1.0.0_EN.pdf) |
 
-The manuals are the authoritative operating and protocol references.
+The Registry source/container release is
+[**1.3.0**](https://github.com/fssrepository/myscoutee-registry/releases/tag/v1.3.0).
+The Registry manuals retain their own document versions. The MCP User Guide
+covers the MyScoutee application's AI connections and operator statistics;
+its software scope is separate from the Registry protocol.
 
 ## Compose environments
 
