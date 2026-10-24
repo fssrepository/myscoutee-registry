@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "copyContracts": [
+    "COPY go.mod go.sum ./",
+    "COPY main.go ./",
+    "COPY registry/ ./registry/"
+  ],
+  "versionSymbol": "github.com/fssrepository/myscoutee-registry/registry/buildinfo.Version=${MYSCOUTEE_VERSION}"
+}

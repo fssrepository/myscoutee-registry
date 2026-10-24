@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "minimumLocalPort": 1024,
+  "allowStop": false,
+  "defaultPorts": "18443:443,18080:80"
+}

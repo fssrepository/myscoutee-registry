@@ -13,8 +13,8 @@ protocol—not use MyScoutee.
 
 | Manual | Document version | Applies to | PDF |
 |---|---:|---:|---|
-| Operations Manual | 1.0.0 | MyScoutee 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Operations_Manual_v1.0.0_EN.pdf) |
-| Protocol Developer Manual | 1.0.0 | MyScoutee 1.0.0 | [PDF](guides/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf) |
+| Operations Manual | 1.0.0 | MyScoutee 1.0.0 | [PDF](guides/publication/manuals/MyScoutee_Registry_Operations_Manual_v1.0.0_EN.pdf) |
+| Protocol Developer Manual | 1.0.0 | MyScoutee 1.0.0 | [PDF](guides/publication/manuals/MyScoutee_Registry_Protocol_Developer_Manual_v1.0.0_EN.pdf) |
 | MCP User Guide | 1.0.0 | MyScoutee MCP / client 1.6.0 · MSC-119 | [PDF](https://raw.githubusercontent.com/fssrepository/myscoutee/master/guides/manuals/MyScoutee_MCP_User_Guide_v1.0.0_EN.pdf) |
 
 The Registry source/container release is
@@ -22,6 +22,22 @@ The Registry source/container release is
 The Registry manuals retain their own document versions. The MCP User Guide
 covers the MyScoutee application's AI connections and operator statistics;
 its software scope is separate from the Registry protocol.
+
+## Source layout
+
+The module root contains the executable entry point, `main.go`. Application
+packages live under `registry/`: `cli` handles commands, `app` assembles the
+runtime, `httpapi` exposes HTTP, `service` owns business operations, and
+`store/sqlite` implements persistence. Protocol and identity packages remain
+separate packages in the same hierarchy.
+
+Build or run from the repository root:
+
+```sh
+go build -o build/registry .
+go run . version
+go test ./...
+```
 
 ## Compose environments
 
@@ -66,10 +82,23 @@ docker compose --env-file /etc/myscoutee-registry/registry.env \
   -f compose.prod.yaml up -d
 ```
 
-`compose.prod.yaml` includes `packaging/compose/compose.yaml`; it does not define
+`compose.prod.yaml` includes `config/packaging/compose/compose.yaml`; it does not define
 a second production stack. Prepare the packaged images, production environment
-and TLS material using the [production packaging instructions](packaging/README.md).
+and TLS material using the [production packaging instructions](guides/development/reference/packaging.md).
 Do not use the development `.env.example` as production configuration. Installed
 packages continue to use their existing `systemctl`/`registry-compose.sh` route.
 Use the same environment file and `-f` selection for later lifecycle commands.
 The backend's integrated dev/E2E stack continues to use its own Compose files.
+
+Shared release and client mechanisms are pinned under `config/packaging`.
+
+```sh
+npm --prefix config/packaging ci --ignore-scripts
+npm --prefix config/packaging run release -- build-production
+npm --prefix config/packaging run release -- package-production
+npm --prefix config/packaging test -- --list
+```
+
+Public configuration and Docker build contexts stay in `config/packaging`;
+release artifacts use `build/build/packaging/dist`. The process E2E suite is under
+[`tests/e2e`](tests/e2e/README.md).

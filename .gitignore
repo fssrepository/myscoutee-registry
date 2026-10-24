@@ -1,7 +1,6 @@
-/registry
+/myscoutee-registry
 /coverage.out
 /dist/
-/packaging/dist/
 *.db
 *.db-shm
 *.db-wal
@@ -9,3 +8,7 @@
 .env.*
 !.env.example
 !.env.production.example
+
+**/node_modules/
+/build/
+/config/packaging/client-tools/*.env

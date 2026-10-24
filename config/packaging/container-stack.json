@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "packageName": "myscoutee-registry",
+  "displayName": "MyScoutee Registry",
+  "runtimeIdentity": {
+    "uid": 65532,
+    "gid": 65532
+  },
+  "images": {
+    "registry": "myscoutee-registry",
+    "nginx": "myscoutee-registry-nginx"
+  },
+  "signatureDomains": {
+    "package": "myscoutee-registry-release-package-v1",
+    "clientTools": "myscoutee-registry-release-client-tools-v1"
+  },
+  "verifierSource": "tests/deployment/verify",
+  "documentationSource": "guides/development/reference/packaging.md"
+}

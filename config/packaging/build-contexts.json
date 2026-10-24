@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "architecture": "amd64",
+  "contexts": [
+    {
+      "name": "registry",
+      "imageEnvironment": "REGISTRY_PRODUCTION_IMAGE",
+      "repository": "myscoutee-registry",
+      "inputs": [
+        {
+          "source": "go.mod",
+          "target": "go.mod"
+        },
+        {
+          "source": "go.sum",
+          "target": "go.sum"
+        },
+        {
+          "source": "main.go",
+          "target": "main.go"
+        },
+        {
+          "source": "registry",
+          "target": "registry"
+        },
+        {
+          "source": "config/packaging/templates/registry.Dockerfile",
+          "target": "Dockerfile"
+        }
+      ]
+    },
+    {
+      "name": "nginx",
+      "imageEnvironment": "REGISTRY_NGINX_PRODUCTION_IMAGE",
+      "repository": "myscoutee-registry-nginx",
+      "inputs": [
+        {
+          "source": "config/packaging/templates/nginx.Dockerfile",
+          "target": "Dockerfile"
+        },
+        {
+          "source": "config/packaging/templates/nginx.conf.template",
+          "target": "nginx.conf.template"
+        }
+      ]
+    }
+  ]
+}

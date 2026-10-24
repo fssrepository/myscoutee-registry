@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "tests": {
+    "client-tools-test.sh": {
+      "owner": "package",
+      "path": "tests/consumer/client/container-client-tools-test.sh"
+    },
+    "debian-removal-contract-test.sh": {
+      "owner": "package",
+      "path": "tests/consumer/debian/container-debian-removal-contract-test.sh"
+    },
+    "docker-build-context-test.sh": {
+      "owner": "package",
+      "path": "tests/consumer/release/container-docker-build-context-test.sh"
+    },
+    "image-content-fingerprint-test.sh": {
+      "owner": "package",
+      "path": "tests/unit/image-content-fingerprint-test.sh"
+    },
+    "nginx-image-contract-test.sh": {
+      "owner": "package",
+      "path": "tests/consumer/deployment/container-nginx-image-contract-test.sh"
+    },
+    "package-contract-test.sh": {
+      "owner": "package",
+      "path": "tests/consumer/release/container-package-contract-test.sh"
+    },
+    "verify-deployment-test.sh": {
+      "owner": "package",
+      "path": "tests/consumer/deployment/container-verify-deployment-test.sh"
+    }
+  }
+}

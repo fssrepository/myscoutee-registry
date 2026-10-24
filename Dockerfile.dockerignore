@@ -3,10 +3,9 @@
 **
 !go.mod
 !go.sum
-!cmd/
-!cmd/**
-!internal/
-!internal/**
+!main.go
+!registry/
+!registry/**
 
 # Dockerfile-specific ignore files replace the shared .dockerignore. Repeat
 # the sensitive-file denies after the directory exceptions so they win.

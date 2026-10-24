@@ -2,7 +2,7 @@
 .gitignore
 .env
 .env.*
-registry
+myscoutee-registry
 coverage.out
 *.db
 *.db-shm

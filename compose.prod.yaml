@@ -2,4 +2,4 @@
 # Supply the production registry.env explicitly with --env-file.
 name: myscoutee-registry-prod
 include:
-  - packaging/compose/compose.yaml
+  - config/packaging/compose/compose.yaml

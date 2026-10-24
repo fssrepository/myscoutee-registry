@@ -1,0 +1,22 @@
+{
+  "name": "myscoutee-registry-packaging",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "client": "myscoutee-packaging client",
+    "release": "myscoutee-packaging release",
+    "prepare-runtime": "myscoutee-packaging prepare-runtime",
+    "runtime": "myscoutee-packaging runtime",
+    "test": "myscoutee-packaging test",
+    "verify": "myscoutee-packaging verify"
+  },
+  "devDependencies": {
+    "@fssrepository/myscoutee-packaging": "1.5.0"
+  },
+  "myscouteePackaging": {
+    "profile": "container-stack"
+  }
+}
