@@ -12,3 +12,6 @@
 **/node_modules/
 /build/
 /config/packaging/client-tools/*.env
+
+# Local credentials, private evidence and runtime state; never publish.
+/.local/

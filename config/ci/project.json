@@ -1,0 +1,12 @@
+{
+  "project": "myscoutee-registry",
+  "type": "go-image",
+  "depends_on": [
+    "myscoutee-packaging"
+  ],
+  "variables": {
+    "LAB_GITHUB_REPOSITORY": "fssrepository/myscoutee-registry"
+  },
+  "release_notes": "guides/development/releases/v{version}.md",
+  "release_name": "MyScoutee Registry"
+}
